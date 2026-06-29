@@ -1,6 +1,4 @@
 const tokenKey = 'freespace_token';
-const apiUrlKey = 'freespace_api_base_url';
-
 const els = {
   loginForm: document.querySelector('#loginForm'),
   logoutButton: document.querySelector('#logoutButton'),
@@ -32,13 +30,14 @@ let appState = {
 };
 
 function apiBase() {
-  return (localStorage.getItem(apiUrlKey) || window.FREESPACE_API_BASE_URL || '').replace(/\/$/, '');
+  return (window.FREESPACE_API_BASE_URL || '').replace(/\/$/, '');
 }
 
 function showMessage(text, type = 'info') {
   const readable = {
     invalid_login: 'Benutzername oder Passwort ist falsch.',
-    auth_config: 'Login-Tabelle oder SQL-Funktion fehlt.'
+    auth_config: 'Login-Tabelle ist nicht erreichbar. Prüfe SUPABASE_URL und ob app_users existiert.',
+    login_version: 'Alter Login-Code ist noch deployed. Bitte Vercel neu deployen.'
   };
   els.message.textContent = readable[text] || text;
   els.message.className = `message ${type === 'error' ? 'error' : ''}`;
@@ -63,7 +62,7 @@ async function apiFetch(path, options = {}) {
     }
   });
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || response.statusText);
+  if (!response.ok) throw new Error(data.detail || data.error || response.statusText);
   return data;
 }
 

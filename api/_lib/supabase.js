@@ -23,6 +23,9 @@ async function supabaseFetch(path, options = {}) {
     const message = data && data.message ? data.message : response.statusText;
     const error = new Error(message);
     error.status = response.status;
+    error.code = data && data.code ? data.code : '';
+    error.details = data && data.details ? data.details : '';
+    error.hint = data && data.hint ? data.hint : '';
     throw error;
   }
   return data;
