@@ -1,7 +1,9 @@
 const { requiredEnv } = require('./auth');
 
 function supabaseBase() {
-  return requiredEnv('SUPABASE_URL').replace(/\/$/, '');
+  return requiredEnv('SUPABASE_URL')
+    .replace(/\/$/, '')
+    .replace(/\/rest\/v1$/, '');
 }
 
 async function supabaseFetch(path, options = {}) {
