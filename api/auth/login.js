@@ -1,6 +1,11 @@
 const { requiredEnv, signToken } = require('../_lib/auth');
 const { json, readBody, setCors } = require('../_lib/http');
 const { supabaseFetch } = require('../_lib/supabase');
+const crypto = require('crypto');
+
+function hashPassword(password, salt) {
+  return crypto.createHash('sha256').update(`${salt}:${password}`).digest('hex');
+}
 
 module.exports = async function handler(req, res) {
   setCors(res);
@@ -25,19 +30,17 @@ module.exports = async function handler(req, res) {
       return;
     }
 
-    const users = await supabaseFetch('rpc/app_login', {
-      method: 'POST',
-      body: JSON.stringify({
-        p_username: username,
-        p_password: password
-      })
-    });
-
+    const users = await supabaseFetch(`app_users?username=eq.${encodeURIComponent(username)}&is_active=eq.true&select=id,username,display_name,password_salt,password_hash`);
     const user = users[0];
-    if (!user) {
+    if (!user || hashPassword(password, user.password_salt) !== user.password_hash) {
       json(res, 401, { error: 'invalid_login' });
       return;
     }
+
+    await supabaseFetch(`app_users?id=eq.${encodeURIComponent(user.id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ last_login_at: new Date().toISOString() })
+    });
 
     const token = signToken({
       sub: user.id,
