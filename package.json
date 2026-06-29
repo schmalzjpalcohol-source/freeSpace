@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "vercel dev",
-    "check": "node --check api/auth/github/start.js && node --check api/auth/github/callback.js && node --check api/regale.js"
+    "check": "node --check api/auth/login.js && node --check api/regale.js && node --check api/health.js && node --check docs/app.js"
   },
   "devDependencies": {
     "vercel": "^34.0.0"

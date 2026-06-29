@@ -2,8 +2,7 @@ const tokenKey = 'freespace_token';
 const apiUrlKey = 'freespace_api_base_url';
 
 const els = {
-  loginButton: document.querySelector('#loginButton'),
-  loginHeroButton: document.querySelector('#loginHeroButton'),
+  loginForm: document.querySelector('#loginForm'),
   logoutButton: document.querySelector('#logoutButton'),
   refreshButton: document.querySelector('#refreshButton'),
   userLabel: document.querySelector('#userLabel'),
@@ -38,31 +37,12 @@ function apiBase() {
 
 function showMessage(text, type = 'info') {
   const readable = {
-    oauth_state: 'Login-Sitzung abgelaufen. Bitte nochmal versuchen.',
-    github_token: 'GitHub hat den Login nicht akzeptiert. Callback-URL und Secret prüfen.',
-    not_allowed: 'Dein GitHub-User ist noch nicht für diese App freigegeben.',
-    auth_users_config: 'User-Tabelle fehlt oder ist nicht erreichbar.'
+    invalid_login: 'Benutzername oder Passwort ist falsch.',
+    auth_config: 'Login-Tabelle oder SQL-Funktion fehlt.'
   };
-  els.message.textContent = text;
   els.message.textContent = readable[text] || text;
   els.message.className = `message ${type === 'error' ? 'error' : ''}`;
   window.setTimeout(() => els.message.classList.add('hidden'), 4200);
-}
-
-function applyHashAuth() {
-  const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''));
-  const token = hash.get('token');
-  const error = hash.get('error');
-  if (token) {
-    appState.token = token;
-    localStorage.setItem(tokenKey, token);
-    history.replaceState(null, '', window.location.pathname + window.location.search);
-    showMessage('Login erfolgreich.');
-  }
-  if (error) {
-    history.replaceState(null, '', window.location.pathname + window.location.search);
-    showMessage(error, 'error');
-  }
 }
 
 function authHeaders() {
@@ -90,7 +70,6 @@ async function apiFetch(path, options = {}) {
 function setAuthUi() {
   const base = apiBase();
   els.setupPanel.classList.toggle('hidden', Boolean(base));
-  els.loginButton.classList.toggle('hidden', Boolean(appState.token));
   els.logoutButton.classList.toggle('hidden', !appState.token);
   els.loginView.classList.toggle('hidden', Boolean(appState.token));
   els.appView.classList.toggle('hidden', !appState.token);
@@ -232,17 +211,24 @@ async function submitPackage(event) {
   await loadShelves();
 }
 
-function startLogin() {
-  const base = apiBase();
-  if (!base) {
-    showMessage('Bitte zuerst die Vercel-URL in docs/config.js eintragen.', 'error');
-    return;
-  }
-  window.location.href = `${base}/api/auth/github/start`;
+async function submitLogin(event) {
+  event.preventDefault();
+  const payload = Object.fromEntries(new FormData(els.loginForm).entries());
+  const data = await apiFetch('/api/auth/login', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  appState.token = data.token;
+  appState.user = data.user;
+  localStorage.setItem(tokenKey, data.token);
+  els.loginForm.reset();
+  showMessage('Login erfolgreich.');
+  await loadShelves();
 }
 
-els.loginButton.addEventListener('click', startLogin);
-els.loginHeroButton.addEventListener('click', startLogin);
+els.loginForm.addEventListener('submit', event => {
+  submitLogin(event).catch(error => showMessage(error.message, 'error'));
+});
 
 els.logoutButton.addEventListener('click', () => {
   appState.token = '';
@@ -260,7 +246,6 @@ els.packageForm.addEventListener('submit', event => {
   submitPackage(event).catch(error => showMessage(error.message, 'error'));
 });
 
-applyHashAuth();
 render();
 loadShelves().catch(error => {
   showMessage(error.message, 'error');

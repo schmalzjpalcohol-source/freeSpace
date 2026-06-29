@@ -15,7 +15,6 @@
         </div>
         <div class="auth">
           <span id="userLabel" class="user-label">Nicht angemeldet</span>
-          <button id="loginButton" class="primary">Login</button>
           <button id="logoutButton" class="ghost hidden">Logout</button>
         </div>
       </section>
@@ -30,9 +29,19 @@
       <section id="loginView" class="login-view">
         <div class="login-box">
           <p class="eyebrow">Login erforderlich</p>
-          <h2>Bitte mit GitHub anmelden</h2>
+          <h2>Anmelden</h2>
           <p class="login-copy">Danach siehst du die Regalübersicht und kannst Pakete speichern.</p>
-          <button id="loginHeroButton" class="primary wide">Mit GitHub einloggen</button>
+          <form id="loginForm">
+            <label>
+              Benutzername
+              <input id="username" name="username" autocomplete="username" required>
+            </label>
+            <label>
+              Passwort
+              <input id="password" name="password" type="password" autocomplete="current-password" required>
+            </label>
+            <button class="primary wide" type="submit">Einloggen</button>
+          </form>
         </div>
       </section>
 
