@@ -3,11 +3,14 @@ const apiUrlKey = 'freespace_api_base_url';
 
 const els = {
   loginButton: document.querySelector('#loginButton'),
+  loginHeroButton: document.querySelector('#loginHeroButton'),
   logoutButton: document.querySelector('#logoutButton'),
   refreshButton: document.querySelector('#refreshButton'),
   userLabel: document.querySelector('#userLabel'),
   setupPanel: document.querySelector('#setupPanel'),
   message: document.querySelector('#message'),
+  loginView: document.querySelector('#loginView'),
+  appView: document.querySelector('#appView'),
   shelves: document.querySelector('#shelves'),
   summaryText: document.querySelector('#summaryText'),
   packageForm: document.querySelector('#packageForm'),
@@ -34,7 +37,14 @@ function apiBase() {
 }
 
 function showMessage(text, type = 'info') {
+  const readable = {
+    oauth_state: 'Login-Sitzung abgelaufen. Bitte nochmal versuchen.',
+    github_token: 'GitHub hat den Login nicht akzeptiert. Callback-URL und Secret prüfen.',
+    not_allowed: 'Dein GitHub-User ist noch nicht für diese App freigegeben.',
+    auth_users_config: 'User-Tabelle fehlt oder ist nicht erreichbar.'
+  };
   els.message.textContent = text;
+  els.message.textContent = readable[text] || text;
   els.message.className = `message ${type === 'error' ? 'error' : ''}`;
   window.setTimeout(() => els.message.classList.add('hidden'), 4200);
 }
@@ -51,7 +61,7 @@ function applyHashAuth() {
   }
   if (error) {
     history.replaceState(null, '', window.location.pathname + window.location.search);
-    showMessage(`Login fehlgeschlagen: ${error}`, 'error');
+    showMessage(error, 'error');
   }
 }
 
@@ -82,6 +92,8 @@ function setAuthUi() {
   els.setupPanel.classList.toggle('hidden', Boolean(base));
   els.loginButton.classList.toggle('hidden', Boolean(appState.token));
   els.logoutButton.classList.toggle('hidden', !appState.token);
+  els.loginView.classList.toggle('hidden', Boolean(appState.token));
+  els.appView.classList.toggle('hidden', !appState.token);
   els.userLabel.textContent = appState.user
     ? `Angemeldet: ${appState.user.login}`
     : appState.token
@@ -220,14 +232,17 @@ async function submitPackage(event) {
   await loadShelves();
 }
 
-els.loginButton.addEventListener('click', () => {
+function startLogin() {
   const base = apiBase();
   if (!base) {
     showMessage('Bitte zuerst die Vercel-URL in docs/config.js eintragen.', 'error');
     return;
   }
   window.location.href = `${base}/api/auth/github/start`;
-});
+}
+
+els.loginButton.addEventListener('click', startLogin);
+els.loginHeroButton.addEventListener('click', startLogin);
 
 els.logoutButton.addEventListener('click', () => {
   appState.token = '';

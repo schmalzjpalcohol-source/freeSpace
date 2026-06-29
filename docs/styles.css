@@ -147,6 +147,30 @@ button {
   align-items: start;
 }
 
+.login-view {
+  min-height: 56vh;
+  display: grid;
+  place-items: center;
+}
+
+.login-box {
+  width: min(420px, 100%);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 22px;
+}
+
+.login-box h2 {
+  font-size: 1.45rem;
+  margin-bottom: 8px;
+}
+
+.login-copy {
+  color: var(--muted);
+  margin-bottom: 18px;
+}
+
 .panel,
 .content {
   background: var(--surface);

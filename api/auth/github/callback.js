@@ -1,4 +1,5 @@
 const { requiredEnv, signToken } = require('../../_lib/auth');
+const { supabaseFetch } = require('../../_lib/supabase');
 
 function readCookie(req, name) {
   const cookies = req.headers.cookie || '';
@@ -53,19 +54,39 @@ module.exports = async function handler(req, res) {
   });
   const githubUser = await userResponse.json();
   const login = githubUser.login || '';
+  const normalizedLogin = login.toLowerCase();
   const allowed = (process.env.GITHUB_ALLOWED_USERS || '')
     .split(',')
     .map(value => value.trim().toLowerCase())
     .filter(Boolean);
 
-  if (allowed.length && !allowed.includes(login.toLowerCase())) {
+  let dbUserAllowed = false;
+  try {
+    const users = await supabaseFetch(`app_users?github_login=eq.${encodeURIComponent(normalizedLogin)}&is_active=eq.true&select=*`);
+    dbUserAllowed = users.length > 0;
+  } catch (error) {
+    redirect(res, `${frontendUrl}#error=auth_users_config`);
+    return;
+  }
+
+  const envUserAllowed = allowed.length > 0 && allowed.includes(normalizedLogin);
+  if (!dbUserAllowed && !envUserAllowed) {
     redirect(res, `${frontendUrl}#error=not_allowed`);
     return;
   }
 
+  await supabaseFetch(`app_users?github_login=eq.${encodeURIComponent(normalizedLogin)}`, {
+    method: 'PATCH',
+    body: JSON.stringify({
+      display_name: githubUser.name || login,
+      avatar_url: githubUser.avatar_url || '',
+      last_login_at: new Date().toISOString()
+    })
+  });
+
   const token = signToken({
     sub: String(githubUser.id),
-    login,
+    login: normalizedLogin,
     name: githubUser.name || login,
     avatarUrl: githubUser.avatar_url || ''
   });
