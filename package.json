@@ -1,0 +1,12 @@
+{
+  "name": "freespace",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "vercel dev",
+    "check": "node --check api/auth/github/start.js && node --check api/auth/github/callback.js && node --check api/regale.js"
+  },
+  "devDependencies": {
+    "vercel": "^34.0.0"
+  }
+}

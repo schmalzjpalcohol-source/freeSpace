@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>freeSpace Regalübersicht</title>
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <main class="shell">
+      <section class="topbar">
+        <div>
+          <p class="eyebrow">freeSpace</p>
+          <h1>Regale & freie Plätze</h1>
+        </div>
+        <div class="auth">
+          <span id="userLabel" class="user-label">Nicht angemeldet</span>
+          <button id="loginButton" class="primary">Login</button>
+          <button id="logoutButton" class="ghost hidden">Logout</button>
+        </div>
+      </section>
+
+      <section id="setupPanel" class="setup hidden">
+        <strong>API-URL fehlt.</strong>
+        Trage nach dem Vercel-Deploy in <code>docs/config.js</code> deine Vercel-URL ein.
+      </section>
+
+      <section id="message" class="message hidden"></section>
+
+      <section class="layout">
+        <aside class="panel">
+          <div class="panel-head">
+            <h2>Paket hinzufügen</h2>
+            <span id="selectedCell">Kein Platz gewählt</span>
+          </div>
+          <form id="packageForm">
+            <label>
+              Regal
+              <input id="shelfName" name="shelfName" autocomplete="off" placeholder="Regal A" required>
+            </label>
+            <div class="split">
+              <label>
+                Reihen
+                <input id="shelfRows" name="shelfRows" type="number" min="1" max="12" value="4">
+              </label>
+              <label>
+                Spalten
+                <input id="shelfColumns" name="shelfColumns" type="number" min="1" max="20" value="8">
+              </label>
+            </div>
+            <div class="split">
+              <label>
+                Reihe
+                <input id="rowIndex" name="rowIndex" type="number" min="1" value="1" required>
+              </label>
+              <label>
+                Platz
+                <input id="columnIndex" name="columnIndex" type="number" min="1" value="1" required>
+              </label>
+            </div>
+            <label>
+              Packung
+              <input id="packageName" name="packageName" autocomplete="off" placeholder="Schrauben M4" required>
+            </label>
+            <div class="split">
+              <label>
+                Menge
+                <input id="quantity" name="quantity" type="number" min="1" value="1">
+              </label>
+              <label>
+                Notiz
+                <input id="note" name="note" autocomplete="off" placeholder="optional">
+              </label>
+            </div>
+            <button class="primary wide" type="submit">Speichern</button>
+          </form>
+        </aside>
+
+        <section class="content">
+          <div class="toolbar">
+            <div>
+              <h2>Übersicht</h2>
+              <p id="summaryText">Bitte einloggen.</p>
+            </div>
+            <button id="refreshButton" class="ghost" type="button">Neu laden</button>
+          </div>
+          <div id="shelves" class="shelves"></div>
+        </section>
+      </section>
+    </main>
+
+    <script src="./config.js"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>
