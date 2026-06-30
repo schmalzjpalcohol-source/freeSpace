@@ -27,7 +27,8 @@ body {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
 }
 
@@ -44,6 +45,13 @@ input {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+}
+
+.toolbar-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .topbar {
@@ -107,6 +115,18 @@ button {
   background: var(--surface);
   border: 1px solid var(--line);
   color: var(--ink);
+}
+
+.tab {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--ink);
+}
+
+.tab.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: white;
 }
 
 .wide {
@@ -206,7 +226,8 @@ label {
   font-size: 0.88rem;
 }
 
-input {
+input,
+select {
   width: 100%;
   min-height: 42px;
   border: 1px solid var(--line);
@@ -236,6 +257,65 @@ input {
   margin-top: 4px;
 }
 
+.overview-cards {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.overview-card {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  display: grid;
+  gap: 4px;
+}
+
+.overview-card span,
+.overview-card small,
+.place-type {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.overview-card strong {
+  font-size: 1.55rem;
+}
+
+.warehouse-map {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.map-zone {
+  min-height: 82px;
+  background: #f8fbff;
+  border: 1px solid #c9ddec;
+  color: var(--ink);
+  display: grid;
+  align-content: center;
+  text-align: left;
+  gap: 5px;
+}
+
+.map-zone span {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.map-zone strong {
+  font-size: 1rem;
+}
+
+.empty-zone {
+  opacity: 0.68;
+}
+
 .shelves {
   display: grid;
   gap: 18px;
@@ -244,6 +324,13 @@ input {
 .shelf {
   border-top: 1px solid var(--line);
   padding-top: 16px;
+}
+
+.floor-place {
+  background: #fbfaf3;
+  border: 1px solid #eadfbd;
+  border-radius: 8px;
+  padding: 14px;
 }
 
 .shelf:first-child {
@@ -276,6 +363,9 @@ input {
 .grid {
   display: grid;
   gap: 6px;
+  grid-auto-rows: minmax(76px, auto);
+  overflow-x: auto;
+  padding-bottom: 2px;
 }
 
 .cell {
@@ -293,6 +383,18 @@ input {
 .cell.busy {
   background: var(--busy);
   border-color: #efb37d;
+  box-shadow: inset 0 0 0 2px rgba(217, 123, 43, 0.16);
+}
+
+.floor-place .cell {
+  min-height: 92px;
+  background: #f2efe3;
+  border-style: dashed;
+}
+
+.floor-place .cell.busy {
+  background: #ffe2bc;
+  border-style: solid;
 }
 
 .cell.selected {
@@ -326,6 +428,71 @@ input {
   border: 1px solid rgba(183, 50, 50, 0.2);
 }
 
+.examples {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.examples button {
+  min-height: 38px;
+  padding: 0 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  font-size: 0.86rem;
+}
+
+.place-view {
+  display: grid;
+  gap: 16px;
+}
+
+.place-form {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.place-actions,
+.place-row-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.place-list {
+  display: grid;
+  gap: 10px;
+}
+
+.place-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  background: var(--surface);
+}
+
+.place-item h3 {
+  margin: 0 0 4px;
+  font-size: 1rem;
+}
+
+.place-item p {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.floor-place-item {
+  background: #fbfaf3;
+  border-color: #eadfbd;
+}
+
 @media (max-width: 820px) {
   .shell {
     width: min(100% - 20px, 680px);
@@ -338,12 +505,21 @@ input {
     flex-direction: column;
   }
 
+  .toolbar-actions {
+    justify-content: flex-start;
+  }
+
   .auth {
     justify-content: flex-start;
   }
 
   .layout {
     grid-template-columns: 1fr;
+  }
+
+  .overview-cards,
+  .warehouse-map {
+    grid-template-columns: 1fr 1fr;
   }
 
   .panel {
@@ -356,5 +532,18 @@ input {
 
   .cell {
     min-height: 68px;
+  }
+
+  .place-item {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 520px) {
+  .overview-cards,
+  .warehouse-map,
+  .examples {
+    grid-template-columns: 1fr;
   }
 }

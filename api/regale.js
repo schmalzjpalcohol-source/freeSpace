@@ -8,6 +8,29 @@ function intBetween(value, min, max, fallback) {
   return Math.max(min, Math.min(max, parsed));
 }
 
+function packageArea(item) {
+  return Math.max(1, item.width_units || 1) * Math.max(1, item.depth_units || 1);
+}
+
+function overlaps(a, b) {
+  return (
+    a.columnIndex < b.columnIndex + b.widthUnits &&
+    a.columnIndex + a.widthUnits > b.columnIndex &&
+    a.rowIndex < b.rowIndex + b.depthUnits &&
+    a.rowIndex + a.depthUnits > b.rowIndex
+  );
+}
+
+function packageRect(item) {
+  return {
+    id: item.id,
+    rowIndex: item.row_index,
+    columnIndex: item.column_index,
+    widthUnits: item.width_units || 1,
+    depthUnits: item.depth_units || 1
+  };
+}
+
 async function findShelf(name) {
   const encoded = encodeURIComponent(name);
   const shelves = await supabaseFetch(`shelves?name=eq.${encoded}&select=*`);
@@ -27,11 +50,13 @@ async function ensureShelf(body) {
 
   const rows = intBetween(body.shelfRows, 1, 12, 4);
   const columns = intBetween(body.shelfColumns, 1, 20, 8);
+  const locationType = body.locationType === 'floor' ? 'floor' : 'shelf';
   const created = await supabaseFetch('shelves', {
     method: 'POST',
     body: JSON.stringify({
       name: shelfName,
       label: shelfName,
+      location_type: locationType,
       rows,
       columns,
       notes: ''
@@ -44,14 +69,31 @@ function buildOverview(shelves, packages) {
   return shelves.map(shelf => {
     const shelfPackages = packages.filter(item => item.shelf_id === shelf.id);
     const totalPlaces = shelf.rows * shelf.columns;
+    const usedPlaces = shelfPackages.reduce((sum, item) => sum + packageArea(item), 0);
     return {
       ...shelf,
       totalPlaces,
-      usedPlaces: shelfPackages.length,
-      freePlaces: totalPlaces - shelfPackages.length,
+      usedPlaces,
+      freePlaces: Math.max(0, totalPlaces - usedPlaces),
       packages: shelfPackages
     };
   });
+}
+
+async function assertPlaceFree(shelf, candidate, excludeId) {
+  if (candidate.rowIndex + candidate.depthUnits - 1 > shelf.rows || candidate.columnIndex + candidate.widthUnits - 1 > shelf.columns) {
+    const error = new Error('Die Packung passt nicht in diesen Bereich.');
+    error.status = 400;
+    throw error;
+  }
+
+  const shelfPackages = await supabaseFetch(`packages?shelf_id=eq.${shelf.id}&select=id,row_index,column_index,width_units,depth_units,package_name`);
+  const collision = shelfPackages.find(item => item.id !== excludeId && overlaps(candidate, packageRect(item)));
+  if (collision) {
+    const error = new Error(`Dieser Bereich ist schon belegt von ${collision.package_name}.`);
+    error.status = 409;
+    throw error;
+  }
 }
 
 module.exports = async function handler(req, res) {
@@ -82,6 +124,8 @@ module.exports = async function handler(req, res) {
       const shelf = await ensureShelf(body);
       const rowIndex = intBetween(body.rowIndex, 1, shelf.rows, 1);
       const columnIndex = intBetween(body.columnIndex, 1, shelf.columns, 1);
+      const widthUnits = intBetween(body.widthUnits, 1, shelf.columns, 1);
+      const depthUnits = intBetween(body.depthUnits, 1, shelf.rows, 1);
       const packageName = String(body.packageName || '').trim();
 
       if (!packageName) {
@@ -89,13 +133,7 @@ module.exports = async function handler(req, res) {
         return;
       }
 
-      const occupied = await supabaseFetch(
-        `packages?shelf_id=eq.${shelf.id}&row_index=eq.${rowIndex}&column_index=eq.${columnIndex}&select=id,package_name`
-      );
-      if (occupied.length) {
-        json(res, 409, { error: 'This place is already occupied.', occupiedBy: occupied[0] });
-        return;
-      }
+      await assertPlaceFree(shelf, { rowIndex, columnIndex, widthUnits, depthUnits });
 
       const inserted = await supabaseFetch('packages', {
         method: 'POST',
@@ -104,6 +142,8 @@ module.exports = async function handler(req, res) {
           shelf_name: shelf.name,
           row_index: rowIndex,
           column_index: columnIndex,
+          width_units: widthUnits,
+          depth_units: depthUnits,
           package_name: packageName,
           quantity: intBetween(body.quantity, 1, 9999, 1),
           note: String(body.note || '').trim(),
@@ -112,6 +152,47 @@ module.exports = async function handler(req, res) {
         })
       });
       json(res, 201, { package: inserted[0] });
+      return;
+    }
+
+    if (req.method === 'PATCH') {
+      const body = await readBody(req);
+      const id = String(body.packageId || '').trim();
+      if (!id) {
+        json(res, 400, { error: 'packageId is required' });
+        return;
+      }
+
+      const shelf = await ensureShelf(body);
+      const rowIndex = intBetween(body.rowIndex, 1, shelf.rows, 1);
+      const columnIndex = intBetween(body.columnIndex, 1, shelf.columns, 1);
+      const widthUnits = intBetween(body.widthUnits, 1, shelf.columns, 1);
+      const depthUnits = intBetween(body.depthUnits, 1, shelf.rows, 1);
+      const packageName = String(body.packageName || '').trim();
+
+      if (!packageName) {
+        json(res, 400, { error: 'packageName is required' });
+        return;
+      }
+
+      await assertPlaceFree(shelf, { rowIndex, columnIndex, widthUnits, depthUnits }, id);
+
+      const updated = await supabaseFetch(`packages?id=eq.${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          shelf_id: shelf.id,
+          shelf_name: shelf.name,
+          row_index: rowIndex,
+          column_index: columnIndex,
+          width_units: widthUnits,
+          depth_units: depthUnits,
+          package_name: packageName,
+          quantity: intBetween(body.quantity, 1, 9999, 1),
+          note: String(body.note || '').trim(),
+          updated_at: new Date().toISOString()
+        })
+      });
+      json(res, 200, { package: updated[0] });
       return;
     }
 

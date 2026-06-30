@@ -48,32 +48,57 @@
       <section id="appView" class="layout hidden">
         <aside class="panel">
           <div class="panel-head">
-            <h2>Paket hinzufügen</h2>
+            <h2 id="formTitle">Paket hinzufügen</h2>
             <span id="selectedCell">Kein Platz gewählt</span>
           </div>
           <form id="packageForm">
+            <input id="packageId" name="packageId" type="hidden">
             <label>
-              Regal
-              <input id="shelfName" name="shelfName" autocomplete="off" placeholder="Regal A" required>
+              Ort-Typ
+              <select id="locationType" name="locationType">
+                <option value="shelf">Regal</option>
+                <option value="floor">Bodenplatz</option>
+              </select>
+            </label>
+            <label>
+              Ort
+              <input id="shelfName" name="shelfName" autocomplete="off" list="placeExamples" placeholder="Regal A" required>
+              <datalist id="placeExamples">
+                <option value="Regal A"></option>
+                <option value="Regal B"></option>
+                <option value="Boden - Wareneingang"></option>
+                <option value="Boden - Mitte"></option>
+                <option value="Boden - Ausgang"></option>
+              </datalist>
             </label>
             <div class="split">
               <label>
-                Reihen
+                Reihen/Zonen
                 <input id="shelfRows" name="shelfRows" type="number" min="1" max="12" value="4">
               </label>
               <label>
-                Spalten
+                Plätze
                 <input id="shelfColumns" name="shelfColumns" type="number" min="1" max="20" value="8">
               </label>
             </div>
             <div class="split">
               <label>
-                Reihe
+                Reihe/Zone
                 <input id="rowIndex" name="rowIndex" type="number" min="1" value="1" required>
               </label>
               <label>
                 Platz
                 <input id="columnIndex" name="columnIndex" type="number" min="1" value="1" required>
+              </label>
+            </div>
+            <div class="split">
+              <label>
+                Breite in Plätzen
+                <input id="widthUnits" name="widthUnits" type="number" min="1" max="20" value="1">
+              </label>
+              <label>
+                Tiefe in Zonen
+                <input id="depthUnits" name="depthUnits" type="number" min="1" max="12" value="1">
               </label>
             </div>
             <label>
@@ -90,7 +115,12 @@
                 <input id="note" name="note" autocomplete="off" placeholder="optional">
               </label>
             </div>
-            <button class="primary wide" type="submit">Speichern</button>
+            <div class="examples">
+              <button type="button" data-example="Regal A|shelf|4|8|1|1|1|1|Karton Musterware|1|oben links">Regal-Beispiel</button>
+              <button type="button" data-example="Boden - Wareneingang|floor|2|4|1|1|2|1|Palette neu|1|groß, zuerst prüfen">Boden-Beispiel</button>
+            </div>
+            <button id="saveButton" class="primary wide" type="submit">Speichern</button>
+            <button id="cancelEditButton" class="ghost wide hidden" type="button">Bearbeiten abbrechen</button>
           </form>
         </aside>
 
@@ -100,9 +130,52 @@
               <h2>Übersicht</h2>
               <p id="summaryText">Bitte einloggen.</p>
             </div>
-            <button id="refreshButton" class="ghost" type="button">Neu laden</button>
+            <div class="toolbar-actions">
+              <button id="packagesTab" class="tab active" type="button">Pakete</button>
+              <button id="placesTab" class="tab" type="button">Orte verwalten</button>
+              <button id="refreshButton" class="ghost" type="button">Neu laden</button>
+            </div>
           </div>
-          <div id="shelves" class="shelves"></div>
+          <div id="packageView">
+            <div id="overviewCards" class="overview-cards"></div>
+            <div id="warehouseMap" class="warehouse-map"></div>
+            <div id="shelves" class="shelves"></div>
+          </div>
+          <section id="placeView" class="place-view hidden">
+            <form id="placeForm" class="place-form">
+              <input id="placeId" name="id" type="hidden">
+              <label>
+                Typ
+                <select id="placeLocationType" name="locationType">
+                  <option value="shelf">Regal</option>
+                  <option value="floor">Bodenplatz</option>
+                </select>
+              </label>
+              <label>
+                Name
+                <input id="placeName" name="name" autocomplete="off" placeholder="Boden - Mitte" required>
+              </label>
+              <div class="split">
+                <label>
+                  Reihen/Zonen
+                  <input id="placeRows" name="rows" type="number" min="1" max="12" value="4">
+                </label>
+                <label>
+                  Plätze
+                  <input id="placeColumns" name="columns" type="number" min="1" max="20" value="8">
+                </label>
+              </div>
+              <label>
+                Notiz
+                <input id="placeNotes" name="notes" autocomplete="off" placeholder="z.B. links neben Eingang">
+              </label>
+              <div class="place-actions">
+                <button id="savePlaceButton" class="primary" type="submit">Ort speichern</button>
+                <button id="cancelPlaceButton" class="ghost hidden" type="button">Abbrechen</button>
+              </div>
+            </form>
+            <div id="placeList" class="place-list"></div>
+          </section>
         </section>
       </section>
     </main>
