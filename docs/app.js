@@ -192,6 +192,21 @@ function selectedDraft() {
   };
 }
 
+function setDraftFormValues(shelf, draft) {
+  const adjusted = draftAtCell(
+    { row: draft.row, column: draft.column },
+    shelf,
+    { width: draft.width, depth: draft.depth }
+  );
+  els.rowIndex.value = adjusted.row;
+  els.columnIndex.value = adjusted.column;
+  els.widthUnits.value = inputMeters(adjusted.width);
+  els.depthUnits.value = inputMeters(adjusted.depth);
+  appState.selected = { shelf, row: adjusted.row, column: adjusted.column };
+  els.selectedCell.textContent = `${shelf.name}: ${formatMeters(adjusted.width)} x ${formatMeters(adjusted.depth)} m gewählt`;
+  return adjusted;
+}
+
 function applyDraftSelection(shelf, draft) {
   appState.selected = { shelf, row: draft.row, column: draft.column };
   els.packageId.value = '';
@@ -199,14 +214,10 @@ function applyDraftSelection(shelf, draft) {
   els.shelfName.value = shelf.name;
   els.shelfRows.value = inputMeters(shelf.rows);
   els.shelfColumns.value = inputMeters(shelf.columns);
-  els.rowIndex.value = draft.row;
-  els.columnIndex.value = draft.column;
-  els.widthUnits.value = inputMeters(draft.width);
-  els.depthUnits.value = inputMeters(draft.depth);
+  setDraftFormValues(shelf, draft);
   els.formTitle.textContent = 'Paket erfassen';
   els.saveButton.textContent = 'Paket speichern';
   els.cancelEditButton.classList.add('hidden');
-  els.selectedCell.textContent = `${shelf.name}: ${formatMeters(draft.width)} x ${formatMeters(draft.depth)} m gewählt`;
 }
 
 function selectCell(shelf, row, column, item) {
@@ -249,17 +260,7 @@ function clearPackageForm() {
 function updateDraftFromSizeInputs() {
   const draft = selectedDraft();
   if (!draft) return;
-  const adjusted = draftAtCell(
-    { row: draft.row, column: draft.column },
-    draft.shelf,
-    { width: draft.width, depth: draft.depth }
-  );
-  els.rowIndex.value = adjusted.row;
-  els.columnIndex.value = adjusted.column;
-  if (adjusted.width !== draft.width) els.widthUnits.value = inputMeters(adjusted.width);
-  if (adjusted.depth !== draft.depth) els.depthUnits.value = inputMeters(adjusted.depth);
-  appState.selected = { shelf: draft.shelf, row: adjusted.row, column: adjusted.column };
-  els.selectedCell.textContent = `${draft.shelf.name}: ${formatMeters(adjusted.width)} x ${formatMeters(adjusted.depth)} m gewählt`;
+  setDraftFormValues(draft.shelf, draft);
   render();
 }
 
@@ -388,12 +389,13 @@ function renderPlaceCanvas(shelf, kind) {
   if (draft && draft.shelf.id === shelf.id) {
     const marker = document.createElement('div');
     marker.className = 'draft-marker';
-    marker.innerHTML = `<span>${formatMeters(draft.width)} x ${formatMeters(draft.depth)} m</span>`;
+    marker.innerHTML = draftMarkerHtml(draft);
     updateDragMarker(shelf, marker, draftAtCell(
       { row: draft.row, column: draft.column },
       shelf,
       { width: draft.width, depth: draft.depth }
     ));
+    marker.addEventListener('pointerdown', event => startDraftEdit(event, canvas, shelf, marker, draft));
     canvas.append(marker);
   }
 
@@ -443,6 +445,79 @@ function updateDragMarker(shelf, marker, draft) {
   marker.style.top = `${((draft.row - 1) / shelf.rows) * 100}%`;
   marker.style.width = `${(draft.width / shelf.columns) * 100}%`;
   marker.style.height = `${(draft.depth / shelf.rows) * 100}%`;
+}
+
+function draftMarkerHtml(draft) {
+  return `
+    <span class="draft-size">${formatMeters(draft.width)} x ${formatMeters(draft.depth)} m</span>
+    <b data-handle="n"></b>
+    <b data-handle="e"></b>
+    <b data-handle="s"></b>
+    <b data-handle="w"></b>
+    <b data-handle="ne"></b>
+    <b data-handle="se"></b>
+    <b data-handle="sw"></b>
+    <b data-handle="nw"></b>
+  `;
+}
+
+function resizeDraftFromCell(startDraft, handle, cell, shelf) {
+  let left = startDraft.column;
+  let top = startDraft.row;
+  let right = startDraft.column + startDraft.width - 1;
+  let bottom = startDraft.row + startDraft.depth - 1;
+
+  if (handle.includes('e')) right = clamp(cell.column, left, shelf.columns);
+  if (handle.includes('s')) bottom = clamp(cell.row, top, shelf.rows);
+  if (handle.includes('w')) left = clamp(cell.column, 1, right);
+  if (handle.includes('n')) top = clamp(cell.row, 1, bottom);
+
+  return draftAtCell(
+    { column: left, row: top },
+    shelf,
+    { width: right - left + 1, depth: bottom - top + 1 }
+  );
+}
+
+function startDraftEdit(event, canvas, shelf, marker, draft) {
+  event.preventDefault();
+  event.stopPropagation();
+
+  const handle = event.target.dataset.handle || 'move';
+  const startCell = canvasCellFromEvent(event, canvas, shelf);
+  const grabOffset = {
+    column: startCell.column - draft.column,
+    row: startCell.row - draft.row
+  };
+  let currentDraft = draft;
+
+  const move = moveEvent => {
+    const cell = canvasCellFromEvent(moveEvent, canvas, shelf);
+    currentDraft = handle === 'move'
+      ? draftAtCell(
+        { column: cell.column - grabOffset.column, row: cell.row - grabOffset.row },
+        shelf,
+        { width: draft.width, depth: draft.depth }
+      )
+      : resizeDraftFromCell(draft, handle, cell, shelf);
+
+    const adjusted = setDraftFormValues(shelf, currentDraft);
+    updateDragMarker(shelf, marker, adjusted);
+    marker.querySelector('.draft-size').textContent = `${formatMeters(adjusted.width)} x ${formatMeters(adjusted.depth)} m`;
+  };
+
+  const finish = () => {
+    marker.releasePointerCapture(event.pointerId);
+    marker.removeEventListener('pointermove', move);
+    marker.removeEventListener('pointerup', finish);
+    marker.removeEventListener('pointercancel', finish);
+    render();
+  };
+
+  marker.setPointerCapture(event.pointerId);
+  marker.addEventListener('pointermove', move);
+  marker.addEventListener('pointerup', finish);
+  marker.addEventListener('pointercancel', finish);
 }
 
 function startPackageMove(event, canvas, shelf, item, rectangle) {
