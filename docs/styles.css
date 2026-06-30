@@ -360,45 +360,71 @@ select {
   padding: 5px 8px;
 }
 
-.grid {
-  display: grid;
-  gap: 6px;
-  grid-auto-rows: minmax(76px, auto);
-  overflow-x: auto;
-  padding-bottom: 2px;
-}
-
-.cell {
-  min-height: 76px;
+.place-canvas {
+  position: relative;
+  width: 100%;
+  min-height: 260px;
   border: 1px solid var(--line);
   border-radius: 8px;
+  overflow: hidden;
+  background-color: #edf6f0;
+  background-image:
+    linear-gradient(to right, rgba(23, 32, 34, 0.12) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(23, 32, 34, 0.12) 1px, transparent 1px);
+  background-size:
+    calc(100% / var(--cols)) 100%,
+    100% calc(100% / var(--rows));
+}
+
+.floor-canvas {
+  background-color: #f6f0df;
+  border-color: #d9c891;
+}
+
+.package-rect,
+.free-marker {
+  position: absolute;
+  min-width: 54px;
+  min-height: 48px;
+  border-radius: 8px;
+}
+
+.package-rect {
+  border: 2px solid rgba(122, 70, 24, 0.35);
   padding: 8px;
-  background: var(--free);
+  background: linear-gradient(180deg, #ffe0b5, #ffc982);
+  color: var(--ink);
   text-align: left;
   display: grid;
   align-content: space-between;
   overflow: hidden;
+  box-shadow: 0 8px 20px rgba(23, 32, 34, 0.12);
 }
 
-.cell.busy {
-  background: var(--busy);
-  border-color: #efb37d;
-  box-shadow: inset 0 0 0 2px rgba(217, 123, 43, 0.16);
+.package-rect:hover {
+  border-color: var(--accent);
 }
 
-.floor-place .cell {
-  min-height: 92px;
-  background: #f2efe3;
-  border-style: dashed;
+.package-rect.selected {
+  outline: 3px solid rgba(19, 111, 99, 0.35);
+  z-index: 2;
 }
 
-.floor-place .cell.busy {
-  background: #ffe2bc;
-  border-style: solid;
+.free-marker {
+  border: 2px dashed var(--primary);
+  background: rgba(19, 111, 99, 0.14);
+  pointer-events: none;
+  z-index: 1;
 }
 
-.cell.selected {
-  outline: 3px solid rgba(19, 111, 99, 0.25);
+.canvas-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: rgba(97, 112, 115, 0.72);
+  font-weight: 800;
+  pointer-events: none;
 }
 
 .pos {
@@ -530,8 +556,8 @@ select {
     padding: 14px;
   }
 
-  .cell {
-    min-height: 68px;
+  .place-canvas {
+    min-height: 220px;
   }
 
   .place-item {

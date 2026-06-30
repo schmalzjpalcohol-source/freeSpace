@@ -103,21 +103,6 @@ function setAuthUi() {
       : 'Nicht angemeldet';
 }
 
-function packageAt(shelf, row, column) {
-  return shelf.packages.find(item => item.row_index === row && item.column_index === column);
-}
-
-function coveringPackage(shelf, row, column) {
-  return shelf.packages.find(item => {
-    const width = item.width_units || 1;
-    const depth = item.depth_units || 1;
-    return row >= item.row_index
-      && row < item.row_index + depth
-      && column >= item.column_index
-      && column < item.column_index + width;
-  });
-}
-
 function placeKind(shelf) {
   if (shelf.location_type === 'floor') return 'floor';
   if (shelf.location_type === 'shelf') return 'shelf';
@@ -127,6 +112,10 @@ function placeKind(shelf) {
 
 function placeLabel(kind) {
   return kind === 'floor' ? 'Bodenplatz' : 'Regal';
+}
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
 }
 
 function selectCell(shelf, row, column, item) {
@@ -146,7 +135,7 @@ function selectCell(shelf, row, column, item) {
   els.formTitle.textContent = item ? 'Paket bearbeiten' : 'Paket hinzufügen';
   els.saveButton.textContent = item ? 'Änderung speichern' : 'Speichern';
   els.cancelEditButton.classList.toggle('hidden', !item);
-  els.selectedCell.textContent = `${shelf.name}: Reihe/Zone ${row}, Platz ${column}`;
+  els.selectedCell.textContent = `${shelf.name}: X ${column}, Y ${row}`;
   if (!item) els.packageName.focus();
   render();
 }
@@ -233,44 +222,67 @@ function render() {
     `;
     section.append(meta);
 
-    const grid = document.createElement('div');
-    grid.className = 'grid';
-    grid.style.gridTemplateColumns = `repeat(${shelf.columns}, minmax(${kind === 'floor' ? '104px' : '72px'}, 1fr))`;
-
-    for (let row = 1; row <= shelf.rows; row += 1) {
-      for (let column = 1; column <= shelf.columns; column += 1) {
-        const item = packageAt(shelf, row, column);
-        const covered = coveringPackage(shelf, row, column);
-        if (covered && covered !== item) continue;
-        const button = document.createElement('button');
-        const selected = appState.selected
-          && appState.selected.shelf.id === shelf.id
-          && appState.selected.row === row
-          && appState.selected.column === column;
-        button.className = `cell ${item ? 'busy' : ''} ${selected ? 'selected' : ''}`;
-        button.type = 'button';
-        button.style.gridColumn = item ? `${column} / span ${item.width_units || 1}` : `${column} / span 1`;
-        button.style.gridRow = item ? `${row} / span ${item.depth_units || 1}` : `${row} / span 1`;
-        if (item) {
-          button.style.minHeight = `${Math.max(76, (item.depth_units || 1) * 76)}px`;
-        }
-        button.innerHTML = cellHtml(row, column, item);
-        button.addEventListener('click', event => {
-          if (event.target.closest('.delete')) return;
-          selectCell(shelf, row, column, item);
-        });
-        if (item) {
-          button.querySelector('.delete').addEventListener('click', () => deletePackage(item.id).catch(error => {
-            showMessage(error.message, 'error');
-          }));
-        }
-        grid.append(button);
-      }
-    }
-
-    section.append(grid);
+    section.append(renderPlaceCanvas(shelf, kind));
     els.shelves.append(section);
   });
+}
+
+function renderPlaceCanvas(shelf, kind) {
+  const canvas = document.createElement('div');
+  canvas.className = `place-canvas ${kind === 'floor' ? 'floor-canvas' : ''}`;
+  canvas.style.setProperty('--cols', shelf.columns);
+  canvas.style.setProperty('--rows', shelf.rows);
+  canvas.style.aspectRatio = `${shelf.columns} / ${Math.max(1, shelf.rows)}`;
+  canvas.addEventListener('click', event => {
+    if (event.target !== canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const width = Number.parseInt(els.widthUnits.value, 10) || 1;
+    const depth = Number.parseInt(els.depthUnits.value, 10) || 1;
+    const column = clamp(Math.floor(((event.clientX - rect.left) / rect.width) * shelf.columns) + 1, 1, Math.max(1, shelf.columns - width + 1));
+    const row = clamp(Math.floor(((event.clientY - rect.top) / rect.height) * shelf.rows) + 1, 1, Math.max(1, shelf.rows - depth + 1));
+    selectCell(shelf, row, column, null);
+  });
+
+  const selected = appState.selected && appState.selected.shelf.id === shelf.id && !els.packageId.value;
+  if (selected) {
+    const marker = document.createElement('div');
+    marker.className = 'free-marker';
+    marker.style.left = `${((appState.selected.column - 1) / shelf.columns) * 100}%`;
+    marker.style.top = `${((appState.selected.row - 1) / shelf.rows) * 100}%`;
+    marker.style.width = `${((Number.parseInt(els.widthUnits.value, 10) || 1) / shelf.columns) * 100}%`;
+    marker.style.height = `${((Number.parseInt(els.depthUnits.value, 10) || 1) / shelf.rows) * 100}%`;
+    canvas.append(marker);
+  }
+
+  shelf.packages.forEach(item => {
+    const rectangle = document.createElement('button');
+    const selectedPackage = els.packageId.value === item.id;
+    rectangle.className = `package-rect ${selectedPackage ? 'selected' : ''}`;
+    rectangle.type = 'button';
+    rectangle.style.left = `${((item.column_index - 1) / shelf.columns) * 100}%`;
+    rectangle.style.top = `${((item.row_index - 1) / shelf.rows) * 100}%`;
+    rectangle.style.width = `${((item.width_units || 1) / shelf.columns) * 100}%`;
+    rectangle.style.height = `${((item.depth_units || 1) / shelf.rows) * 100}%`;
+    rectangle.innerHTML = packageHtml(item);
+    rectangle.addEventListener('click', event => {
+      if (event.target.closest('.delete')) return;
+      selectCell(shelf, item.row_index, item.column_index, item);
+    });
+    rectangle.querySelector('.delete').addEventListener('click', event => {
+      event.stopPropagation();
+      deletePackage(item.id).catch(error => showMessage(error.message, 'error'));
+    });
+    canvas.append(rectangle);
+  });
+
+  if (!shelf.packages.length) {
+    const empty = document.createElement('div');
+    empty.className = 'canvas-empty';
+    empty.textContent = 'Freie Fläche';
+    canvas.append(empty);
+  }
+
+  return canvas;
 }
 
 function renderPlaces() {
@@ -350,14 +362,11 @@ function renderWarehouseMap(shelfPlaces, floorPlaces) {
   });
 }
 
-function cellHtml(row, column, item) {
-  if (!item) {
-    return `<span class="pos">R${row} / P${column}</span><span class="pkg">frei</span>`;
-  }
+function packageHtml(item) {
   return `
-    <span class="pos">R${row} / P${column}</span>
+    <span class="pos">X${escapeHtml(item.column_index)} / Y${escapeHtml(item.row_index)}</span>
     <span class="pkg">${escapeHtml(item.package_name)}</span>
-    <span class="note">${escapeHtml(item.quantity)}x · ${escapeHtml(item.width_units || 1)} x ${escapeHtml(item.depth_units || 1)} Plätze</span>
+    <span class="note">${escapeHtml(item.quantity)}x · ${escapeHtml(item.width_units || 1)} x ${escapeHtml(item.depth_units || 1)}</span>
     <span class="note">${escapeHtml(item.note || '')}</span>
     <span class="delete" role="button" aria-label="Paket entfernen">Entfernen</span>
   `;
@@ -484,7 +493,7 @@ document.querySelectorAll('[data-example]').forEach(button => {
     els.packageName.value = name;
     els.quantity.value = quantity;
     els.note.value = note;
-    els.selectedCell.textContent = `${place}: Reihe/Zone ${row}, Platz ${column}`;
+    els.selectedCell.textContent = `${place}: X ${column}, Y ${row}`;
   });
 });
 

@@ -73,31 +73,31 @@
             </label>
             <div class="split">
               <label>
-                Reihen/Zonen
+                Fläche Tiefe
                 <input id="shelfRows" name="shelfRows" type="number" min="1" max="12" value="4">
               </label>
               <label>
-                Plätze
+                Fläche Breite
                 <input id="shelfColumns" name="shelfColumns" type="number" min="1" max="20" value="8">
               </label>
             </div>
             <div class="split">
               <label>
-                Reihe/Zone
+                Position Y
                 <input id="rowIndex" name="rowIndex" type="number" min="1" value="1" required>
               </label>
               <label>
-                Platz
+                Position X
                 <input id="columnIndex" name="columnIndex" type="number" min="1" value="1" required>
               </label>
             </div>
             <div class="split">
               <label>
-                Breite in Plätzen
+                Paket-Breite
                 <input id="widthUnits" name="widthUnits" type="number" min="1" max="20" value="1">
               </label>
               <label>
-                Tiefe in Zonen
+                Paket-Tiefe
                 <input id="depthUnits" name="depthUnits" type="number" min="1" max="12" value="1">
               </label>
             </div>
@@ -117,7 +117,7 @@
             </div>
             <div class="examples">
               <button type="button" data-example="Regal A|shelf|4|8|1|1|1|1|Karton Musterware|1|oben links">Regal-Beispiel</button>
-              <button type="button" data-example="Boden - Wareneingang|floor|2|4|1|1|2|1|Palette neu|1|groß, zuerst prüfen">Boden-Beispiel</button>
+              <button type="button" data-example="Boden - Wareneingang|floor|4|8|2|2|3|2|Palette neu|1|groß, zuerst prüfen">Boden-Beispiel</button>
             </div>
             <button id="saveButton" class="primary wide" type="submit">Speichern</button>
             <button id="cancelEditButton" class="ghost wide hidden" type="button">Bearbeiten abbrechen</button>
@@ -157,11 +157,11 @@
               </label>
               <div class="split">
                 <label>
-                  Reihen/Zonen
+                  Fläche Tiefe
                   <input id="placeRows" name="rows" type="number" min="1" max="12" value="4">
                 </label>
                 <label>
-                  Plätze
+                  Fläche Breite
                   <input id="placeColumns" name="columns" type="number" min="1" max="20" value="8">
                 </label>
               </div>
