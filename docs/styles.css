@@ -403,6 +403,8 @@ select {
   align-content: space-between;
   overflow: hidden;
   box-shadow: 0 8px 20px rgba(23, 32, 34, 0.12);
+  cursor: move;
+  touch-action: none;
 }
 
 .package-rect:hover {

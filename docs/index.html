@@ -73,31 +73,23 @@
             </label>
             <div class="split">
               <label>
-                Fläche Tiefe
+                Fläche Tiefe (m)
                 <input id="shelfRows" name="shelfRows" type="number" min="1" max="12" value="4">
               </label>
               <label>
-                Fläche Breite
+                Fläche Breite (m)
                 <input id="shelfColumns" name="shelfColumns" type="number" min="1" max="20" value="8">
               </label>
             </div>
+            <input id="rowIndex" name="rowIndex" type="hidden" value="1">
+            <input id="columnIndex" name="columnIndex" type="hidden" value="1">
             <div class="split">
               <label>
-                Position Y
-                <input id="rowIndex" name="rowIndex" type="number" min="1" value="1" required>
-              </label>
-              <label>
-                Position X
-                <input id="columnIndex" name="columnIndex" type="number" min="1" value="1" required>
-              </label>
-            </div>
-            <div class="split">
-              <label>
-                Paket-Breite
+                Paket-Breite (m)
                 <input id="widthUnits" name="widthUnits" type="number" min="1" max="20" value="1">
               </label>
               <label>
-                Paket-Tiefe
+                Paket-Tiefe (m)
                 <input id="depthUnits" name="depthUnits" type="number" min="1" max="12" value="1">
               </label>
             </div>
@@ -157,11 +149,11 @@
               </label>
               <div class="split">
                 <label>
-                  Fläche Tiefe
+                  Fläche Tiefe (m)
                   <input id="placeRows" name="rows" type="number" min="1" max="12" value="4">
                 </label>
                 <label>
-                  Fläche Breite
+                  Fläche Breite (m)
                   <input id="placeColumns" name="columns" type="number" min="1" max="20" value="8">
                 </label>
               </div>

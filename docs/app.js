@@ -126,14 +126,19 @@ function canvasCellFromEvent(event, canvas, shelf) {
   };
 }
 
-function rectFromCells(start, end) {
-  const column = Math.min(start.column, end.column);
-  const row = Math.min(start.row, end.row);
+function currentPackageSize() {
   return {
-    column,
-    row,
-    width: Math.abs(end.column - start.column) + 1,
-    depth: Math.abs(end.row - start.row) + 1
+    width: Number.parseInt(els.widthUnits.value, 10) || 1,
+    depth: Number.parseInt(els.depthUnits.value, 10) || 1
+  };
+}
+
+function draftAtCell(cell, shelf, size) {
+  return {
+    column: clamp(cell.column, 1, Math.max(1, shelf.columns - size.width + 1)),
+    row: clamp(cell.row, 1, Math.max(1, shelf.rows - size.depth + 1)),
+    width: clamp(size.width, 1, shelf.columns),
+    depth: clamp(size.depth, 1, shelf.rows)
   };
 }
 
@@ -151,7 +156,7 @@ function applyDraftSelection(shelf, draft) {
   els.formTitle.textContent = 'Paket hinzufügen';
   els.saveButton.textContent = 'Speichern';
   els.cancelEditButton.classList.add('hidden');
-  els.selectedCell.textContent = `${shelf.name}: X ${draft.column}, Y ${draft.row}, ${draft.width} x ${draft.depth}`;
+  els.selectedCell.textContent = `${shelf.name}: ${draft.width} x ${draft.depth} m platziert`;
 }
 
 function selectCell(shelf, row, column, item) {
@@ -171,7 +176,9 @@ function selectCell(shelf, row, column, item) {
   els.formTitle.textContent = item ? 'Paket bearbeiten' : 'Paket hinzufügen';
   els.saveButton.textContent = item ? 'Änderung speichern' : 'Speichern';
   els.cancelEditButton.classList.toggle('hidden', !item);
-  els.selectedCell.textContent = `${shelf.name}: X ${column}, Y ${row}`;
+  els.selectedCell.textContent = item
+    ? `${shelf.name}: ${item.width_units || 1} x ${item.depth_units || 1} m`
+    : `${shelf.name}: Platz gewählt`;
   if (!item) els.packageName.focus();
   render();
 }
@@ -265,7 +272,7 @@ function render() {
 
 function renderPlaceCanvas(shelf, kind) {
   const canvas = document.createElement('div');
-  let dragStart = null;
+  let dragDraft = null;
   let dragMarker = null;
   canvas.className = `place-canvas ${kind === 'floor' ? 'floor-canvas' : ''}`;
   canvas.style.setProperty('--cols', shelf.columns);
@@ -274,26 +281,25 @@ function renderPlaceCanvas(shelf, kind) {
   canvas.addEventListener('pointerdown', event => {
     if (event.target !== canvas) return;
     event.preventDefault();
-    dragStart = canvasCellFromEvent(event, canvas, shelf);
+    dragDraft = draftAtCell(canvasCellFromEvent(event, canvas, shelf), shelf, currentPackageSize());
     dragMarker = document.createElement('div');
     dragMarker.className = 'drag-marker';
     canvas.append(dragMarker);
     canvas.setPointerCapture(event.pointerId);
-    updateDragMarker(canvas, shelf, dragMarker, rectFromCells(dragStart, dragStart));
+    updateDragMarker(shelf, dragMarker, dragDraft);
   });
 
   canvas.addEventListener('pointermove', event => {
-    if (!dragStart || !dragMarker) return;
-    const current = canvasCellFromEvent(event, canvas, shelf);
-    updateDragMarker(canvas, shelf, dragMarker, rectFromCells(dragStart, current));
+    if (!dragDraft || !dragMarker) return;
+    dragDraft = draftAtCell(canvasCellFromEvent(event, canvas, shelf), shelf, currentPackageSize());
+    updateDragMarker(shelf, dragMarker, dragDraft);
   });
 
   canvas.addEventListener('pointerup', event => {
-    if (!dragStart || !dragMarker) return;
-    const current = canvasCellFromEvent(event, canvas, shelf);
-    const draft = rectFromCells(dragStart, current);
+    if (!dragDraft || !dragMarker) return;
+    const draft = dragDraft;
     dragMarker.remove();
-    dragStart = null;
+    dragDraft = null;
     dragMarker = null;
     applyDraftSelection(shelf, draft);
     render();
@@ -302,7 +308,7 @@ function renderPlaceCanvas(shelf, kind) {
 
   canvas.addEventListener('pointercancel', () => {
     if (dragMarker) dragMarker.remove();
-    dragStart = null;
+    dragDraft = null;
     dragMarker = null;
   });
 
@@ -327,8 +333,16 @@ function renderPlaceCanvas(shelf, kind) {
     rectangle.style.width = `${((item.width_units || 1) / shelf.columns) * 100}%`;
     rectangle.style.height = `${((item.depth_units || 1) / shelf.rows) * 100}%`;
     rectangle.innerHTML = packageHtml(item);
+    rectangle.addEventListener('pointerdown', event => {
+      if (event.target.closest('.delete')) return;
+      startPackageMove(event, canvas, shelf, item, rectangle);
+    });
     rectangle.addEventListener('click', event => {
       if (event.target.closest('.delete')) return;
+      if (rectangle.dataset.dragged === 'true') {
+        rectangle.dataset.dragged = 'false';
+        return;
+      }
       selectCell(shelf, item.row_index, item.column_index, item);
     });
     rectangle.querySelector('.delete').addEventListener('click', event => {
@@ -348,11 +362,75 @@ function renderPlaceCanvas(shelf, kind) {
   return canvas;
 }
 
-function updateDragMarker(canvas, shelf, marker, draft) {
+function updateDragMarker(shelf, marker, draft) {
   marker.style.left = `${((draft.column - 1) / shelf.columns) * 100}%`;
   marker.style.top = `${((draft.row - 1) / shelf.rows) * 100}%`;
   marker.style.width = `${(draft.width / shelf.columns) * 100}%`;
   marker.style.height = `${(draft.depth / shelf.rows) * 100}%`;
+}
+
+function startPackageMove(event, canvas, shelf, item, rectangle) {
+  event.preventDefault();
+  event.stopPropagation();
+  const size = {
+    width: item.width_units || 1,
+    depth: item.depth_units || 1
+  };
+  const grabCell = canvasCellFromEvent(event, canvas, shelf);
+  const grabOffset = {
+    column: grabCell.column - item.column_index,
+    row: grabCell.row - item.row_index
+  };
+  let moved = false;
+  let draft = draftAtCell({ column: item.column_index, row: item.row_index }, shelf, size);
+  const move = moveEvent => {
+    moved = true;
+    const cell = canvasCellFromEvent(moveEvent, canvas, shelf);
+    draft = draftAtCell({
+      column: cell.column - grabOffset.column,
+      row: cell.row - grabOffset.row
+    }, shelf, size);
+    updateDragMarker(shelf, rectangle, draft);
+  };
+  const finish = async () => {
+    rectangle.releasePointerCapture(event.pointerId);
+    rectangle.removeEventListener('pointermove', move);
+    rectangle.removeEventListener('pointerup', finish);
+    rectangle.removeEventListener('pointercancel', finish);
+    if (!moved) return;
+    rectangle.dataset.dragged = 'true';
+    await movePackage(shelf, item, draft).catch(error => {
+      showMessage(error.message, 'error');
+      loadShelves();
+    });
+  };
+  rectangle.setPointerCapture(event.pointerId);
+  rectangle.addEventListener('pointermove', move);
+  rectangle.addEventListener('pointerup', finish);
+  rectangle.addEventListener('pointercancel', finish);
+}
+
+async function movePackage(shelf, item, draft) {
+  const payload = {
+    packageId: item.id,
+    locationType: placeKind(shelf),
+    shelfName: shelf.name,
+    shelfRows: shelf.rows,
+    shelfColumns: shelf.columns,
+    rowIndex: draft.row,
+    columnIndex: draft.column,
+    widthUnits: item.width_units || 1,
+    depthUnits: item.depth_units || 1,
+    packageName: item.package_name,
+    quantity: item.quantity,
+    note: item.note || ''
+  };
+  await apiFetch('/api/regale', {
+    method: 'PATCH',
+    body: JSON.stringify(payload)
+  });
+  showMessage('Paket verschoben.');
+  await loadShelves();
 }
 
 function renderPlaces() {
@@ -434,9 +512,9 @@ function renderWarehouseMap(shelfPlaces, floorPlaces) {
 
 function packageHtml(item) {
   return `
-    <span class="pos">X${escapeHtml(item.column_index)} / Y${escapeHtml(item.row_index)}</span>
+    <span class="pos">${escapeHtml(item.width_units || 1)} x ${escapeHtml(item.depth_units || 1)} m</span>
     <span class="pkg">${escapeHtml(item.package_name)}</span>
-    <span class="note">${escapeHtml(item.quantity)}x · ${escapeHtml(item.width_units || 1)} x ${escapeHtml(item.depth_units || 1)}</span>
+    <span class="note">${escapeHtml(item.quantity)}x</span>
     <span class="note">${escapeHtml(item.note || '')}</span>
     <span class="delete" role="button" aria-label="Paket entfernen">Entfernen</span>
   `;
@@ -563,7 +641,7 @@ document.querySelectorAll('[data-example]').forEach(button => {
     els.packageName.value = name;
     els.quantity.value = quantity;
     els.note.value = note;
-    els.selectedCell.textContent = `${place}: X ${column}, Y ${row}`;
+    els.selectedCell.textContent = `${place}: ${width} x ${depth} m`;
   });
 });
 
