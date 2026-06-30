@@ -118,6 +118,37 @@ function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
 
+function numberValue(value, fallback) {
+  const parsed = Number.parseFloat(String(value ?? '').replace(',', '.'));
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function metersToCm(value, fallbackMeters = 1) {
+  return Math.max(1, Math.round(Math.max(0.01, numberValue(value, fallbackMeters)) * 100));
+}
+
+function cmToMeters(cm) {
+  return (Math.max(1, Number.parseInt(cm, 10) || 1) / 100);
+}
+
+function formatMeters(cm) {
+  return cmToMeters(cm).toLocaleString('de-DE', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2
+  });
+}
+
+function inputMeters(cm) {
+  return cmToMeters(cm).toFixed(2).replace(/\.?0+$/, '');
+}
+
+function formatSquareMeters(cm2) {
+  return (Math.max(0, cm2 || 0) / 10000).toLocaleString('de-DE', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2
+  });
+}
+
 function canvasCellFromEvent(event, canvas, shelf) {
   const rect = canvas.getBoundingClientRect();
   return {
@@ -128,8 +159,8 @@ function canvasCellFromEvent(event, canvas, shelf) {
 
 function currentPackageSize() {
   return {
-    width: Number.parseInt(els.widthUnits.value, 10) || 1,
-    depth: Number.parseInt(els.depthUnits.value, 10) || 1
+    width: metersToCm(els.widthUnits.value, 1),
+    depth: metersToCm(els.depthUnits.value, 1)
   };
 }
 
@@ -147,16 +178,16 @@ function applyDraftSelection(shelf, draft) {
   els.packageId.value = '';
   els.locationType.value = placeKind(shelf);
   els.shelfName.value = shelf.name;
-  els.shelfRows.value = shelf.rows;
-  els.shelfColumns.value = shelf.columns;
+  els.shelfRows.value = inputMeters(shelf.rows);
+  els.shelfColumns.value = inputMeters(shelf.columns);
   els.rowIndex.value = draft.row;
   els.columnIndex.value = draft.column;
-  els.widthUnits.value = draft.width;
-  els.depthUnits.value = draft.depth;
+  els.widthUnits.value = inputMeters(draft.width);
+  els.depthUnits.value = inputMeters(draft.depth);
   els.formTitle.textContent = 'Paket hinzufügen';
   els.saveButton.textContent = 'Speichern';
   els.cancelEditButton.classList.add('hidden');
-  els.selectedCell.textContent = `${shelf.name}: ${draft.width} x ${draft.depth} m platziert`;
+  els.selectedCell.textContent = `${shelf.name}: ${formatMeters(draft.width)} x ${formatMeters(draft.depth)} m platziert`;
 }
 
 function selectCell(shelf, row, column, item) {
@@ -164,12 +195,12 @@ function selectCell(shelf, row, column, item) {
   els.packageId.value = item ? item.id : '';
   els.locationType.value = placeKind(shelf);
   els.shelfName.value = shelf.name;
-  els.shelfRows.value = shelf.rows;
-  els.shelfColumns.value = shelf.columns;
+  els.shelfRows.value = inputMeters(shelf.rows);
+  els.shelfColumns.value = inputMeters(shelf.columns);
   els.rowIndex.value = row;
   els.columnIndex.value = column;
-  els.widthUnits.value = item ? item.width_units || 1 : 1;
-  els.depthUnits.value = item ? item.depth_units || 1 : 1;
+  els.widthUnits.value = item ? inputMeters(item.width_units || 1) : 1;
+  els.depthUnits.value = item ? inputMeters(item.depth_units || 1) : 1;
   els.packageName.value = item ? item.package_name : '';
   els.quantity.value = item ? item.quantity : 1;
   els.note.value = item ? item.note || '' : '';
@@ -177,7 +208,7 @@ function selectCell(shelf, row, column, item) {
   els.saveButton.textContent = item ? 'Änderung speichern' : 'Speichern';
   els.cancelEditButton.classList.toggle('hidden', !item);
   els.selectedCell.textContent = item
-    ? `${shelf.name}: ${item.width_units || 1} x ${item.depth_units || 1} m`
+    ? `${shelf.name}: ${formatMeters(item.width_units || 1)} x ${formatMeters(item.depth_units || 1)} m`
     : `${shelf.name}: Platz gewählt`;
   if (!item) els.packageName.focus();
   render();
@@ -238,7 +269,7 @@ function render() {
   const floorPlaces = appState.shelves.filter(shelf => placeKind(shelf) === 'floor');
   const shelfPlaces = appState.shelves.filter(shelf => placeKind(shelf) === 'shelf');
   els.summaryText.textContent = appState.shelves.length
-    ? `${free} von ${total} Plätzen frei.`
+    ? `${formatSquareMeters(free)} von ${formatSquareMeters(total)} m² frei.`
     : 'Noch keine Regale angelegt.';
 
   renderOverview(total, free, shelfPlaces, floorPlaces);
@@ -258,9 +289,9 @@ function render() {
         <h2>${escapeHtml(shelf.label || shelf.name)}</h2>
       </div>
       <div class="stats">
-        <span class="stat">${shelf.freePlaces} frei</span>
-        <span class="stat">${shelf.usedPlaces} belegt</span>
-        <span class="stat">${shelf.rows} x ${shelf.columns}</span>
+        <span class="stat">${formatSquareMeters(shelf.freePlaces)} m² frei</span>
+        <span class="stat">${formatSquareMeters(shelf.usedPlaces)} m² belegt</span>
+        <span class="stat">${formatMeters(shelf.columns)} x ${formatMeters(shelf.rows)} m</span>
       </div>
     `;
     section.append(meta);
@@ -275,8 +306,8 @@ function renderPlaceCanvas(shelf, kind) {
   let dragDraft = null;
   let dragMarker = null;
   canvas.className = `place-canvas ${kind === 'floor' ? 'floor-canvas' : ''}`;
-  canvas.style.setProperty('--cols', shelf.columns);
-  canvas.style.setProperty('--rows', shelf.rows);
+  canvas.style.setProperty('--cols', Math.max(1, Math.ceil(shelf.columns / 100)));
+  canvas.style.setProperty('--rows', Math.max(1, Math.ceil(shelf.rows / 100)));
   canvas.style.aspectRatio = `${shelf.columns} / ${Math.max(1, shelf.rows)}`;
   canvas.addEventListener('pointerdown', event => {
     if (event.target !== canvas) return;
@@ -318,8 +349,8 @@ function renderPlaceCanvas(shelf, kind) {
     marker.className = 'free-marker';
     marker.style.left = `${((appState.selected.column - 1) / shelf.columns) * 100}%`;
     marker.style.top = `${((appState.selected.row - 1) / shelf.rows) * 100}%`;
-    marker.style.width = `${((Number.parseInt(els.widthUnits.value, 10) || 1) / shelf.columns) * 100}%`;
-    marker.style.height = `${((Number.parseInt(els.depthUnits.value, 10) || 1) / shelf.rows) * 100}%`;
+    marker.style.width = `${(metersToCm(els.widthUnits.value, 1) / shelf.columns) * 100}%`;
+    marker.style.height = `${(metersToCm(els.depthUnits.value, 1) / shelf.rows) * 100}%`;
     canvas.append(marker);
   }
 
@@ -415,12 +446,12 @@ async function movePackage(shelf, item, draft) {
     packageId: item.id,
     locationType: placeKind(shelf),
     shelfName: shelf.name,
-    shelfRows: shelf.rows,
-    shelfColumns: shelf.columns,
+    shelfRows: inputMeters(shelf.rows),
+    shelfColumns: inputMeters(shelf.columns),
     rowIndex: draft.row,
     columnIndex: draft.column,
-    widthUnits: item.width_units || 1,
-    depthUnits: item.depth_units || 1,
+    widthUnits: inputMeters(item.width_units || 1),
+    depthUnits: inputMeters(item.depth_units || 1),
     packageName: item.package_name,
     quantity: item.quantity,
     note: item.note || ''
@@ -442,7 +473,7 @@ function renderPlaces() {
       <div>
         <span class="place-type">${placeLabel(kind)}</span>
         <h3>${escapeHtml(place.label || place.name)}</h3>
-        <p>${escapeHtml(place.rows)} Reihen/Zonen · ${escapeHtml(place.columns)} Plätze · ${escapeHtml(place.freePlaces)} frei</p>
+        <p>${formatMeters(place.columns)} x ${formatMeters(place.rows)} m · ${formatSquareMeters(place.freePlaces)} m² frei</p>
       </div>
       <div class="place-row-actions">
         <button class="ghost edit-place" type="button">Bearbeiten</button>
@@ -461,8 +492,8 @@ function selectPlace(place) {
   els.placeId.value = place.id;
   els.placeLocationType.value = placeKind(place);
   els.placeName.value = place.name;
-  els.placeRows.value = place.rows;
-  els.placeColumns.value = place.columns;
+  els.placeRows.value = inputMeters(place.rows);
+  els.placeColumns.value = inputMeters(place.columns);
   els.placeNotes.value = place.notes || '';
   els.savePlaceButton.textContent = 'Ort aktualisieren';
   els.cancelPlaceButton.classList.remove('hidden');
@@ -471,8 +502,8 @@ function selectPlace(place) {
 function renderOverview(total, free, shelfPlaces, floorPlaces) {
   const used = total - free;
   const cards = [
-    ['Gesamt frei', free, `${total} Plätze insgesamt`],
-    ['Belegt', used, 'eingetragene Packungen'],
+    ['Gesamt frei', free, `${formatSquareMeters(total)} m² insgesamt`],
+    ['Belegt', used, 'belegte Fläche'],
     ['Regale', shelfPlaces.length, 'normale Regalbereiche'],
     ['Bodenplätze', floorPlaces.length, 'für große/lose Sachen']
   ];
@@ -482,7 +513,7 @@ function renderOverview(total, free, shelfPlaces, floorPlaces) {
     card.className = 'overview-card';
     card.innerHTML = `
       <span>${escapeHtml(label)}</span>
-      <strong>${escapeHtml(value)}</strong>
+      <strong>${label.includes('frei') || label === 'Belegt' ? `${formatSquareMeters(value)} m²` : escapeHtml(value)}</strong>
       <small>${escapeHtml(hint)}</small>
     `;
     els.overviewCards.append(card);
@@ -504,7 +535,7 @@ function renderWarehouseMap(shelfPlaces, floorPlaces) {
     const total = places.reduce((sum, shelf) => sum + shelf.totalPlaces, 0);
     zone.innerHTML = `
       <span>${escapeHtml(label)}</span>
-      <strong>${places.length ? `${free}/${total} frei` : 'noch frei planbar'}</strong>
+      <strong>${places.length ? `${formatSquareMeters(free)}/${formatSquareMeters(total)} m² frei` : 'noch frei planbar'}</strong>
     `;
     els.warehouseMap.append(zone);
   });
@@ -512,10 +543,9 @@ function renderWarehouseMap(shelfPlaces, floorPlaces) {
 
 function packageHtml(item) {
   return `
-    <span class="pos">${escapeHtml(item.width_units || 1)} x ${escapeHtml(item.depth_units || 1)} m</span>
+    <span class="measure">${formatMeters(item.width_units || 1)} x ${formatMeters(item.depth_units || 1)} m</span>
     <span class="pkg">${escapeHtml(item.package_name)}</span>
-    <span class="note">${escapeHtml(item.quantity)}x</span>
-    <span class="note">${escapeHtml(item.note || '')}</span>
+    <span class="note">${escapeHtml(item.quantity)}x ${escapeHtml(item.note || '')}</span>
     <span class="delete" role="button" aria-label="Paket entfernen">Entfernen</span>
   `;
 }

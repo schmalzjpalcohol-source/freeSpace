@@ -8,6 +8,16 @@ function intBetween(value, min, max, fallback) {
   return Math.max(min, Math.min(max, parsed));
 }
 
+function numberValue(value, fallback) {
+  const parsed = Number.parseFloat(String(value ?? '').replace(',', '.'));
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function metersToCm(value, fallbackMeters, maxMeters = 1000) {
+  const meters = Math.max(0.01, Math.min(maxMeters, numberValue(value, fallbackMeters)));
+  return Math.max(1, Math.round(meters * 100));
+}
+
 function placePayload(body) {
   const name = String(body.name || '').trim();
   if (!name) {
@@ -20,8 +30,8 @@ function placePayload(body) {
     name,
     label: name,
     location_type: body.locationType === 'floor' ? 'floor' : 'shelf',
-    rows: intBetween(body.rows, 1, 12, 4),
-    columns: intBetween(body.columns, 1, 20, 8),
+    rows: metersToCm(body.rows, 4),
+    columns: metersToCm(body.columns, 8),
     notes: String(body.notes || '').trim()
   };
 }

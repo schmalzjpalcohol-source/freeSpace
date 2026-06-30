@@ -8,6 +8,22 @@ function intBetween(value, min, max, fallback) {
   return Math.max(min, Math.min(max, parsed));
 }
 
+function numberValue(value, fallback) {
+  const parsed = Number.parseFloat(String(value ?? '').replace(',', '.'));
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function metersToCm(value, fallbackMeters, maxMeters = 1000) {
+  const meters = Math.max(0.01, Math.min(maxMeters, numberValue(value, fallbackMeters)));
+  return Math.max(1, Math.round(meters * 100));
+}
+
+function cmBetween(value, min, max, fallback) {
+  const parsed = Number.parseInt(value, 10);
+  if (Number.isNaN(parsed)) return fallback;
+  return Math.max(min, Math.min(max, parsed));
+}
+
 function packageArea(item) {
   return Math.max(1, item.width_units || 1) * Math.max(1, item.depth_units || 1);
 }
@@ -48,8 +64,8 @@ async function ensureShelf(body) {
   const existing = await findShelf(shelfName);
   if (existing) return existing;
 
-  const rows = intBetween(body.shelfRows, 1, 12, 4);
-  const columns = intBetween(body.shelfColumns, 1, 20, 8);
+  const rows = metersToCm(body.shelfRows, 4);
+  const columns = metersToCm(body.shelfColumns, 8);
   const locationType = body.locationType === 'floor' ? 'floor' : 'shelf';
   const created = await supabaseFetch('shelves', {
     method: 'POST',
@@ -122,10 +138,10 @@ module.exports = async function handler(req, res) {
     if (req.method === 'POST') {
       const body = await readBody(req);
       const shelf = await ensureShelf(body);
-      const rowIndex = intBetween(body.rowIndex, 1, shelf.rows, 1);
-      const columnIndex = intBetween(body.columnIndex, 1, shelf.columns, 1);
-      const widthUnits = intBetween(body.widthUnits, 1, shelf.columns, 1);
-      const depthUnits = intBetween(body.depthUnits, 1, shelf.rows, 1);
+      const widthUnits = metersToCm(body.widthUnits, 1, shelf.columns / 100);
+      const depthUnits = metersToCm(body.depthUnits, 1, shelf.rows / 100);
+      const rowIndex = cmBetween(body.rowIndex, 1, Math.max(1, shelf.rows - depthUnits + 1), 1);
+      const columnIndex = cmBetween(body.columnIndex, 1, Math.max(1, shelf.columns - widthUnits + 1), 1);
       const packageName = String(body.packageName || '').trim();
 
       if (!packageName) {
@@ -164,10 +180,10 @@ module.exports = async function handler(req, res) {
       }
 
       const shelf = await ensureShelf(body);
-      const rowIndex = intBetween(body.rowIndex, 1, shelf.rows, 1);
-      const columnIndex = intBetween(body.columnIndex, 1, shelf.columns, 1);
-      const widthUnits = intBetween(body.widthUnits, 1, shelf.columns, 1);
-      const depthUnits = intBetween(body.depthUnits, 1, shelf.rows, 1);
+      const widthUnits = metersToCm(body.widthUnits, 1, shelf.columns / 100);
+      const depthUnits = metersToCm(body.depthUnits, 1, shelf.rows / 100);
+      const rowIndex = cmBetween(body.rowIndex, 1, Math.max(1, shelf.rows - depthUnits + 1), 1);
+      const columnIndex = cmBetween(body.columnIndex, 1, Math.max(1, shelf.columns - widthUnits + 1), 1);
       const packageName = String(body.packageName || '').trim();
 
       if (!packageName) {
