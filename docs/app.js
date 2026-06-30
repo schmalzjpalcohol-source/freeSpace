@@ -505,16 +505,18 @@ function draftMarkerHtml(draft) {
   `;
 }
 
-function resizeDraftFromCell(startDraft, handle, cell, shelf) {
+function resizeDraftFromDelta(startDraft, handle, startCell, cell, shelf) {
+  const deltaColumn = cell.column - startCell.column;
+  const deltaRow = cell.row - startCell.row;
   let left = startDraft.column;
   let top = startDraft.row;
   let right = startDraft.column + startDraft.width - 1;
   let bottom = startDraft.row + startDraft.depth - 1;
 
-  if (handle.includes('e')) right = clamp(cell.column, left, shelf.columns);
-  if (handle.includes('s')) bottom = clamp(cell.row, top, shelf.rows);
-  if (handle.includes('w')) left = clamp(cell.column, 1, right);
-  if (handle.includes('n')) top = clamp(cell.row, 1, bottom);
+  if (handle.includes('e')) right = clamp(right + deltaColumn, left, shelf.columns);
+  if (handle.includes('s')) bottom = clamp(bottom + deltaRow, top, shelf.rows);
+  if (handle.includes('w')) left = clamp(left + deltaColumn, 1, right);
+  if (handle.includes('n')) top = clamp(top + deltaRow, 1, bottom);
 
   return draftAtCell(
     { column: left, row: top },
@@ -543,7 +545,7 @@ function startDraftEdit(event, canvas, shelf, marker, draft) {
         shelf,
         { width: draft.width, depth: draft.depth }
       )
-      : resizeDraftFromCell(draft, handle, cell, shelf);
+      : resizeDraftFromDelta(draft, handle, startCell, cell, shelf);
 
     const adjusted = setDraftFormValues(shelf, currentDraft);
     updateDragMarker(shelf, marker, adjusted);
@@ -594,7 +596,7 @@ function startPackageEdit(event, canvas, shelf, item, rectangle, displayItem) {
         shelf,
         { width: draft.width, depth: draft.depth }
       )
-      : resizeDraftFromCell(draft, handle, cell, shelf);
+      : resizeDraftFromDelta(draft, handle, startCell, cell, shelf);
     const adjusted = setPackageEditFormValues(shelf, nextDraft);
     updateDragMarker(shelf, rectangle, adjusted);
     rectangle.querySelector('.measure').textContent = `${formatMeters(adjusted.width)} x ${formatMeters(adjusted.depth)} m`;
