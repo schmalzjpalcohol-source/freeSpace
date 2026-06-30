@@ -11,7 +11,7 @@
       <section class="topbar">
         <div>
           <p class="eyebrow">freeSpace</p>
-          <h1>Regale & freie Plätze</h1>
+          <h1>Lagerplan</h1>
         </div>
         <div class="auth">
           <span id="userLabel" class="user-label">Nicht angemeldet</span>
@@ -28,9 +28,9 @@
 
       <section id="loginView" class="login-view">
         <div class="login-box">
-          <p class="eyebrow">Login erforderlich</p>
+          <p class="eyebrow">Zugang</p>
           <h2>Anmelden</h2>
-          <p class="login-copy">Danach siehst du die Regalübersicht und kannst Pakete speichern.</p>
+          <p class="login-copy">Melde dich an, um Lagerflächen, Pakete und freie Bereiche zu bearbeiten.</p>
           <form id="loginForm">
             <label>
               Benutzername
@@ -48,8 +48,8 @@
       <section id="appView" class="layout hidden">
         <aside class="panel">
           <div class="panel-head">
-            <h2 id="formTitle">Paket hinzufügen</h2>
-            <span id="selectedCell">Kein Platz gewählt</span>
+            <h2 id="formTitle">Paket erfassen</h2>
+            <span id="selectedCell">Keine Fläche gewählt</span>
           </div>
           <form id="packageForm">
             <input id="packageId" name="packageId" type="hidden">
@@ -111,7 +111,7 @@
               <button type="button" data-example="Regal A|shelf|4|8|1|1|1|1|Karton Musterware|1|oben links">Regal-Beispiel</button>
               <button type="button" data-example="Boden - Wareneingang|floor|4|8|2|2|3|2|Palette neu|1|groß, zuerst prüfen">Boden-Beispiel</button>
             </div>
-            <button id="saveButton" class="primary wide" type="submit">Speichern</button>
+            <button id="saveButton" class="primary wide" type="submit">Paket speichern</button>
             <button id="cancelEditButton" class="ghost wide hidden" type="button">Bearbeiten abbrechen</button>
           </form>
         </aside>
@@ -119,7 +119,7 @@
         <section class="content">
           <div class="toolbar">
             <div>
-              <h2>Übersicht</h2>
+              <h2>Flächenübersicht</h2>
               <p id="summaryText">Bitte einloggen.</p>
             </div>
             <div class="toolbar-actions">

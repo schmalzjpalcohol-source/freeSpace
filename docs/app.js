@@ -174,7 +174,7 @@ function draftAtCell(cell, shelf, size) {
 }
 
 function applyDraftSelection(shelf, draft) {
-  appState.selected = { shelf, row: draft.row, column: draft.column };
+  appState.selected = null;
   els.packageId.value = '';
   els.locationType.value = placeKind(shelf);
   els.shelfName.value = shelf.name;
@@ -184,10 +184,10 @@ function applyDraftSelection(shelf, draft) {
   els.columnIndex.value = draft.column;
   els.widthUnits.value = inputMeters(draft.width);
   els.depthUnits.value = inputMeters(draft.depth);
-  els.formTitle.textContent = 'Paket hinzufügen';
-  els.saveButton.textContent = 'Speichern';
+  els.formTitle.textContent = 'Paket erfassen';
+  els.saveButton.textContent = 'Paket speichern';
   els.cancelEditButton.classList.add('hidden');
-  els.selectedCell.textContent = `${shelf.name}: ${formatMeters(draft.width)} x ${formatMeters(draft.depth)} m platziert`;
+  els.selectedCell.textContent = `${shelf.name}: ${formatMeters(draft.width)} x ${formatMeters(draft.depth)} m gewählt`;
 }
 
 function selectCell(shelf, row, column, item) {
@@ -204,8 +204,8 @@ function selectCell(shelf, row, column, item) {
   els.packageName.value = item ? item.package_name : '';
   els.quantity.value = item ? item.quantity : 1;
   els.note.value = item ? item.note || '' : '';
-  els.formTitle.textContent = item ? 'Paket bearbeiten' : 'Paket hinzufügen';
-  els.saveButton.textContent = item ? 'Änderung speichern' : 'Speichern';
+  els.formTitle.textContent = item ? 'Paket bearbeiten' : 'Paket erfassen';
+  els.saveButton.textContent = item ? 'Änderung speichern' : 'Paket speichern';
   els.cancelEditButton.classList.toggle('hidden', !item);
   els.selectedCell.textContent = item
     ? `${shelf.name}: ${formatMeters(item.width_units || 1)} x ${formatMeters(item.depth_units || 1)} m`
@@ -221,8 +221,8 @@ function clearPackageForm() {
   els.note.value = '';
   els.widthUnits.value = 1;
   els.depthUnits.value = 1;
-  els.formTitle.textContent = 'Paket hinzufügen';
-  els.saveButton.textContent = 'Speichern';
+  els.formTitle.textContent = 'Paket erfassen';
+  els.saveButton.textContent = 'Paket speichern';
   els.cancelEditButton.classList.add('hidden');
 }
 
@@ -343,17 +343,6 @@ function renderPlaceCanvas(shelf, kind) {
     dragMarker = null;
   });
 
-  const selected = appState.selected && appState.selected.shelf.id === shelf.id && !els.packageId.value;
-  if (selected) {
-    const marker = document.createElement('div');
-    marker.className = 'free-marker';
-    marker.style.left = `${((appState.selected.column - 1) / shelf.columns) * 100}%`;
-    marker.style.top = `${((appState.selected.row - 1) / shelf.rows) * 100}%`;
-    marker.style.width = `${(metersToCm(els.widthUnits.value, 1) / shelf.columns) * 100}%`;
-    marker.style.height = `${(metersToCm(els.depthUnits.value, 1) / shelf.rows) * 100}%`;
-    canvas.append(marker);
-  }
-
   shelf.packages.forEach(item => {
     const rectangle = document.createElement('button');
     const selectedPackage = els.packageId.value === item.id;
@@ -363,6 +352,8 @@ function renderPlaceCanvas(shelf, kind) {
     rectangle.style.top = `${((item.row_index - 1) / shelf.rows) * 100}%`;
     rectangle.style.width = `${((item.width_units || 1) / shelf.columns) * 100}%`;
     rectangle.style.height = `${((item.depth_units || 1) / shelf.rows) * 100}%`;
+    rectangle.dataset.tooltip = item.package_name;
+    rectangle.setAttribute('aria-label', item.package_name);
     rectangle.innerHTML = packageHtml(item);
     rectangle.addEventListener('pointerdown', event => {
       if (event.target.closest('.delete')) return;
@@ -502,10 +493,10 @@ function selectPlace(place) {
 function renderOverview(total, free, shelfPlaces, floorPlaces) {
   const used = total - free;
   const cards = [
-    ['Gesamt frei', free, `${formatSquareMeters(total)} m² insgesamt`],
-    ['Belegt', used, 'belegte Fläche'],
-    ['Regale', shelfPlaces.length, 'normale Regalbereiche'],
-    ['Bodenplätze', floorPlaces.length, 'für große/lose Sachen']
+    ['Freie Fläche', free, `${formatSquareMeters(total)} m² insgesamt`],
+    ['Belegt', used, `${total ? Math.round((used / total) * 100) : 0}% genutzt`],
+    ['Regale', shelfPlaces.length, 'vertikale Bereiche'],
+    ['Bodenplätze', floorPlaces.length, 'freie Stellflächen']
   ];
 
   cards.forEach(([label, value, hint]) => {
@@ -513,7 +504,7 @@ function renderOverview(total, free, shelfPlaces, floorPlaces) {
     card.className = 'overview-card';
     card.innerHTML = `
       <span>${escapeHtml(label)}</span>
-      <strong>${label.includes('frei') || label === 'Belegt' ? `${formatSquareMeters(value)} m²` : escapeHtml(value)}</strong>
+      <strong>${label.includes('Fläche') || label === 'Belegt' ? `${formatSquareMeters(value)} m²` : escapeHtml(value)}</strong>
       <small>${escapeHtml(hint)}</small>
     `;
     els.overviewCards.append(card);
@@ -533,9 +524,11 @@ function renderWarehouseMap(shelfPlaces, floorPlaces) {
     zone.type = 'button';
     const free = places.reduce((sum, shelf) => sum + shelf.freePlaces, 0);
     const total = places.reduce((sum, shelf) => sum + shelf.totalPlaces, 0);
+    const usedPercent = total ? Math.round(((total - free) / total) * 100) : 0;
     zone.innerHTML = `
       <span>${escapeHtml(label)}</span>
       <strong>${places.length ? `${formatSquareMeters(free)}/${formatSquareMeters(total)} m² frei` : 'noch frei planbar'}</strong>
+      <i class="zone-meter" aria-hidden="true"><b style="width: ${usedPercent}%"></b></i>
     `;
     els.warehouseMap.append(zone);
   });
@@ -650,7 +643,7 @@ els.placeForm.addEventListener('submit', event => {
 els.cancelEditButton.addEventListener('click', () => {
   clearPackageForm();
   appState.selected = null;
-  els.selectedCell.textContent = 'Kein Platz gewählt';
+  els.selectedCell.textContent = 'Keine Fläche gewählt';
   render();
 });
 
