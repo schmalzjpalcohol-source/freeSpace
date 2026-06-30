@@ -135,6 +135,17 @@ select:focus-visible {
   background: var(--primary-dark);
 }
 
+.danger {
+  border: 1px solid rgba(180, 35, 53, 0.22);
+  background: #fff2f3;
+  color: var(--danger);
+}
+
+.danger:hover {
+  border-color: rgba(180, 35, 53, 0.36);
+  background: #ffe6e9;
+}
+
 .ghost {
   background: var(--surface);
   border: 1px solid var(--line);
@@ -663,7 +674,8 @@ select:hover {
   white-space: nowrap;
 }
 
-.draft-marker b {
+.draft-marker b,
+.package-rect.selected b {
   position: absolute;
   width: 14px;
   height: 14px;
@@ -673,53 +685,61 @@ select:hover {
   box-shadow: 0 4px 10px rgba(20, 32, 34, 0.16);
 }
 
-.draft-marker b[data-handle="n"] {
+.draft-marker b[data-handle="n"],
+.package-rect.selected b[data-handle="n"] {
   left: 50%;
   top: -8px;
   cursor: ns-resize;
   transform: translateX(-50%);
 }
 
-.draft-marker b[data-handle="e"] {
+.draft-marker b[data-handle="e"],
+.package-rect.selected b[data-handle="e"] {
   right: -8px;
   top: 50%;
   cursor: ew-resize;
   transform: translateY(-50%);
 }
 
-.draft-marker b[data-handle="s"] {
+.draft-marker b[data-handle="s"],
+.package-rect.selected b[data-handle="s"] {
   left: 50%;
   bottom: -8px;
   cursor: ns-resize;
   transform: translateX(-50%);
 }
 
-.draft-marker b[data-handle="w"] {
+.draft-marker b[data-handle="w"],
+.package-rect.selected b[data-handle="w"] {
   left: -8px;
   top: 50%;
   cursor: ew-resize;
   transform: translateY(-50%);
 }
 
-.draft-marker b[data-handle="ne"] {
+.draft-marker b[data-handle="ne"],
+.package-rect.selected b[data-handle="ne"] {
   right: -8px;
   top: -8px;
   cursor: nesw-resize;
 }
 
-.draft-marker b[data-handle="se"] {
+.draft-marker b[data-handle="se"],
+.package-rect.selected b[data-handle="se"] {
   right: -8px;
   bottom: -8px;
   cursor: nwse-resize;
 }
 
-.draft-marker b[data-handle="sw"] {
+.draft-marker b[data-handle="sw"],
+.package-rect.selected b[data-handle="sw"] {
   left: -8px;
   bottom: -8px;
   cursor: nesw-resize;
 }
 
-.draft-marker b[data-handle="nw"] {
+.draft-marker b[data-handle="nw"],
+.package-rect.selected b[data-handle="nw"] {
   left: -8px;
   top: -8px;
   cursor: nwse-resize;
@@ -748,6 +768,12 @@ select:hover {
   background: var(--surface-soft);
   color: var(--muted);
   font-size: 0.82rem;
+}
+
+.package-actions {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
 }
 
 .place-view {

@@ -42,6 +42,7 @@ const els = {
   quantity: document.querySelector('#quantity'),
   note: document.querySelector('#note'),
   saveButton: document.querySelector('#saveButton'),
+  deletePackageButton: document.querySelector('#deletePackageButton'),
   cancelEditButton: document.querySelector('#cancelEditButton')
 };
 
@@ -192,6 +193,16 @@ function selectedDraft() {
   };
 }
 
+function selectedPackageDraft(item) {
+  if (!els.packageId.value || els.packageId.value !== item.id) return null;
+  return {
+    row: Number.parseInt(els.rowIndex.value, 10) || item.row_index,
+    column: Number.parseInt(els.columnIndex.value, 10) || item.column_index,
+    width: metersToCm(els.widthUnits.value, inputMeters(item.width_units || 1)),
+    depth: metersToCm(els.depthUnits.value, inputMeters(item.depth_units || 1))
+  };
+}
+
 function setDraftFormValues(shelf, draft) {
   const adjusted = draftAtCell(
     { row: draft.row, column: draft.column },
@@ -207,6 +218,20 @@ function setDraftFormValues(shelf, draft) {
   return adjusted;
 }
 
+function setPackageEditFormValues(shelf, draft) {
+  const adjusted = draftAtCell(
+    { row: draft.row, column: draft.column },
+    shelf,
+    { width: draft.width, depth: draft.depth }
+  );
+  els.rowIndex.value = adjusted.row;
+  els.columnIndex.value = adjusted.column;
+  els.widthUnits.value = inputMeters(adjusted.width);
+  els.depthUnits.value = inputMeters(adjusted.depth);
+  els.selectedCell.textContent = `${shelf.name}: Änderung bereit`;
+  return adjusted;
+}
+
 function applyDraftSelection(shelf, draft) {
   appState.selected = { shelf, row: draft.row, column: draft.column };
   els.packageId.value = '';
@@ -217,6 +242,7 @@ function applyDraftSelection(shelf, draft) {
   setDraftFormValues(shelf, draft);
   els.formTitle.textContent = 'Paket erfassen';
   els.saveButton.textContent = 'Paket speichern';
+  els.deletePackageButton.classList.add('hidden');
   els.cancelEditButton.classList.add('hidden');
 }
 
@@ -236,6 +262,7 @@ function selectCell(shelf, row, column, item) {
   els.note.value = item ? item.note || '' : '';
   els.formTitle.textContent = item ? 'Paket bearbeiten' : 'Paket erfassen';
   els.saveButton.textContent = item ? 'Änderung speichern' : 'Paket speichern';
+  els.deletePackageButton.classList.toggle('hidden', !item);
   els.cancelEditButton.classList.toggle('hidden', !item);
   els.selectedCell.textContent = item
     ? `${shelf.name}: Bearbeitung aktiv`
@@ -254,13 +281,25 @@ function clearPackageForm() {
   els.depthUnits.value = 1;
   els.formTitle.textContent = 'Paket erfassen';
   els.saveButton.textContent = 'Paket speichern';
+  els.deletePackageButton.classList.add('hidden');
   els.cancelEditButton.classList.add('hidden');
 }
 
 function updateDraftFromSizeInputs() {
   const draft = selectedDraft();
-  if (!draft) return;
-  setDraftFormValues(draft.shelf, draft);
+  if (draft) {
+    setDraftFormValues(draft.shelf, draft);
+    render();
+    return;
+  }
+  if (els.packageId.value && appState.selected?.shelf) {
+    setPackageEditFormValues(appState.selected.shelf, {
+      row: Number.parseInt(els.rowIndex.value, 10) || appState.selected.row,
+      column: Number.parseInt(els.columnIndex.value, 10) || appState.selected.column,
+      width: metersToCm(els.widthUnits.value, 1),
+      depth: metersToCm(els.depthUnits.value, 1)
+    });
+  }
   render();
 }
 
@@ -402,30 +441,35 @@ function renderPlaceCanvas(shelf, kind) {
   shelf.packages.forEach(item => {
     const rectangle = document.createElement('button');
     const selectedPackage = els.packageId.value === item.id;
+    const editDraft = selectedPackage ? selectedPackageDraft(item) : null;
+    const displayItem = editDraft
+      ? {
+        ...item,
+        row_index: editDraft.row,
+        column_index: editDraft.column,
+        width_units: editDraft.width,
+        depth_units: editDraft.depth
+      }
+      : item;
     rectangle.className = `package-rect ${selectedPackage ? 'selected' : ''}`;
     rectangle.type = 'button';
-    rectangle.style.left = `${((item.column_index - 1) / shelf.columns) * 100}%`;
-    rectangle.style.top = `${((item.row_index - 1) / shelf.rows) * 100}%`;
-    rectangle.style.width = `${((item.width_units || 1) / shelf.columns) * 100}%`;
-    rectangle.style.height = `${((item.depth_units || 1) / shelf.rows) * 100}%`;
+    rectangle.style.left = `${((displayItem.column_index - 1) / shelf.columns) * 100}%`;
+    rectangle.style.top = `${((displayItem.row_index - 1) / shelf.rows) * 100}%`;
+    rectangle.style.width = `${((displayItem.width_units || 1) / shelf.columns) * 100}%`;
+    rectangle.style.height = `${((displayItem.depth_units || 1) / shelf.rows) * 100}%`;
     rectangle.dataset.tooltip = item.package_name;
     rectangle.setAttribute('aria-label', item.package_name);
-    rectangle.innerHTML = packageHtml(item);
+    rectangle.innerHTML = packageHtml(displayItem, selectedPackage);
     rectangle.addEventListener('pointerdown', event => {
-      if (event.target.closest('.delete')) return;
-      startPackageMove(event, canvas, shelf, item, rectangle);
+      if (!selectedPackage) return;
+      startPackageEdit(event, canvas, shelf, item, rectangle, displayItem);
     });
     rectangle.addEventListener('click', event => {
-      if (event.target.closest('.delete')) return;
       if (rectangle.dataset.dragged === 'true') {
         rectangle.dataset.dragged = 'false';
         return;
       }
       selectCell(shelf, item.row_index, item.column_index, item);
-    });
-    rectangle.querySelector('.delete').addEventListener('click', event => {
-      event.stopPropagation();
-      deletePackage(item.id).catch(error => showMessage(error.message, 'error'));
     });
     canvas.append(rectangle);
   });
@@ -518,6 +562,56 @@ function startDraftEdit(event, canvas, shelf, marker, draft) {
   marker.addEventListener('pointermove', move);
   marker.addEventListener('pointerup', finish);
   marker.addEventListener('pointercancel', finish);
+}
+
+function startPackageEdit(event, canvas, shelf, item, rectangle, displayItem) {
+  event.preventDefault();
+  event.stopPropagation();
+
+  const handle = event.target.dataset.handle || 'move';
+  const draft = {
+    row: displayItem.row_index,
+    column: displayItem.column_index,
+    width: displayItem.width_units || 1,
+    depth: displayItem.depth_units || 1
+  };
+  const startCell = canvasCellFromEvent(event, canvas, shelf);
+  const startPointer = { x: event.clientX, y: event.clientY };
+  const grabOffset = {
+    column: startCell.column - draft.column,
+    row: startCell.row - draft.row
+  };
+  let moved = false;
+
+  const move = moveEvent => {
+    const distance = Math.hypot(moveEvent.clientX - startPointer.x, moveEvent.clientY - startPointer.y);
+    if (!moved && distance < 6) return;
+    moved = true;
+    const cell = canvasCellFromEvent(moveEvent, canvas, shelf);
+    const nextDraft = handle === 'move'
+      ? draftAtCell(
+        { column: cell.column - grabOffset.column, row: cell.row - grabOffset.row },
+        shelf,
+        { width: draft.width, depth: draft.depth }
+      )
+      : resizeDraftFromCell(draft, handle, cell, shelf);
+    const adjusted = setPackageEditFormValues(shelf, nextDraft);
+    updateDragMarker(shelf, rectangle, adjusted);
+    rectangle.querySelector('.measure').textContent = `${formatMeters(adjusted.width)} x ${formatMeters(adjusted.depth)} m`;
+  };
+
+  const finish = () => {
+    rectangle.releasePointerCapture(event.pointerId);
+    rectangle.removeEventListener('pointermove', move);
+    rectangle.removeEventListener('pointerup', finish);
+    rectangle.removeEventListener('pointercancel', finish);
+    if (moved) rectangle.dataset.dragged = 'true';
+  };
+
+  rectangle.setPointerCapture(event.pointerId);
+  rectangle.addEventListener('pointermove', move);
+  rectangle.addEventListener('pointerup', finish);
+  rectangle.addEventListener('pointercancel', finish);
 }
 
 function startPackageMove(event, canvas, shelf, item, rectangle) {
@@ -669,12 +763,15 @@ function renderWarehouseMap(shelfPlaces, floorPlaces) {
   });
 }
 
-function packageHtml(item) {
+function packageHtml(item, selected = false) {
   return `
     <span class="measure">${formatMeters(item.width_units || 1)} x ${formatMeters(item.depth_units || 1)} m</span>
     <span class="pkg">${escapeHtml(item.package_name)}</span>
     <span class="note">${escapeHtml(item.quantity)}x ${escapeHtml(item.note || '')}</span>
-    <span class="delete" role="button" aria-label="Paket entfernen">x</span>
+    ${selected ? draftMarkerHtml({
+      width: item.width_units || 1,
+      depth: item.depth_units || 1
+    }).replace('class="draft-size"', 'class="edit-size hidden"') : ''}
   `;
 }
 
@@ -779,6 +876,13 @@ els.cancelEditButton.addEventListener('click', () => {
   clearPackageForm();
   els.selectedCell.textContent = 'Keine Fläche gewählt';
   render();
+});
+
+els.deletePackageButton.addEventListener('click', async () => {
+  if (!els.packageId.value) return;
+  await deletePackage(els.packageId.value).catch(error => showMessage(error.message, 'error'));
+  clearPackageForm();
+  els.selectedCell.textContent = 'Keine Fläche gewählt';
 });
 
 els.cancelPlaceButton.addEventListener('click', clearPlaceForm);
