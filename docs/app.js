@@ -173,8 +173,27 @@ function draftAtCell(cell, shelf, size) {
   };
 }
 
+function draftFromCorners(start, end, shelf) {
+  const column = Math.min(start.column, end.column);
+  const row = Math.min(start.row, end.row);
+  const width = Math.abs(end.column - start.column) + 1;
+  const depth = Math.abs(end.row - start.row) + 1;
+  return draftAtCell({ column, row }, shelf, { width, depth });
+}
+
+function selectedDraft() {
+  if (!appState.selected || els.packageId.value) return null;
+  return {
+    shelf: appState.selected.shelf,
+    row: Number.parseInt(els.rowIndex.value, 10) || appState.selected.row,
+    column: Number.parseInt(els.columnIndex.value, 10) || appState.selected.column,
+    width: metersToCm(els.widthUnits.value, 1),
+    depth: metersToCm(els.depthUnits.value, 1)
+  };
+}
+
 function applyDraftSelection(shelf, draft) {
-  appState.selected = null;
+  appState.selected = { shelf, row: draft.row, column: draft.column };
   els.packageId.value = '';
   els.locationType.value = placeKind(shelf);
   els.shelfName.value = shelf.name;
@@ -215,6 +234,7 @@ function selectCell(shelf, row, column, item) {
 }
 
 function clearPackageForm() {
+  appState.selected = null;
   els.packageId.value = '';
   els.packageName.value = '';
   els.quantity.value = 1;
@@ -224,6 +244,23 @@ function clearPackageForm() {
   els.formTitle.textContent = 'Paket erfassen';
   els.saveButton.textContent = 'Paket speichern';
   els.cancelEditButton.classList.add('hidden');
+}
+
+function updateDraftFromSizeInputs() {
+  const draft = selectedDraft();
+  if (!draft) return;
+  const adjusted = draftAtCell(
+    { row: draft.row, column: draft.column },
+    draft.shelf,
+    { width: draft.width, depth: draft.depth }
+  );
+  els.rowIndex.value = adjusted.row;
+  els.columnIndex.value = adjusted.column;
+  if (adjusted.width !== draft.width) els.widthUnits.value = inputMeters(adjusted.width);
+  if (adjusted.depth !== draft.depth) els.depthUnits.value = inputMeters(adjusted.depth);
+  appState.selected = { shelf: draft.shelf, row: adjusted.row, column: adjusted.column };
+  els.selectedCell.textContent = `${draft.shelf.name}: ${formatMeters(adjusted.width)} x ${formatMeters(adjusted.depth)} m gewählt`;
+  render();
 }
 
 function setActiveView(view) {
@@ -303,6 +340,7 @@ function render() {
 
 function renderPlaceCanvas(shelf, kind) {
   const canvas = document.createElement('div');
+  let dragStart = null;
   let dragDraft = null;
   let dragMarker = null;
   canvas.className = `place-canvas ${kind === 'floor' ? 'floor-canvas' : ''}`;
@@ -312,7 +350,8 @@ function renderPlaceCanvas(shelf, kind) {
   canvas.addEventListener('pointerdown', event => {
     if (event.target !== canvas) return;
     event.preventDefault();
-    dragDraft = draftAtCell(canvasCellFromEvent(event, canvas, shelf), shelf, currentPackageSize());
+    dragStart = canvasCellFromEvent(event, canvas, shelf);
+    dragDraft = draftFromCorners(dragStart, dragStart, shelf);
     dragMarker = document.createElement('div');
     dragMarker.className = 'drag-marker';
     canvas.append(dragMarker);
@@ -322,7 +361,7 @@ function renderPlaceCanvas(shelf, kind) {
 
   canvas.addEventListener('pointermove', event => {
     if (!dragDraft || !dragMarker) return;
-    dragDraft = draftAtCell(canvasCellFromEvent(event, canvas, shelf), shelf, currentPackageSize());
+    dragDraft = draftFromCorners(dragStart, canvasCellFromEvent(event, canvas, shelf), shelf);
     updateDragMarker(shelf, dragMarker, dragDraft);
   });
 
@@ -330,6 +369,7 @@ function renderPlaceCanvas(shelf, kind) {
     if (!dragDraft || !dragMarker) return;
     const draft = dragDraft;
     dragMarker.remove();
+    dragStart = null;
     dragDraft = null;
     dragMarker = null;
     applyDraftSelection(shelf, draft);
@@ -339,9 +379,23 @@ function renderPlaceCanvas(shelf, kind) {
 
   canvas.addEventListener('pointercancel', () => {
     if (dragMarker) dragMarker.remove();
+    dragStart = null;
     dragDraft = null;
     dragMarker = null;
   });
+
+  const draft = selectedDraft();
+  if (draft && draft.shelf.id === shelf.id) {
+    const marker = document.createElement('div');
+    marker.className = 'draft-marker';
+    marker.innerHTML = `<span>${formatMeters(draft.width)} x ${formatMeters(draft.depth)} m</span>`;
+    updateDragMarker(shelf, marker, draftAtCell(
+      { row: draft.row, column: draft.column },
+      shelf,
+      { width: draft.width, depth: draft.depth }
+    ));
+    canvas.append(marker);
+  }
 
   shelf.packages.forEach(item => {
     const rectangle = document.createElement('button');
@@ -374,7 +428,7 @@ function renderPlaceCanvas(shelf, kind) {
     canvas.append(rectangle);
   });
 
-  if (!shelf.packages.length) {
+  if (!shelf.packages.length && (!draft || draft.shelf.id !== shelf.id)) {
     const empty = document.createElement('div');
     empty.className = 'canvas-empty';
     empty.textContent = 'Freie Fläche';
@@ -648,7 +702,6 @@ els.placeForm.addEventListener('submit', event => {
 
 els.cancelEditButton.addEventListener('click', () => {
   clearPackageForm();
-  appState.selected = null;
   els.selectedCell.textContent = 'Keine Fläche gewählt';
   render();
 });
@@ -673,6 +726,9 @@ document.querySelectorAll('[data-example]').forEach(button => {
     els.selectedCell.textContent = `${place}: ${width} x ${depth} m`;
   });
 });
+
+els.widthUnits.addEventListener('input', updateDraftFromSizeInputs);
+els.depthUnits.addEventListener('input', updateDraftFromSizeInputs);
 
 render();
 loadShelves().catch(error => {
