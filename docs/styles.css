@@ -374,6 +374,9 @@ select {
   background-size:
     calc(100% / var(--cols)) 100%,
     100% calc(100% / var(--rows));
+  cursor: crosshair;
+  touch-action: none;
+  user-select: none;
 }
 
 .floor-canvas {
@@ -382,7 +385,8 @@ select {
 }
 
 .package-rect,
-.free-marker {
+.free-marker,
+.drag-marker {
   position: absolute;
   min-width: 54px;
   min-height: 48px;
@@ -415,6 +419,14 @@ select {
   background: rgba(19, 111, 99, 0.14);
   pointer-events: none;
   z-index: 1;
+}
+
+.drag-marker {
+  border: 2px solid var(--primary);
+  background: rgba(19, 111, 99, 0.22);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.6);
+  pointer-events: none;
+  z-index: 3;
 }
 
 .canvas-empty {

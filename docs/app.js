@@ -118,6 +118,42 @@ function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
 
+function canvasCellFromEvent(event, canvas, shelf) {
+  const rect = canvas.getBoundingClientRect();
+  return {
+    column: clamp(Math.floor(((event.clientX - rect.left) / rect.width) * shelf.columns) + 1, 1, shelf.columns),
+    row: clamp(Math.floor(((event.clientY - rect.top) / rect.height) * shelf.rows) + 1, 1, shelf.rows)
+  };
+}
+
+function rectFromCells(start, end) {
+  const column = Math.min(start.column, end.column);
+  const row = Math.min(start.row, end.row);
+  return {
+    column,
+    row,
+    width: Math.abs(end.column - start.column) + 1,
+    depth: Math.abs(end.row - start.row) + 1
+  };
+}
+
+function applyDraftSelection(shelf, draft) {
+  appState.selected = { shelf, row: draft.row, column: draft.column };
+  els.packageId.value = '';
+  els.locationType.value = placeKind(shelf);
+  els.shelfName.value = shelf.name;
+  els.shelfRows.value = shelf.rows;
+  els.shelfColumns.value = shelf.columns;
+  els.rowIndex.value = draft.row;
+  els.columnIndex.value = draft.column;
+  els.widthUnits.value = draft.width;
+  els.depthUnits.value = draft.depth;
+  els.formTitle.textContent = 'Paket hinzufügen';
+  els.saveButton.textContent = 'Speichern';
+  els.cancelEditButton.classList.add('hidden');
+  els.selectedCell.textContent = `${shelf.name}: X ${draft.column}, Y ${draft.row}, ${draft.width} x ${draft.depth}`;
+}
+
 function selectCell(shelf, row, column, item) {
   appState.selected = { shelf, row, column };
   els.packageId.value = item ? item.id : '';
@@ -229,18 +265,45 @@ function render() {
 
 function renderPlaceCanvas(shelf, kind) {
   const canvas = document.createElement('div');
+  let dragStart = null;
+  let dragMarker = null;
   canvas.className = `place-canvas ${kind === 'floor' ? 'floor-canvas' : ''}`;
   canvas.style.setProperty('--cols', shelf.columns);
   canvas.style.setProperty('--rows', shelf.rows);
   canvas.style.aspectRatio = `${shelf.columns} / ${Math.max(1, shelf.rows)}`;
-  canvas.addEventListener('click', event => {
+  canvas.addEventListener('pointerdown', event => {
     if (event.target !== canvas) return;
-    const rect = canvas.getBoundingClientRect();
-    const width = Number.parseInt(els.widthUnits.value, 10) || 1;
-    const depth = Number.parseInt(els.depthUnits.value, 10) || 1;
-    const column = clamp(Math.floor(((event.clientX - rect.left) / rect.width) * shelf.columns) + 1, 1, Math.max(1, shelf.columns - width + 1));
-    const row = clamp(Math.floor(((event.clientY - rect.top) / rect.height) * shelf.rows) + 1, 1, Math.max(1, shelf.rows - depth + 1));
-    selectCell(shelf, row, column, null);
+    event.preventDefault();
+    dragStart = canvasCellFromEvent(event, canvas, shelf);
+    dragMarker = document.createElement('div');
+    dragMarker.className = 'drag-marker';
+    canvas.append(dragMarker);
+    canvas.setPointerCapture(event.pointerId);
+    updateDragMarker(canvas, shelf, dragMarker, rectFromCells(dragStart, dragStart));
+  });
+
+  canvas.addEventListener('pointermove', event => {
+    if (!dragStart || !dragMarker) return;
+    const current = canvasCellFromEvent(event, canvas, shelf);
+    updateDragMarker(canvas, shelf, dragMarker, rectFromCells(dragStart, current));
+  });
+
+  canvas.addEventListener('pointerup', event => {
+    if (!dragStart || !dragMarker) return;
+    const current = canvasCellFromEvent(event, canvas, shelf);
+    const draft = rectFromCells(dragStart, current);
+    dragMarker.remove();
+    dragStart = null;
+    dragMarker = null;
+    applyDraftSelection(shelf, draft);
+    render();
+    els.packageName.focus();
+  });
+
+  canvas.addEventListener('pointercancel', () => {
+    if (dragMarker) dragMarker.remove();
+    dragStart = null;
+    dragMarker = null;
   });
 
   const selected = appState.selected && appState.selected.shelf.id === shelf.id && !els.packageId.value;
@@ -283,6 +346,13 @@ function renderPlaceCanvas(shelf, kind) {
   }
 
   return canvas;
+}
+
+function updateDragMarker(canvas, shelf, marker, draft) {
+  marker.style.left = `${((draft.column - 1) / shelf.columns) * 100}%`;
+  marker.style.top = `${((draft.row - 1) / shelf.rows) * 100}%`;
+  marker.style.width = `${(draft.width / shelf.columns) * 100}%`;
+  marker.style.height = `${(draft.depth / shelf.rows) * 100}%`;
 }
 
 function renderPlaces() {
