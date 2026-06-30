@@ -515,8 +515,9 @@ select:hover {
   box-shadow:
     inset 0 0 0 1px rgba(255, 255, 255, 0.46),
     0 10px 24px rgba(20, 32, 34, 0.16);
-  cursor: move;
+  cursor: pointer;
   touch-action: none;
+  transform: none;
 }
 
 .package-rect::after {
@@ -548,6 +549,7 @@ select:hover {
 }
 
 .package-rect:hover {
+  transform: none;
   border-color: var(--accent);
   box-shadow:
     inset 0 0 0 1px rgba(255, 255, 255, 0.54),
@@ -555,7 +557,8 @@ select:hover {
 }
 
 .package-rect.selected {
-  outline: 3px solid rgba(15, 118, 110, 0.28);
+  border-color: var(--primary);
+  outline: 3px solid rgba(15, 118, 110, 0.24);
   z-index: 2;
 }
 
@@ -593,15 +596,28 @@ select:hover {
 .delete {
   position: absolute;
   right: 5px;
-  bottom: 5px;
+  top: 5px;
+  width: 24px;
   min-height: 24px;
   border: 1px solid rgba(180, 35, 53, 0.2);
   border-radius: 7px;
-  padding: 0 7px;
-  background: rgba(255, 255, 255, 0.78);
+  padding: 0;
+  background: rgba(255, 255, 255, 0.88);
   color: var(--danger);
-  font-size: 0.7rem;
+  font-size: 0.82rem;
+  font-weight: 950;
   line-height: 22px;
+  text-align: center;
+  opacity: 0;
+  transform: scale(0.94);
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+
+.package-rect:hover .delete,
+.package-rect:focus-visible .delete,
+.package-rect.selected .delete {
+  opacity: 1;
+  transform: scale(1);
 }
 
 .drag-marker {

@@ -208,7 +208,7 @@ function selectCell(shelf, row, column, item) {
   els.saveButton.textContent = item ? 'Änderung speichern' : 'Paket speichern';
   els.cancelEditButton.classList.toggle('hidden', !item);
   els.selectedCell.textContent = item
-    ? `${shelf.name}: ${formatMeters(item.width_units || 1)} x ${formatMeters(item.depth_units || 1)} m`
+    ? `${shelf.name}: Bearbeitung aktiv`
     : `${shelf.name}: Platz gewählt`;
   if (!item) els.packageName.focus();
   render();
@@ -394,6 +394,10 @@ function updateDragMarker(shelf, marker, draft) {
 function startPackageMove(event, canvas, shelf, item, rectangle) {
   event.preventDefault();
   event.stopPropagation();
+  const startPointer = {
+    x: event.clientX,
+    y: event.clientY
+  };
   const size = {
     width: item.width_units || 1,
     depth: item.depth_units || 1
@@ -406,6 +410,8 @@ function startPackageMove(event, canvas, shelf, item, rectangle) {
   let moved = false;
   let draft = draftAtCell({ column: item.column_index, row: item.row_index }, shelf, size);
   const move = moveEvent => {
+    const distance = Math.hypot(moveEvent.clientX - startPointer.x, moveEvent.clientY - startPointer.y);
+    if (!moved && distance < 8) return;
     moved = true;
     const cell = canvasCellFromEvent(moveEvent, canvas, shelf);
     draft = draftAtCell({
@@ -539,7 +545,7 @@ function packageHtml(item) {
     <span class="measure">${formatMeters(item.width_units || 1)} x ${formatMeters(item.depth_units || 1)} m</span>
     <span class="pkg">${escapeHtml(item.package_name)}</span>
     <span class="note">${escapeHtml(item.quantity)}x ${escapeHtml(item.note || '')}</span>
-    <span class="delete" role="button" aria-label="Paket entfernen">Entfernen</span>
+    <span class="delete" role="button" aria-label="Paket entfernen">x</span>
   `;
 }
 
