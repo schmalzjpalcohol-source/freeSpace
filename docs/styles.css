@@ -507,8 +507,8 @@ select:hover {
 .draft-marker,
 .drag-marker {
   position: absolute;
-  min-width: 54px;
-  min-height: 44px;
+  min-width: 0;
+  min-height: 0;
   border-radius: 7px;
 }
 

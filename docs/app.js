@@ -505,9 +505,10 @@ function draftMarkerHtml(draft) {
   `;
 }
 
-function resizeDraftFromDelta(startDraft, handle, startCell, cell, shelf) {
-  const deltaColumn = cell.column - startCell.column;
-  const deltaRow = cell.row - startCell.row;
+function resizeDraftFromPointer(startDraft, handle, startPointer, event, canvas, shelf) {
+  const rect = canvas.getBoundingClientRect();
+  const deltaColumn = Math.round(((event.clientX - startPointer.x) / Math.max(1, rect.width)) * shelf.columns);
+  const deltaRow = Math.round(((event.clientY - startPointer.y) / Math.max(1, rect.height)) * shelf.rows);
   let left = startDraft.column;
   let top = startDraft.row;
   let right = startDraft.column + startDraft.width - 1;
@@ -531,6 +532,7 @@ function startDraftEdit(event, canvas, shelf, marker, draft) {
 
   const handle = event.target.dataset.handle || 'move';
   const startCell = canvasCellFromEvent(event, canvas, shelf);
+  const startPointer = { x: event.clientX, y: event.clientY };
   const grabOffset = {
     column: startCell.column - draft.column,
     row: startCell.row - draft.row
@@ -545,7 +547,7 @@ function startDraftEdit(event, canvas, shelf, marker, draft) {
         shelf,
         { width: draft.width, depth: draft.depth }
       )
-      : resizeDraftFromDelta(draft, handle, startCell, cell, shelf);
+      : resizeDraftFromPointer(draft, handle, startPointer, moveEvent, canvas, shelf);
 
     const adjusted = setDraftFormValues(shelf, currentDraft);
     updateDragMarker(shelf, marker, adjusted);
@@ -596,7 +598,7 @@ function startPackageEdit(event, canvas, shelf, item, rectangle, displayItem) {
         shelf,
         { width: draft.width, depth: draft.depth }
       )
-      : resizeDraftFromDelta(draft, handle, startCell, cell, shelf);
+      : resizeDraftFromPointer(draft, handle, startPointer, moveEvent, canvas, shelf);
     const adjusted = setPackageEditFormValues(shelf, nextDraft);
     updateDragMarker(shelf, rectangle, adjusted);
     rectangle.querySelector('.measure').textContent = `${formatMeters(adjusted.width)} x ${formatMeters(adjusted.depth)} m`;
@@ -908,8 +910,8 @@ document.querySelectorAll('[data-example]').forEach(button => {
   });
 });
 
-els.widthUnits.addEventListener('input', updateDraftFromSizeInputs);
-els.depthUnits.addEventListener('input', updateDraftFromSizeInputs);
+els.widthUnits.addEventListener('change', updateDraftFromSizeInputs);
+els.depthUnits.addEventListener('change', updateDraftFromSizeInputs);
 
 render();
 loadShelves().catch(error => {
