@@ -132,22 +132,33 @@ function cmToMeters(cm) {
   return (Math.max(1, Number.parseInt(cm, 10) || 1) / 100);
 }
 
+function formatDecimal(value) {
+  return Number(value).toFixed(2).replace(/\.?0+$/, '');
+}
+
 function formatMeters(cm) {
-  return cmToMeters(cm).toLocaleString('de-DE', {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2
-  });
+  return formatDecimal(cmToMeters(cm));
 }
 
 function inputMeters(cm) {
-  return cmToMeters(cm).toFixed(2).replace(/\.?0+$/, '');
+  return formatMeters(cm);
 }
 
 function formatSquareMeters(cm2) {
-  return (Math.max(0, cm2 || 0) / 10000).toLocaleString('de-DE', {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2
-  });
+  return formatDecimal(Math.max(0, cm2 || 0) / 10000);
+}
+
+function normalizeDecimalInput(input) {
+  input.value = input.value.replace(',', '.');
+}
+
+function hasCompleteDecimalValue(input) {
+  const value = input.value.trim();
+  return value !== '' && value !== '0' && value !== '.' && !value.endsWith('.');
+}
+
+function normalizeDecimalFields(...fields) {
+  fields.forEach(normalizeDecimalInput);
 }
 
 function canvasCellFromEvent(event, canvas, shelf) {
@@ -228,6 +239,7 @@ function setPackageEditFormValues(shelf, draft) {
   els.columnIndex.value = adjusted.column;
   els.widthUnits.value = inputMeters(adjusted.width);
   els.depthUnits.value = inputMeters(adjusted.depth);
+  appState.selected = { shelf, row: adjusted.row, column: adjusted.column };
   els.selectedCell.textContent = `${shelf.name}: Änderung bereit`;
   return adjusted;
 }
@@ -285,7 +297,9 @@ function clearPackageForm() {
   els.cancelEditButton.classList.add('hidden');
 }
 
-function updateDraftFromSizeInputs() {
+function updateDraftFromSizeInputs(event) {
+  if (event?.target) normalizeDecimalInput(event.target);
+  if (!hasCompleteDecimalValue(els.widthUnits) || !hasCompleteDecimalValue(els.depthUnits)) return;
   const draft = selectedDraft();
   if (draft) {
     setDraftFormValues(draft.shelf, draft);
@@ -600,6 +614,10 @@ function startPackageEdit(event, canvas, shelf, item, rectangle, displayItem) {
       )
       : resizeDraftFromPointer(draft, handle, startPointer, moveEvent, canvas, shelf);
     const adjusted = setPackageEditFormValues(shelf, nextDraft);
+    displayItem.row_index = adjusted.row;
+    displayItem.column_index = adjusted.column;
+    displayItem.width_units = adjusted.width;
+    displayItem.depth_units = adjusted.depth;
     updateDragMarker(shelf, rectangle, adjusted);
     rectangle.querySelector('.measure').textContent = `${formatMeters(adjusted.width)} x ${formatMeters(adjusted.depth)} m`;
   };
@@ -609,7 +627,10 @@ function startPackageEdit(event, canvas, shelf, item, rectangle, displayItem) {
     rectangle.removeEventListener('pointermove', move);
     rectangle.removeEventListener('pointerup', finish);
     rectangle.removeEventListener('pointercancel', finish);
-    if (moved) rectangle.dataset.dragged = 'true';
+    if (moved) {
+      rectangle.dataset.dragged = 'true';
+      render();
+    }
   };
 
   rectangle.setPointerCapture(event.pointerId);
@@ -801,6 +822,8 @@ async function loadShelves() {
 
 async function submitPackage(event) {
   event.preventDefault();
+  normalizeDecimalFields(els.shelfRows, els.shelfColumns, els.widthUnits, els.depthUnits);
+  updateDraftFromSizeInputs();
   const payload = Object.fromEntries(new FormData(els.packageForm).entries());
   if (payload.locationType === 'floor' && !String(payload.shelfName || '').toLowerCase().includes('boden')) {
     payload.shelfName = `Boden - ${payload.shelfName}`;
@@ -817,6 +840,7 @@ async function submitPackage(event) {
 
 async function submitPlace(event) {
   event.preventDefault();
+  normalizeDecimalFields(els.placeRows, els.placeColumns);
   const payload = Object.fromEntries(new FormData(els.placeForm).entries());
   const isEdit = Boolean(payload.id);
   await apiFetch('/api/places', {
@@ -910,6 +934,11 @@ document.querySelectorAll('[data-example]').forEach(button => {
   });
 });
 
+[els.shelfRows, els.shelfColumns, els.widthUnits, els.depthUnits, els.placeRows, els.placeColumns].forEach(input => {
+  input.addEventListener('input', () => normalizeDecimalInput(input));
+});
+els.widthUnits.addEventListener('input', updateDraftFromSizeInputs);
+els.depthUnits.addEventListener('input', updateDraftFromSizeInputs);
 els.widthUnits.addEventListener('change', updateDraftFromSizeInputs);
 els.depthUnits.addEventListener('change', updateDraftFromSizeInputs);
 
