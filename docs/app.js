@@ -531,12 +531,17 @@ function render() {
   const floorPlaces = appState.shelves.filter(shelf => placeKind(shelf) === 'floor');
   const shelfPlaces = appState.shelves.filter(shelf => placeKind(shelf) === 'shelf');
   const planShelves = selectedPlanShelves(shelfPlaces, floorPlaces);
+  const oldPlaces = appState.shelves.filter(shelf => !planPlaceRole(shelf));
   const freeLength = totalFreeRun(planShelves);
-  els.summaryText.textContent = appState.shelves.length
-    ? `${formatCm(freeLength)} cm freie nutzbare Länge über alle Flächen.`
-    : 'Noch keine Regale angelegt.';
+  els.summaryText.textContent = planShelves.length
+    ? `${formatCm(freeLength)} cm freie nutzbare Länge in den neuen 3 Orten.${oldPlaces.length ? ` ${oldPlaces.length} alter Ort ausgeblendet.` : ''}`
+    : `Noch keine neuen 3 Orte angelegt.${oldPlaces.length ? ` ${oldPlaces.length} alter Ort ist unter Orte verwalten.` : ''}`;
 
-  renderOverview(planShelves, shelfPlaces, floorPlaces);
+  renderOverview(
+    planShelves,
+    shelfPlaces.filter(shelf => planPlaceRole(shelf) === 'rack'),
+    floorPlaces.filter(shelf => planPlaceRole(shelf))
+  );
   renderPlanDrawing(shelfPlaces, floorPlaces);
   renderPlaces();
 }
@@ -548,11 +553,29 @@ function selectedPlanShelves(shelfPlaces, floorPlaces) {
     .filter(Boolean);
 }
 
-function planRole(shelf) {
+function isNearSize(shelf, role) {
+  const expected = expectedPlanSize(role);
+  return Math.abs((shelf.columns || 0) - expected.columns) <= 2 && Math.abs((shelf.rows || 0) - expected.rows) <= 2;
+}
+
+function planPlaceRole(shelf) {
   const text = `${shelf.name || ''} ${shelf.label || ''} ${shelf.notes || ''}`.toLowerCase();
-  if (placeKind(shelf) === 'shelf') return 'rack';
-  if (text.includes('bodenplatz 2') || text.includes('390 x 740') || text.includes('380 x 70') || shelf.rows >= 700) return 'floor-long';
-  return 'floor-main';
+  if (placeKind(shelf) === 'shelf') {
+    return isNearSize(shelf, 'rack') || text.includes('5 säulen') || text.includes('kleinregal') || text.includes('600 x 106')
+      ? 'rack'
+      : null;
+  }
+  if (text.includes('bodenplatz 2') || text.includes('390 x 740') || text.includes('380 x 70') || isNearSize(shelf, 'floor-long')) {
+    return 'floor-long';
+  }
+  if (text.includes('bodenplatz 1') || text.includes('880 x 380') || text.includes('80 x 100') || isNearSize(shelf, 'floor-main')) {
+    return 'floor-main';
+  }
+  return null;
+}
+
+function planRole(shelf) {
+  return planPlaceRole(shelf) || 'other';
 }
 
 function planTitle(role) {
@@ -576,7 +599,7 @@ function defaultPlacePayload(role) {
 }
 
 function findPlanShelf(role, shelves) {
-  return shelves.find(shelf => planRole(shelf) === role) || null;
+  return shelves.find(shelf => planPlaceRole(shelf) === role) || null;
 }
 
 function renderPlanDrawing(shelfPlaces, floorPlaces) {
@@ -1101,10 +1124,26 @@ async function movePackage(shelf, item, draft) {
 }
 
 function renderPlaces() {
-  appState.shelves.forEach(place => {
+  const planPlacesList = appState.shelves.filter(planPlaceRole);
+  const oldPlaces = appState.shelves.filter(place => !planPlaceRole(place));
+  if (planPlacesList.length) {
+    renderPlaceGroup('Aktuelle 3 Orte', planPlacesList);
+  }
+  if (oldPlaces.length) {
+    renderPlaceGroup('Alte/sonstige Orte', oldPlaces, true);
+  }
+}
+
+function renderPlaceGroup(title, places, muted = false) {
+  const group = document.createElement('section');
+  group.className = `place-group ${muted ? 'old-place-group' : ''}`;
+  const heading = document.createElement('h3');
+  heading.textContent = title;
+  group.append(heading);
+  places.forEach(place => {
     const kind = placeKind(place);
     const item = document.createElement('article');
-    item.className = `place-item ${kind === 'floor' ? 'floor-place-item' : ''}`;
+    item.className = `place-item ${kind === 'floor' ? 'floor-place-item' : ''} ${muted ? 'old-place-item' : ''}`;
     item.innerHTML = `
       <div>
         <span class="place-type">${placeLabel(kind)}</span>
@@ -1120,8 +1159,9 @@ function renderPlaces() {
     item.querySelector('.delete-place').addEventListener('click', () => deletePlace(place.id).catch(error => {
       showMessage(error.message, 'error');
     }));
-    els.placeList.append(item);
+    group.append(item);
   });
+  els.placeList.append(group);
 }
 
 function selectPlace(place) {
@@ -1288,7 +1328,7 @@ async function deleteAllPlaces() {
 }
 
 async function createDefaultPlanPlaces() {
-  const existingRoles = new Set(appState.shelves.map(planRole));
+  const existingRoles = new Set(appState.shelves.map(planPlaceRole).filter(Boolean));
   const missingRoles = ['floor-main', 'rack', 'floor-long'].filter(role => !existingRoles.has(role));
   if (!missingRoles.length) {
     showMessage('Die 3 Orte sind schon angelegt.');

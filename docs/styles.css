@@ -453,22 +453,23 @@ select:hover {
 
 .plan-drawing {
   display: grid;
-  grid-template-columns: minmax(230px, 0.82fr) minmax(360px, 1.35fr);
+  grid-template-columns: minmax(280px, 0.95fr) minmax(380px, 1.15fr);
   grid-template-areas:
     "floor rack"
     "long long";
-  gap: 18px;
+  gap: 16px;
   align-items: start;
-  padding: 16px;
-  border: 1px solid var(--line-strong);
+  padding: 0;
+  border: 0;
   border-radius: 8px;
-  background: #fff;
+  background: transparent;
 }
 
 .plan-slot {
-  padding: 0;
-  border: 0;
-  background: transparent;
+  padding: 14px;
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 8px;
   box-shadow: none;
 }
 
@@ -482,13 +483,13 @@ select:hover {
 
 .plan-slot.floor-long {
   grid-area: long;
-  width: min(100%, 760px);
-  justify-self: end;
+  width: 100%;
+  justify-self: stretch;
 }
 
 .plan-meta {
-  min-height: 54px;
-  margin-bottom: 8px;
+  min-height: 48px;
+  margin-bottom: 10px;
 }
 
 .rack-display {
@@ -505,24 +506,22 @@ select:hover {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   grid-template-rows: minmax(112px, 1fr) 44px;
   gap: 0;
-  min-width: 520px;
-  padding: 12px 20px;
-  border: 3px solid #151515;
-  border-radius: 2px;
+  min-width: 480px;
+  padding: 10px 16px;
+  border: 2px solid var(--line-strong);
+  border-radius: 8px;
   background:
-    linear-gradient(to right, rgba(20, 32, 34, 0.9) 0 3px, transparent 3px calc(25% - 2px), rgba(20, 32, 34, 0.9) calc(25% - 2px) calc(25% + 2px), transparent calc(25% + 2px) calc(50% - 2px), rgba(20, 32, 34, 0.9) calc(50% - 2px) calc(50% + 2px), transparent calc(50% + 2px) calc(75% - 2px), rgba(20, 32, 34, 0.9) calc(75% - 2px) calc(75% + 2px), transparent calc(75% + 2px) calc(100% - 3px), rgba(20, 32, 34, 0.9) calc(100% - 3px)),
-    #fff;
+    linear-gradient(to right, var(--line-strong) 0 2px, transparent 2px calc(25% - 1px), var(--line-strong) calc(25% - 1px) calc(25% + 1px), transparent calc(25% + 1px) calc(50% - 1px), var(--line-strong) calc(50% - 1px) calc(50% + 1px), transparent calc(50% + 1px) calc(75% - 1px), var(--line-strong) calc(75% - 1px) calc(75% + 1px), transparent calc(75% + 1px) calc(100% - 2px), var(--line-strong) calc(100% - 2px)),
+    var(--surface-soft);
 }
 
 .rack-level {
   position: relative;
-  min-height: 112px;
-  border: 2px solid #151515;
-  border-radius: 2px;
+  min-height: 104px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
   padding: 8px 10px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(237, 243, 242, 0.95)),
-    #f7faf9;
+  background: #ffffff;
   color: var(--ink);
   display: grid;
   align-content: center;
@@ -544,8 +543,8 @@ select:hover {
   position: absolute;
   inset: auto 8px 6px;
   height: 6px;
-  border-top: 3px solid #151515;
-  border-bottom: 3px solid #151515;
+  border-top: 2px solid var(--primary);
+  border-bottom: 2px solid var(--primary);
   background: rgba(15, 118, 110, 0.12);
 }
 
@@ -596,13 +595,13 @@ select:hover {
 }
 
 .floor-main .place-canvas {
-  min-height: 220px;
+  min-height: 210px;
 }
 
 .floor-long .place-canvas {
-  width: min(100%, 440px);
-  min-height: 420px;
-  justify-self: end;
+  width: min(100%, 520px);
+  min-height: 360px;
+  justify-self: center;
 }
 
 .shelf-meta h2 {
@@ -631,12 +630,14 @@ select:hover {
   position: relative;
   width: 100%;
   min-height: 280px;
-  border: 3px solid #151515;
-  border-radius: 2px;
+  border: 2px solid var(--line-strong);
+  border-radius: 8px;
   overflow: hidden;
   background-color: #ffffff;
-  background-image: none;
-  background-size: auto;
+  background-image:
+    linear-gradient(to right, rgba(20, 32, 34, 0.045) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(20, 32, 34, 0.045) 1px, transparent 1px);
+  background-size: 10% 25%;
   cursor: crosshair;
   touch-action: none;
   user-select: none;
@@ -644,14 +645,13 @@ select:hover {
 
 .floor-canvas {
   background-color: #fffdf8;
-  border-color: #151515;
-  background-image: none;
+  border-color: var(--floor-line);
 }
 
 .rack .place-canvas {
   background-image:
-    linear-gradient(to right, transparent 0 24.5%, rgba(20, 32, 34, 0.5) 24.5% 25.5%, transparent 25.5% 49.5%, rgba(20, 32, 34, 0.5) 49.5% 50.5%, transparent 50.5% 74.5%, rgba(20, 32, 34, 0.5) 74.5% 75.5%, transparent 75.5%),
-    linear-gradient(to bottom, transparent 0 32%, rgba(20, 32, 34, 0.3) 32% 34%, transparent 34% 66%, rgba(20, 32, 34, 0.3) 66% 68%, transparent 68%);
+    linear-gradient(to right, transparent 0 24.5%, rgba(20, 32, 34, 0.18) 24.5% 25.5%, transparent 25.5% 49.5%, rgba(20, 32, 34, 0.18) 49.5% 50.5%, transparent 50.5% 74.5%, rgba(20, 32, 34, 0.18) 74.5% 75.5%, transparent 75.5%),
+    linear-gradient(to bottom, rgba(20, 32, 34, 0.045) 1px, transparent 1px);
 }
 
 .package-rect,
@@ -1047,6 +1047,26 @@ select:hover {
   gap: 10px;
 }
 
+.place-group {
+  display: grid;
+  gap: 10px;
+}
+
+.place-group h3 {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 950;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.old-place-group {
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
 .place-item {
   display: flex;
   justify-content: space-between;
@@ -1071,6 +1091,11 @@ select:hover {
 .floor-place-item {
   background: #fffdf8;
   border-color: var(--floor-line);
+}
+
+.old-place-item {
+  opacity: 0.72;
+  background: var(--surface-soft);
 }
 
 @media (max-width: 900px) {
@@ -1112,7 +1137,7 @@ select:hover {
       "floor"
       "rack"
       "long";
-    background: #fff;
+    background: transparent;
   }
 
   .plan-slot.floor-long {
@@ -1134,6 +1159,10 @@ select:hover {
 
   .place-canvas {
     min-height: 230px;
+  }
+
+  .floor-long .place-canvas {
+    min-height: 320px;
   }
 
   .place-item {
