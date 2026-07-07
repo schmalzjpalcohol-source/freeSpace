@@ -483,7 +483,7 @@ select:hover {
 
 .rack-levels {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
   min-width: 0;
   padding: 0;
@@ -560,6 +560,44 @@ select:hover {
   min-height: 86px;
 }
 
+.rack-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.measure-toggle {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.measure-toggle.active {
+  border-color: var(--primary);
+  background: #edf7f5;
+  color: var(--primary-dark);
+}
+
+.measure-icon {
+  width: 18px;
+  height: 10px;
+  border-top: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  background:
+    linear-gradient(to right, currentColor 0 2px, transparent 2px 5px, currentColor 5px 7px, transparent 7px 10px, currentColor 10px 12px, transparent 12px);
+}
+
+.measure-status {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 850;
+}
+
 .rack-package {
   z-index: 3;
 }
@@ -611,6 +649,51 @@ select:hover {
   cursor: crosshair;
   touch-action: none;
   user-select: none;
+}
+
+.measure-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.measure-point {
+  position: absolute;
+  width: 13px;
+  height: 13px;
+  border: 2px solid #fff;
+  border-radius: 999px;
+  background: var(--primary);
+  box-shadow: 0 2px 8px rgba(20, 32, 34, 0.22);
+  transform: translate(-50%, -50%);
+}
+
+.measure-point.end {
+  background: var(--accent);
+}
+
+.measure-line {
+  position: absolute;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--primary);
+  transform-origin: left center;
+  box-shadow: 0 1px 5px rgba(20, 32, 34, 0.18);
+}
+
+.measure-label {
+  position: absolute;
+  padding: 5px 7px;
+  border: 1px solid rgba(15, 118, 110, 0.22);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.94);
+  color: var(--primary-dark);
+  font-size: 0.76rem;
+  font-weight: 950;
+  line-height: 1;
+  transform: translate(-50%, calc(-100% - 8px));
+  white-space: nowrap;
 }
 
 .floor-canvas {

@@ -55,7 +55,8 @@ let appState = {
   shelves: [],
   selected: null,
   activeView: 'packages',
-  activeRackLevel: 1
+  activeRackLevel: 1,
+  measurement: null
 };
 
 const planPlaces = {
@@ -66,10 +67,10 @@ const planPlaces = {
     notes: 'Sperrfläche Ecke 80 x 100 cm'
   },
   rack: {
-    title: 'Regal 600 x 106',
-    rows: 106,
+    title: 'Regal 600 x 90',
+    rows: 90,
     columns: 600,
-    notes: '5 Säulen, 4 Plätze à 150 x 90 cm, rechts unten 150 x 16 cm'
+    notes: '4 Plätze à 150 x 90 cm'
   },
   'floor-long': {
     title: 'Bodenplatz 2 - 390 x 740',
@@ -161,6 +162,10 @@ function formatSizeCm(width, depth) {
   return `${formatCm(width)} x ${formatCm(depth)} cm`;
 }
 
+function formatMeasureCm(cm) {
+  return `${formatDecimal(cm)} cm`;
+}
+
 function inputCm(cm) {
   return formatCm(cm);
 }
@@ -208,13 +213,11 @@ function rackLevelSpecs(shelf) {
   const height = Math.max(1, shelf.rows || planPlaces.rack.rows);
   const bayWidth = Math.max(1, Math.round(width / 4));
   const fullDepth = Math.min(90, height);
-  const smallDepth = Math.min(16, height);
   return [
     { level: 1, label: 'Regalplatz 1', start: 1, end: fullDepth, xStart: 1, xEnd: bayWidth, short: false },
     { level: 2, label: 'Regalplatz 2', start: 1, end: fullDepth, xStart: bayWidth + 1, xEnd: bayWidth * 2, short: false },
     { level: 3, label: 'Regalplatz 3', start: 1, end: fullDepth, xStart: (bayWidth * 2) + 1, xEnd: bayWidth * 3, short: false },
-    { level: 4, label: 'Regalplatz 4', start: 1, end: fullDepth, xStart: (bayWidth * 3) + 1, xEnd: width, short: false },
-    { level: 5, label: 'Kleinregal', start: Math.max(1, height - smallDepth + 1), end: height, xStart: Math.max(1, width - bayWidth + 1), xEnd: width, short: true }
+    { level: 4, label: 'Regalplatz 4', start: 1, end: fullDepth, xStart: (bayWidth * 3) + 1, xEnd: width, short: false }
   ];
 }
 
@@ -291,6 +294,60 @@ function rackGlobalDraft(shelf, range, localDraft) {
   );
 }
 
+function activeRackMeasurement(shelf, level) {
+  const measurement = appState.measurement;
+  if (!measurement || measurement.shelfId !== shelf.id || measurement.level !== level) return null;
+  return measurement;
+}
+
+function isRackMeasuring(shelf, level) {
+  const measurement = activeRackMeasurement(shelf, level);
+  return Boolean(measurement && measurement.active);
+}
+
+function clearRackMeasurement() {
+  appState.measurement = null;
+}
+
+function toggleRackMeasurement(shelf, level) {
+  if (isRackMeasuring(shelf, level)) {
+    clearRackMeasurement();
+    return;
+  }
+  appState.measurement = {
+    active: true,
+    shelfId: shelf.id,
+    level,
+    start: null,
+    end: null
+  };
+}
+
+function setRackMeasurePoint(shelf, level, point) {
+  const measurement = activeRackMeasurement(shelf, level) || {
+    active: true,
+    shelfId: shelf.id,
+    level,
+    start: null,
+    end: null
+  };
+  if (!measurement.start || measurement.end) {
+    measurement.start = point;
+    measurement.end = null;
+  } else {
+    measurement.end = point;
+  }
+  appState.measurement = measurement;
+  return measurement;
+}
+
+function measureDistanceCm(measurement) {
+  if (!measurement?.start || !measurement?.end) return 0;
+  const dx = measurement.end.column - measurement.start.column;
+  const dy = measurement.end.row - measurement.start.row;
+  return Math.hypot(dx, dy);
+}
+
 function findFreeRackDraft(shelf, range, size) {
   const width = Math.min(size.width, range.width);
   const depth = Math.min(size.depth, range.height);
@@ -339,6 +396,14 @@ function canvasCellFromEvent(event, canvas, shelf) {
   return {
     column: clamp(Math.floor(((event.clientX - rect.left) / rect.width) * shelf.columns) + 1, 1, shelf.columns),
     row: clamp(Math.floor(((event.clientY - rect.top) / rect.height) * shelf.rows) + 1, 1, shelf.rows)
+  };
+}
+
+function canvasMeasurePointFromEvent(event, canvas, shelf) {
+  const rect = canvas.getBoundingClientRect();
+  return {
+    column: clamp(((event.clientX - rect.left) / rect.width) * shelf.columns, 0, shelf.columns),
+    row: clamp(((event.clientY - rect.top) / rect.height) * shelf.rows, 0, shelf.rows)
   };
 }
 
@@ -618,7 +683,7 @@ function isNearSize(shelf, role) {
 function planPlaceRole(shelf) {
   const text = `${shelf.name || ''} ${shelf.label || ''} ${shelf.notes || ''}`.toLowerCase();
   if (placeKind(shelf) === 'shelf') {
-    return isNearSize(shelf, 'rack') || text.includes('5 säulen') || text.includes('kleinregal') || text.includes('600 x 106')
+    return isNearSize(shelf, 'rack') || text.includes('4 plätze') || text.includes('600 x 90') || text.includes('600 x 106')
       ? 'rack'
       : null;
   }
@@ -759,18 +824,50 @@ function renderRackDisplay(shelf) {
   });
 
   wrapper.append(levels);
+  wrapper.append(renderRackTools(shelf, appState.activeRackLevel));
   wrapper.append(renderRackLevelDetail(shelf, appState.activeRackLevel));
   return wrapper;
+}
+
+function renderRackTools(shelf, level) {
+  const tools = document.createElement('div');
+  tools.className = 'rack-tools';
+  const measurement = activeRackMeasurement(shelf, level);
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = `measure-toggle ${measurement?.active ? 'active' : ''}`;
+  button.innerHTML = '<span class="measure-icon" aria-hidden="true"></span><span>Messen</span>';
+  button.addEventListener('click', () => {
+    toggleRackMeasurement(shelf, level);
+    render();
+  });
+  tools.append(button);
+
+  const label = document.createElement('span');
+  label.className = 'measure-status';
+  if (!measurement?.active) {
+    label.textContent = 'Punkt 1, dann Punkt 2 messen';
+  } else if (!measurement.start) {
+    label.textContent = 'Punkt 1 wählen';
+  } else if (!measurement.end) {
+    label.textContent = 'Punkt 2 wählen';
+  } else {
+    label.textContent = `Gemessen: ${formatMeasureCm(measureDistanceCm(measurement))}`;
+  }
+  tools.append(label);
+  return tools;
 }
 
 function renderRackLevelDetail(shelf, level) {
   const range = rackLevelRange(shelf, level);
   const canvas = document.createElement('div');
+  const measurement = activeRackMeasurement(shelf, level);
   canvas.className = `rack-level-detail place-canvas ${range.short ? 'short-rack-detail' : ''}`;
   canvas.style.setProperty('--cols', 1);
   canvas.style.setProperty('--rows', 1);
   canvas.style.aspectRatio = `${range.width} / ${Math.max(1, range.height)}`;
   canvas.append(renderDimensionLabels({ ...shelf, columns: range.width, rows: range.height }, 'shelf', range.short ? 'rack-short-detail' : 'rack-detail'));
+  canvas.append(renderMeasureOverlay(measurement, range));
 
   const visiblePackages = shelf.packages.filter(item => packageInRackLevel(item, range));
   visiblePackages.forEach(item => {
@@ -842,6 +939,13 @@ function renderRackLevelDetail(shelf, level) {
   }
 
   canvas.addEventListener('pointerdown', event => {
+    if (isRackMeasuring(shelf, level)) {
+      event.preventDefault();
+      const point = canvasMeasurePointFromEvent(event, canvas, { ...shelf, columns: range.width, rows: range.height });
+      setRackMeasurePoint(shelf, level, point);
+      render();
+      return;
+    }
     if (event.target.closest('.package-rect, .draft-marker')) return;
     event.preventDefault();
     const cell = canvasCellFromEvent(event, canvas, { ...shelf, columns: range.width, rows: range.height });
@@ -851,6 +955,54 @@ function renderRackLevelDetail(shelf, level) {
   });
 
   return canvas;
+}
+
+function renderMeasureOverlay(measurement, range) {
+  const overlay = document.createElement('div');
+  overlay.className = 'measure-overlay';
+  if (!measurement?.active || !measurement.start) return overlay;
+
+  const start = measurement.start;
+  const end = measurement.end || measurement.start;
+  const x1 = (start.column / range.width) * 100;
+  const y1 = (start.row / range.height) * 100;
+  const x2 = (end.column / range.width) * 100;
+  const y2 = (end.row / range.height) * 100;
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const length = Math.hypot(dx, dy);
+  const angle = Math.atan2(dy, dx) * (180 / Math.PI);
+
+  const firstPoint = document.createElement('span');
+  firstPoint.className = 'measure-point';
+  firstPoint.style.left = `${x1}%`;
+  firstPoint.style.top = `${y1}%`;
+  overlay.append(firstPoint);
+
+  if (measurement.end) {
+    const secondPoint = document.createElement('span');
+    secondPoint.className = 'measure-point end';
+    secondPoint.style.left = `${x2}%`;
+    secondPoint.style.top = `${y2}%`;
+    overlay.append(secondPoint);
+
+    const line = document.createElement('span');
+    line.className = 'measure-line';
+    line.style.left = `${x1}%`;
+    line.style.top = `${y1}%`;
+    line.style.width = `${length}%`;
+    line.style.transform = `rotate(${angle}deg)`;
+    overlay.append(line);
+
+    const label = document.createElement('span');
+    label.className = 'measure-label';
+    label.style.left = `${(x1 + x2) / 2}%`;
+    label.style.top = `${(y1 + y2) / 2}%`;
+    label.textContent = formatMeasureCm(measureDistanceCm(measurement));
+    overlay.append(label);
+  }
+
+  return overlay;
 }
 
 function renderPlaceCanvas(shelf, kind, role = planRole(shelf)) {
@@ -996,7 +1148,7 @@ function renderDimensionLabels(shelf, kind, role = planRole(shelf)) {
   labels.innerHTML = `
     <span class="dim dim-top">${formatCm(shelf.columns)} cm</span>
     <span class="dim dim-left">${formatCm(shelf.rows)} cm</span>
-    ${kind === 'shelf' ? '<span class="dim dim-bays">5 Säulen / 4 x 150 cm</span>' : ''}
+    ${kind === 'shelf' ? '<span class="dim dim-bays">4 x 150 cm</span>' : ''}
     ${role === 'floor-main' ? '<span class="dim dim-depth">550 + 330 cm</span><span class="dim dim-blocked">80 x 100 cm Sperrfläche</span>' : ''}
     ${role === 'floor-long' ? '<span class="dim dim-depth">420 + 320 cm</span><span class="dim dim-blocked">380 x 70 cm Sperrfläche</span>' : ''}
   `;
@@ -1373,7 +1525,7 @@ function renderOverview(shelves, shelfPlaces, floorPlaces) {
   const cards = [
     ['Freie Länge', `${formatCm(freeLength)} cm`, 'längste freie Strecken addiert'],
     ['Sperrflächen', blockedCount, 'rot markiert, nicht abstellen'],
-    ['Regal', shelfPlaces.length, '4 Plätze à 150 cm plus Kleinregal'],
+    ['Regal', shelfPlaces.length, '4 Plätze à 150 x 90 cm'],
     ['Bodenflächen', floorPlaces.length, 'normale Stellflächen']
   ];
 
@@ -1394,7 +1546,7 @@ function renderOverview(shelves, shelfPlaces, floorPlaces) {
 
 function renderWarehouseMap(shelfPlaces, floorPlaces) {
   const zones = [
-    ['Regal 600 x 106', shelfPlaces],
+    ['Regal 600 x 90', shelfPlaces],
     ['Bodenplatz 1', floorPlaces.slice(0, 1)],
     ['Bodenplatz 2', floorPlaces.slice(1)]
   ];
