@@ -269,6 +269,28 @@ function draftInRackRange(shelf, range, cell, size) {
   return draftAtCell({ column, row }, shelf, { width, depth });
 }
 
+function rackLocalDraft(draft, range) {
+  const clippedTop = Math.max(draft.row, range.start);
+  const clippedBottom = Math.min(draft.row + draft.depth - 1, range.end);
+  const clippedLeft = Math.max(draft.column, range.xStart);
+  const clippedRight = Math.min(draft.column + draft.width - 1, range.xEnd);
+  return {
+    row: clippedTop - range.start + 1,
+    column: clippedLeft - range.xStart + 1,
+    width: Math.max(1, clippedRight - clippedLeft + 1),
+    depth: Math.max(1, clippedBottom - clippedTop + 1)
+  };
+}
+
+function rackGlobalDraft(shelf, range, localDraft) {
+  return draftInRackRange(
+    shelf,
+    range,
+    { column: localDraft.column, row: localDraft.row },
+    { width: localDraft.width, depth: localDraft.depth }
+  );
+}
+
 function findFreeRackDraft(shelf, range, size) {
   const width = Math.min(size.width, range.width);
   const depth = Math.min(size.depth, range.height);
@@ -753,15 +775,26 @@ function renderRackLevelDetail(shelf, level) {
   const visiblePackages = shelf.packages.filter(item => packageInRackLevel(item, range));
   visiblePackages.forEach(item => {
     const rectangle = document.createElement('button');
-    const clippedTop = Math.max(item.row_index, range.start);
-    const clippedBottom = Math.min(item.row_index + (item.depth_units || 1) - 1, range.end);
-    const clippedLeft = Math.max(item.column_index, range.xStart);
-    const clippedRight = Math.min(item.column_index + (item.width_units || 1) - 1, range.xEnd);
+    const selectedPackage = els.packageId.value === item.id;
+    const editDraft = selectedPackage ? selectedPackageDraft(item) : null;
+    const displayItem = editDraft
+      ? {
+        ...item,
+        row_index: editDraft.row,
+        column_index: editDraft.column,
+        width_units: editDraft.width,
+        depth_units: editDraft.depth
+      }
+      : item;
+    const clippedTop = Math.max(displayItem.row_index, range.start);
+    const clippedBottom = Math.min(displayItem.row_index + (displayItem.depth_units || 1) - 1, range.end);
+    const clippedLeft = Math.max(displayItem.column_index, range.xStart);
+    const clippedRight = Math.min(displayItem.column_index + (displayItem.width_units || 1) - 1, range.xEnd);
     const visibleDepth = Math.max(1, clippedBottom - clippedTop + 1);
     const visibleWidth = Math.max(1, clippedRight - clippedLeft + 1);
-    rectangle.className = 'package-rect rack-package';
-    rectangle.classList.toggle('blocked-zone', isBlockedItem(item));
-    rectangle.classList.toggle('stacked-zone', isStackedItem(item));
+    rectangle.className = `package-rect rack-package ${selectedPackage ? 'selected' : ''}`;
+    rectangle.classList.toggle('blocked-zone', isBlockedItem(displayItem));
+    rectangle.classList.toggle('stacked-zone', isStackedItem(displayItem));
     rectangle.type = 'button';
     rectangle.style.left = `${((clippedLeft - range.xStart) / range.width) * 100}%`;
     rectangle.style.top = `${((clippedTop - range.start) / range.height) * 100}%`;
@@ -769,8 +802,18 @@ function renderRackLevelDetail(shelf, level) {
     rectangle.style.height = `${(visibleDepth / range.height) * 100}%`;
     rectangle.dataset.tooltip = item.package_name;
     rectangle.setAttribute('aria-label', item.package_name);
-    rectangle.innerHTML = packageHtml(item, false);
-    rectangle.addEventListener('click', () => selectCell(shelf, item.row_index, item.column_index, item));
+    rectangle.innerHTML = packageHtml(displayItem, selectedPackage);
+    rectangle.addEventListener('pointerdown', event => {
+      if (!selectedPackage) return;
+      startRackPackageEdit(event, canvas, shelf, range, item, rectangle, displayItem);
+    });
+    rectangle.addEventListener('click', () => {
+      if (rectangle.dataset.dragged === 'true') {
+        rectangle.dataset.dragged = 'false';
+        return;
+      }
+      selectCell(shelf, item.row_index, item.column_index, item);
+    });
     canvas.append(rectangle);
   });
 
@@ -783,18 +826,11 @@ function renderRackLevelDetail(shelf, level) {
   }, range);
   if (draftVisibleInRange) {
     const marker = document.createElement('div');
-    const clippedTop = Math.max(draft.row, range.start);
-    const clippedBottom = Math.min(draft.row + draft.depth - 1, range.end);
-    const clippedLeft = Math.max(draft.column, range.xStart);
-    const clippedRight = Math.min(draft.column + draft.width - 1, range.xEnd);
+    const localDraft = rackLocalDraft(draft, range);
     marker.className = 'draft-marker rack-draft-marker';
-    marker.innerHTML = `<span class="draft-size">${formatSizeCm(draft.width, draft.depth)}</span>`;
-    updateDragMarker({ columns: range.width, rows: range.height }, marker, {
-      row: clippedTop - range.start + 1,
-      column: clippedLeft - range.xStart + 1,
-      width: Math.max(1, clippedRight - clippedLeft + 1),
-      depth: Math.max(1, clippedBottom - clippedTop + 1)
-    });
+    marker.innerHTML = draftMarkerHtml(draft);
+    updateDragMarker({ columns: range.width, rows: range.height }, marker, localDraft);
+    marker.addEventListener('pointerdown', event => startRackDraftEdit(event, canvas, shelf, range, marker, localDraft));
     canvas.append(marker);
   }
 
@@ -1042,6 +1078,113 @@ function startDraftEdit(event, canvas, shelf, marker, draft) {
   marker.addEventListener('pointermove', move);
   marker.addEventListener('pointerup', finish);
   marker.addEventListener('pointercancel', finish);
+}
+
+function startRackDraftEdit(event, canvas, shelf, range, marker, localDraft) {
+  event.preventDefault();
+  event.stopPropagation();
+
+  const handle = event.target.dataset.handle || 'move';
+  const localShelf = { columns: range.width, rows: range.height };
+  const startCell = canvasCellFromEvent(event, canvas, localShelf);
+  const startPointer = { x: event.clientX, y: event.clientY };
+  const grabOffset = {
+    column: startCell.column - localDraft.column,
+    row: startCell.row - localDraft.row
+  };
+
+  const move = moveEvent => {
+    const cell = canvasCellFromEvent(moveEvent, canvas, localShelf);
+    const nextLocalDraft = handle === 'move'
+      ? draftAtCell(
+        { column: cell.column - grabOffset.column, row: cell.row - grabOffset.row },
+        localShelf,
+        { width: localDraft.width, depth: localDraft.depth }
+      )
+      : resizeDraftFromPointer(localDraft, handle, startPointer, moveEvent, canvas, localShelf);
+    const adjusted = setDraftFormValues(shelf, rackGlobalDraft(shelf, range, nextLocalDraft));
+    const adjustedLocal = rackLocalDraft({
+      row: adjusted.row,
+      column: adjusted.column,
+      width: adjusted.width,
+      depth: adjusted.depth
+    }, range);
+    updateDragMarker(localShelf, marker, adjustedLocal);
+    marker.querySelector('.draft-size').textContent = formatSizeCm(adjusted.width, adjusted.depth);
+  };
+
+  const finish = () => {
+    marker.releasePointerCapture(event.pointerId);
+    marker.removeEventListener('pointermove', move);
+    marker.removeEventListener('pointerup', finish);
+    marker.removeEventListener('pointercancel', finish);
+    render();
+  };
+
+  marker.setPointerCapture(event.pointerId);
+  marker.addEventListener('pointermove', move);
+  marker.addEventListener('pointerup', finish);
+  marker.addEventListener('pointercancel', finish);
+}
+
+function startRackPackageEdit(event, canvas, shelf, range, item, rectangle, displayItem) {
+  event.preventDefault();
+  event.stopPropagation();
+
+  const handle = event.target.dataset.handle || 'move';
+  const localShelf = { columns: range.width, rows: range.height };
+  const localDraft = rackLocalDraft({
+    row: displayItem.row_index,
+    column: displayItem.column_index,
+    width: displayItem.width_units || 1,
+    depth: displayItem.depth_units || 1
+  }, range);
+  const startCell = canvasCellFromEvent(event, canvas, localShelf);
+  const startPointer = { x: event.clientX, y: event.clientY };
+  const grabOffset = {
+    column: startCell.column - localDraft.column,
+    row: startCell.row - localDraft.row
+  };
+  let moved = false;
+
+  const move = moveEvent => {
+    const distance = Math.hypot(moveEvent.clientX - startPointer.x, moveEvent.clientY - startPointer.y);
+    if (!moved && distance < 6) return;
+    moved = true;
+    const cell = canvasCellFromEvent(moveEvent, canvas, localShelf);
+    const nextLocalDraft = handle === 'move'
+      ? draftAtCell(
+        { column: cell.column - grabOffset.column, row: cell.row - grabOffset.row },
+        localShelf,
+        { width: localDraft.width, depth: localDraft.depth }
+      )
+      : resizeDraftFromPointer(localDraft, handle, startPointer, moveEvent, canvas, localShelf);
+    const adjusted = setPackageEditFormValues(shelf, rackGlobalDraft(shelf, range, nextLocalDraft));
+    const adjustedLocal = rackLocalDraft({
+      row: adjusted.row,
+      column: adjusted.column,
+      width: adjusted.width,
+      depth: adjusted.depth
+    }, range);
+    updateDragMarker(localShelf, rectangle, adjustedLocal);
+    rectangle.querySelector('.measure').textContent = formatSizeCm(adjusted.width, adjusted.depth);
+  };
+
+  const finish = () => {
+    rectangle.releasePointerCapture(event.pointerId);
+    rectangle.removeEventListener('pointermove', move);
+    rectangle.removeEventListener('pointerup', finish);
+    rectangle.removeEventListener('pointercancel', finish);
+    if (moved) {
+      rectangle.dataset.dragged = 'true';
+      render();
+    }
+  };
+
+  rectangle.setPointerCapture(event.pointerId);
+  rectangle.addEventListener('pointermove', move);
+  rectangle.addEventListener('pointerup', finish);
+  rectangle.addEventListener('pointercancel', finish);
 }
 
 function startPackageEdit(event, canvas, shelf, item, rectangle, displayItem) {
