@@ -598,6 +598,16 @@ function updateDraftFromSizeInputs(event) {
   if (!hasCompleteDecimalValue(els.widthUnits) || !hasCompleteDecimalValue(els.depthUnits)) return;
   const draft = selectedDraft();
   if (draft) {
+    if (placeKind(draft.shelf) === 'shelf') {
+      const range = rackLevelRange(draft.shelf, appState.activeRackLevel);
+      setDraftFormValues(draft.shelf, rackGlobalDraft(
+        draft.shelf,
+        range,
+        rackLocalDraft(draft, range)
+      ));
+      render();
+      return;
+    }
     setDraftFormValues(draft.shelf, draft);
     render();
     return;
@@ -1572,9 +1582,8 @@ function setupPresetButton(button) {
   const [width, depth, height, name] = button.dataset.preset.split('|');
   const presetWidth = cmInputToCm(width, 100);
   const presetDepth = cmInputToCm(depth, 100);
-  const scale = Math.max(presetWidth, presetDepth, 1);
-  const visualWidth = clamp((presetWidth / scale) * 100, 16, 100);
-  const visualDepth = clamp((presetDepth / scale) * 100, 14, 100);
+  const visualWidth = clamp((presetWidth / 600) * 100, 8, 100);
+  const visualDepth = clamp((presetDepth / 380) * 100, 8, 100);
   const isBlocked = String(name || '').toLowerCase().includes('sperr');
   button.classList.add('preset-button');
   button.classList.toggle('blocked-preset', isBlocked);
