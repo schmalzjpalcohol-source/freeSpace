@@ -53,7 +53,8 @@ let appState = {
   user: null,
   shelves: [],
   selected: null,
-  activeView: 'packages'
+  activeView: 'packages',
+  activeRackLevel: 1
 };
 
 function apiBase() {
@@ -178,6 +179,38 @@ function maxFreeRunCm(shelf) {
 function lengthSummary(shelf) {
   const freeRun = maxFreeRunCm(shelf);
   return `${formatCm(freeRun)} cm freie Länge`;
+}
+
+function rackLevelCount() {
+  return 3;
+}
+
+function rackLevelRange(shelf, level) {
+  const count = rackLevelCount();
+  const levelHeight = Math.max(1, Math.ceil((shelf.rows || 1) / count));
+  const start = ((level - 1) * levelHeight) + 1;
+  const end = Math.min(shelf.rows || levelHeight, level * levelHeight);
+  return { start, end, height: Math.max(1, end - start + 1) };
+}
+
+function packageInRackLevel(item, range) {
+  const top = item.row_index;
+  const bottom = item.row_index + (item.depth_units || 1) - 1;
+  return top <= range.end && bottom >= range.start;
+}
+
+function rackLevelFreeRunCm(shelf, level) {
+  const range = rackLevelRange(shelf, level);
+  return maxFreeRunCm({
+    ...shelf,
+    rows: range.height,
+    packages: shelf.packages
+      .filter(item => packageInRackLevel(item, range))
+      .map(item => ({
+        ...item,
+        row_index: Math.max(1, item.row_index - range.start + 1)
+      }))
+  });
 }
 
 function totalFreeRun(shelves) {
@@ -488,7 +521,7 @@ function renderPlanSlot(role, shelf) {
   slot.append(meta);
 
   if (shelf) {
-    slot.append(renderPlaceCanvas(displayShelf, kind, role));
+    slot.append(role === 'rack' ? renderRackDisplay(displayShelf) : renderPlaceCanvas(displayShelf, kind, role));
   } else {
     slot.append(renderPlanPlaceholder(role, displayShelf));
   }
@@ -520,6 +553,88 @@ function renderPlanPlaceholder(role, shelf) {
     els.savePlaceButton.textContent = 'Ort speichern';
   });
   return placeholder;
+}
+
+function renderRackDisplay(shelf) {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'rack-display';
+
+  const levels = document.createElement('div');
+  levels.className = 'rack-levels';
+
+  for (let level = rackLevelCount(); level >= 1; level -= 1) {
+    const button = document.createElement('button');
+    const range = rackLevelRange(shelf, level);
+    const packages = shelf.packages.filter(item => packageInRackLevel(item, range));
+    button.type = 'button';
+    button.className = `rack-level ${appState.activeRackLevel === level ? 'active' : ''}`;
+    button.innerHTML = `
+      <span>Etage ${level}</span>
+      <strong>${formatCm(rackLevelFreeRunCm(shelf, level))} cm frei</strong>
+      <small>${packages.length} Positionen</small>
+    `;
+    button.addEventListener('click', () => {
+      appState.activeRackLevel = level;
+      render();
+    });
+    levels.append(button);
+  }
+
+  wrapper.append(levels);
+  wrapper.append(renderRackLevelDetail(shelf, appState.activeRackLevel));
+  return wrapper;
+}
+
+function renderRackLevelDetail(shelf, level) {
+  const range = rackLevelRange(shelf, level);
+  const canvas = document.createElement('div');
+  canvas.className = 'rack-level-detail place-canvas';
+  canvas.style.setProperty('--cols', Math.max(1, Math.round(shelf.columns / 150)));
+  canvas.style.setProperty('--rows', 1);
+  canvas.style.aspectRatio = `${shelf.columns} / ${Math.max(1, range.height)}`;
+  canvas.append(renderDimensionLabels({ ...shelf, rows: range.height }, 'shelf', 'rack-detail'));
+
+  const visiblePackages = shelf.packages.filter(item => packageInRackLevel(item, range));
+  visiblePackages.forEach(item => {
+    const rectangle = document.createElement('button');
+    const clippedTop = Math.max(item.row_index, range.start);
+    const clippedBottom = Math.min(item.row_index + (item.depth_units || 1) - 1, range.end);
+    const visibleDepth = Math.max(1, clippedBottom - clippedTop + 1);
+    rectangle.className = 'package-rect rack-package';
+    rectangle.classList.toggle('blocked-zone', isBlockedItem(item));
+    rectangle.classList.toggle('stacked-zone', isStackedItem(item));
+    rectangle.type = 'button';
+    rectangle.style.left = `${((item.column_index - 1) / shelf.columns) * 100}%`;
+    rectangle.style.top = `${((clippedTop - range.start) / range.height) * 100}%`;
+    rectangle.style.width = `${((item.width_units || 1) / shelf.columns) * 100}%`;
+    rectangle.style.height = `${(visibleDepth / range.height) * 100}%`;
+    rectangle.dataset.tooltip = item.package_name;
+    rectangle.setAttribute('aria-label', item.package_name);
+    rectangle.innerHTML = packageHtml(item, false);
+    rectangle.addEventListener('click', () => selectCell(shelf, item.row_index, item.column_index, item));
+    canvas.append(rectangle);
+  });
+
+  if (!visiblePackages.length) {
+    const empty = document.createElement('div');
+    empty.className = 'canvas-empty';
+    empty.textContent = `Etage ${level} frei`;
+    canvas.append(empty);
+  }
+
+  canvas.addEventListener('pointerdown', event => {
+    if (event.target !== canvas) return;
+    const cell = canvasCellFromEvent(event, canvas, { ...shelf, rows: range.height });
+    applyDraftSelection(shelf, draftAtCell(
+      { column: cell.column, row: range.start + cell.row - 1 },
+      shelf,
+      currentPackageSize()
+    ));
+    render();
+    els.packageName.focus();
+  });
+
+  return canvas;
 }
 
 function renderPlaceCanvas(shelf, kind, role = planRole(shelf)) {
