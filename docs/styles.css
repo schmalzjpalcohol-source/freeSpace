@@ -649,6 +649,7 @@ select:hover {
   border: 2px solid var(--line-strong);
   border-radius: 8px;
   overflow: hidden;
+  padding: 0;
   background-color: #ffffff;
   background-image:
     linear-gradient(to right, rgba(20, 32, 34, 0.035) 1px, transparent 1px),
@@ -1023,6 +1024,8 @@ select:hover {
 
 .dim {
   position: absolute;
+  z-index: 2;
+  max-width: calc(100% - 18px);
   border: 1px solid rgba(20, 32, 34, 0.18);
   border-radius: 6px;
   padding: 3px 6px;
@@ -1031,6 +1034,8 @@ select:hover {
   font-size: 0.72rem;
   font-weight: 950;
   line-height: 1;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .dim-top {
@@ -1040,21 +1045,27 @@ select:hover {
 }
 
 .dim-left {
-  left: 8px;
+  left: 6px;
   top: 50%;
+  max-width: 42%;
   transform: translateY(-50%) rotate(-90deg);
+  transform-origin: left center;
 }
 
 .dim-bays {
   right: 8px;
-  bottom: 8px;
+  bottom: 34px;
+  max-width: min(220px, calc(100% - 16px));
+  text-align: right;
 }
 
 .dim-blocked {
   right: 8px;
   bottom: 8px;
+  max-width: min(240px, calc(100% - 16px));
   color: var(--danger);
   border-color: rgba(180, 35, 53, 0.25);
+  text-align: right;
 }
 
 .examples {
@@ -1244,6 +1255,22 @@ select:hover {
 
   .stats {
     justify-content: flex-start;
+  }
+
+  .dim {
+    font-size: 0.66rem;
+    padding: 3px 5px;
+  }
+
+  .dim-left {
+    left: 5px;
+    max-width: 58%;
+  }
+
+  .dim-bays,
+  .dim-blocked {
+    right: 6px;
+    max-width: calc(100% - 12px);
   }
 
   #selectedCell {
