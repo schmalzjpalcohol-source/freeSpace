@@ -764,7 +764,7 @@ function renderPlanSlot(role, shelf) {
     <div class="stats">
       <span class="stat">${formatSizeCm(displayShelf.columns, displayShelf.rows)}</span>
       <span class="stat">${shelf ? lengthSummary(displayShelf) : 'noch nicht angelegt'}</span>
-      ${role === 'rack' ? '<span class="stat">4 x 150 cm, Tiefe 90 cm</span>' : ''}
+      ${role === 'rack' ? '<span class="stat">600 cm Länge, 90 cm Tiefe</span>' : ''}
     </div>
   `;
   slot.append(meta);
@@ -1149,7 +1149,7 @@ function renderDimensionLabels(shelf, kind, role = planRole(shelf)) {
   labels.innerHTML = `
     <span class="dim dim-top">${formatCm(shelf.columns)} cm</span>
     <span class="dim dim-left">${formatCm(shelf.rows)} cm</span>
-    ${kind === 'shelf' ? '<span class="dim dim-bays">4 x 150 cm</span>' : ''}
+    ${kind === 'shelf' ? '<span class="dim dim-bays">600 cm</span>' : ''}
     ${role === 'floor-main' ? '<span class="dim dim-blocked">80 x 100 cm Sperrfläche</span>' : ''}
     ${role === 'floor-long' ? '<span class="dim dim-blocked">70 x 380 cm Sperrfläche</span>' : ''}
   `;
