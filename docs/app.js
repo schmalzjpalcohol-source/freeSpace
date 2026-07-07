@@ -572,6 +572,7 @@ function renderRackDisplay(shelf) {
       <span>Etage ${level}</span>
       <strong>${formatCm(rackLevelFreeRunCm(shelf, level))} cm frei</strong>
       <small>${packages.length} Positionen</small>
+      ${level === 3 ? '<i class="short-shelf-mark" aria-hidden="true"></i>' : ''}
     `;
     button.addEventListener('click', () => {
       appState.activeRackLevel = level;
@@ -593,6 +594,11 @@ function renderRackLevelDetail(shelf, level) {
   canvas.style.setProperty('--rows', 1);
   canvas.style.aspectRatio = `${shelf.columns} / ${Math.max(1, range.height)}`;
   canvas.append(renderDimensionLabels({ ...shelf, rows: range.height }, 'shelf', 'rack-detail'));
+  if (level === 3) {
+    const shortShelf = document.createElement('div');
+    shortShelf.className = 'rack-short-shelf';
+    canvas.append(shortShelf);
+  }
 
   const visiblePackages = shelf.packages.filter(item => packageInRackLevel(item, range));
   visiblePackages.forEach(item => {

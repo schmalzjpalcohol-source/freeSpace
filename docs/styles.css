@@ -462,9 +462,7 @@ select:hover {
   padding: 16px;
   border: 1px solid var(--line-strong);
   border-radius: 8px;
-  background:
-    linear-gradient(to right, transparent calc(43% - 1px), rgba(15, 118, 110, 0.55) calc(43% - 1px), rgba(15, 118, 110, 0.55) calc(43% + 1px), transparent calc(43% + 1px)),
-    #fff;
+  background: #fff;
 }
 
 .plan-slot {
@@ -493,10 +491,6 @@ select:hover {
   margin-bottom: 8px;
 }
 
-.rack .place-canvas {
-  min-height: 250px;
-}
-
 .rack-display {
   display: grid;
   grid-template-columns: minmax(220px, 0.75fr) minmax(280px, 1fr);
@@ -517,6 +511,7 @@ select:hover {
 }
 
 .rack-level {
+  position: relative;
   min-height: 64px;
   border: 2px solid #151515;
   border-radius: 2px;
@@ -530,6 +525,17 @@ select:hover {
   gap: 3px;
   text-align: left;
   transform: none;
+}
+
+.short-shelf-mark {
+  position: absolute;
+  right: 10px;
+  bottom: 8px;
+  width: 28%;
+  height: 8px;
+  border-top: 3px solid #151515;
+  border-bottom: 3px solid #151515;
+  background: rgba(15, 118, 110, 0.12);
 }
 
 .rack-level:hover,
@@ -555,19 +561,32 @@ select:hover {
 }
 
 .rack-level-detail {
-  min-height: 230px;
+  min-height: 140px;
 }
 
 .rack-package {
   z-index: 3;
 }
 
+.rack-short-shelf {
+  position: absolute;
+  left: 75%;
+  top: 60%;
+  width: 25%;
+  height: 20%;
+  z-index: 1;
+  border-top: 4px solid #151515;
+  border-bottom: 4px solid #151515;
+  background: rgba(15, 118, 110, 0.08);
+  pointer-events: none;
+}
+
 .floor-main .place-canvas {
-  min-height: 330px;
+  min-height: 0;
 }
 
 .floor-long .place-canvas {
-  min-height: 160px;
+  min-height: 70px;
 }
 
 .shelf-meta h2 {
@@ -600,12 +619,8 @@ select:hover {
   border-radius: 2px;
   overflow: hidden;
   background-color: #ffffff;
-  background-image:
-    linear-gradient(to right, rgba(20, 32, 34, 0.12) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(20, 32, 34, 0.10) 1px, transparent 1px);
-  background-size:
-    calc(100% / var(--cols)) 100%,
-    100% calc(100% / var(--rows));
+  background-image: none;
+  background-size: auto;
   cursor: crosshair;
   touch-action: none;
   user-select: none;
@@ -614,16 +629,13 @@ select:hover {
 .floor-canvas {
   background-color: #fffdf8;
   border-color: #151515;
-  background-image:
-    linear-gradient(to right, rgba(89, 69, 39, 0.12) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(89, 69, 39, 0.10) 1px, transparent 1px);
+  background-image: none;
 }
 
 .rack .place-canvas {
   background-image:
-    linear-gradient(to right, rgba(20, 32, 34, 0.16) 2px, transparent 2px),
-    repeating-linear-gradient(to bottom, transparent 0 31%, rgba(20, 32, 34, 0.28) 31% 33%, transparent 33% 34%),
-    linear-gradient(to bottom, rgba(20, 32, 34, 0.10) 1px, transparent 1px);
+    linear-gradient(to right, transparent 0 24.5%, rgba(20, 32, 34, 0.5) 24.5% 25.5%, transparent 25.5% 49.5%, rgba(20, 32, 34, 0.5) 49.5% 50.5%, transparent 50.5% 74.5%, rgba(20, 32, 34, 0.5) 74.5% 75.5%, transparent 75.5%),
+    linear-gradient(to bottom, transparent 0 32%, rgba(20, 32, 34, 0.3) 32% 34%, transparent 34% 66%, rgba(20, 32, 34, 0.3) 66% 68%, transparent 68%);
 }
 
 .package-rect,
