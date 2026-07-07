@@ -530,6 +530,23 @@ select:hover {
   cursor: pointer;
   touch-action: none;
   transform: none;
+  z-index: 2;
+}
+
+.package-rect.blocked-zone {
+  border-color: rgba(180, 35, 53, 0.9);
+  background:
+    repeating-linear-gradient(135deg, rgba(180, 35, 53, 0.18) 0 8px, rgba(255, 255, 255, 0.5) 8px 15px),
+    #ffe2e5;
+  color: #721424;
+}
+
+.package-rect.stacked-zone {
+  box-shadow:
+    7px 7px 0 rgba(201, 133, 40, 0.28),
+    14px 14px 0 rgba(201, 133, 40, 0.14),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.46),
+    0 10px 24px rgba(20, 32, 34, 0.16);
 }
 
 .package-rect::after {
@@ -753,6 +770,42 @@ select:hover {
   color: rgba(102, 116, 119, 0.58);
   font-weight: 850;
   pointer-events: none;
+}
+
+.dimension-labels {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.dim {
+  position: absolute;
+  border: 1px solid rgba(20, 32, 34, 0.18);
+  border-radius: 6px;
+  padding: 3px 6px;
+  background: rgba(255, 255, 255, 0.88);
+  color: var(--ink);
+  font-size: 0.72rem;
+  font-weight: 950;
+  line-height: 1;
+}
+
+.dim-top {
+  left: 50%;
+  top: 8px;
+  transform: translateX(-50%);
+}
+
+.dim-left {
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%) rotate(-90deg);
+}
+
+.dim-bays {
+  right: 8px;
+  bottom: 8px;
 }
 
 .examples {

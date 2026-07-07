@@ -22,6 +22,7 @@ const els = {
   placeList: document.querySelector('#placeList'),
   savePlaceButton: document.querySelector('#savePlaceButton'),
   cancelPlaceButton: document.querySelector('#cancelPlaceButton'),
+  deleteAllPlacesButton: document.querySelector('#deleteAllPlacesButton'),
   shelves: document.querySelector('#shelves'),
   summaryText: document.querySelector('#summaryText'),
   packageForm: document.querySelector('#packageForm'),
@@ -124,28 +125,71 @@ function numberValue(value, fallback) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
-function metersToCm(value, fallbackMeters = 1) {
-  return Math.max(1, Math.round(Math.max(0.01, numberValue(value, fallbackMeters)) * 100));
-}
-
-function cmToMeters(cm) {
-  return (Math.max(1, Number.parseInt(cm, 10) || 1) / 100);
-}
-
 function formatDecimal(value) {
   return Number(value).toFixed(2).replace(/\.?0+$/, '');
 }
 
-function formatMeters(cm) {
-  return formatDecimal(cmToMeters(cm));
+function formatCm(cm) {
+  return String(Math.max(1, Math.round(Number(cm) || 1)));
 }
 
-function inputMeters(cm) {
-  return formatMeters(cm);
+function formatSizeCm(width, depth) {
+  return `${formatCm(width)} x ${formatCm(depth)} cm`;
 }
 
-function formatSquareMeters(cm2) {
-  return formatDecimal(Math.max(0, cm2 || 0) / 10000);
+function inputCm(cm) {
+  return formatCm(cm);
+}
+
+function cmInputToCm(value, fallbackCm = 100) {
+  return Math.max(1, Math.round(Math.max(1, numberValue(value, fallbackCm))));
+}
+
+function cmInputToMeters(value, fallbackCm = 100) {
+  return formatDecimal(cmInputToCm(value, fallbackCm) / 100);
+}
+
+function maxFreeRunCm(shelf) {
+  const rows = Math.max(1, Math.round(shelf.rows || 1));
+  const columns = Math.max(1, Math.round(shelf.columns || 1));
+  let best = 0;
+
+  for (let row = 1; row <= rows; row += 1) {
+    const blocked = shelf.packages
+      .filter(item => row >= item.row_index && row < item.row_index + (item.depth_units || 1))
+      .map(item => [
+        clamp(item.column_index, 1, columns + 1),
+        clamp(item.column_index + (item.width_units || 1), 1, columns + 1)
+      ])
+      .sort((a, b) => a[0] - b[0]);
+
+    let cursor = 1;
+    blocked.forEach(([start, end]) => {
+      best = Math.max(best, start - cursor);
+      cursor = Math.max(cursor, end);
+    });
+    best = Math.max(best, columns + 1 - cursor);
+  }
+
+  return best;
+}
+
+function lengthSummary(shelf) {
+  const freeRun = maxFreeRunCm(shelf);
+  return `${formatCm(freeRun)} cm freie Länge`;
+}
+
+function totalFreeRun(shelves) {
+  return shelves.reduce((sum, shelf) => sum + maxFreeRunCm(shelf), 0);
+}
+
+function isBlockedItem(item) {
+  const text = `${item.package_name || ''} ${item.note || ''}`.toLowerCase();
+  return text.includes('sperr') || text.includes('rot') || text.includes('verbot') || text.includes('nicht abstellen');
+}
+
+function isStackedItem(item) {
+  return Number.parseInt(item.quantity, 10) > 1 || String(item.note || '').toLowerCase().includes('gestap');
 }
 
 function normalizeDecimalInput(input) {
@@ -171,8 +215,8 @@ function canvasCellFromEvent(event, canvas, shelf) {
 
 function currentPackageSize() {
   return {
-    width: metersToCm(els.widthUnits.value, 1),
-    depth: metersToCm(els.depthUnits.value, 1)
+    width: cmInputToCm(els.widthUnits.value, 100),
+    depth: cmInputToCm(els.depthUnits.value, 100)
   };
 }
 
@@ -199,8 +243,8 @@ function selectedDraft() {
     shelf: appState.selected.shelf,
     row: Number.parseInt(els.rowIndex.value, 10) || appState.selected.row,
     column: Number.parseInt(els.columnIndex.value, 10) || appState.selected.column,
-    width: metersToCm(els.widthUnits.value, 1),
-    depth: metersToCm(els.depthUnits.value, 1)
+    width: cmInputToCm(els.widthUnits.value, 100),
+    depth: cmInputToCm(els.depthUnits.value, 100)
   };
 }
 
@@ -209,8 +253,8 @@ function selectedPackageDraft(item) {
   return {
     row: Number.parseInt(els.rowIndex.value, 10) || item.row_index,
     column: Number.parseInt(els.columnIndex.value, 10) || item.column_index,
-    width: metersToCm(els.widthUnits.value, inputMeters(item.width_units || 1)),
-    depth: metersToCm(els.depthUnits.value, inputMeters(item.depth_units || 1))
+    width: cmInputToCm(els.widthUnits.value, item.width_units || 100),
+    depth: cmInputToCm(els.depthUnits.value, item.depth_units || 100)
   };
 }
 
@@ -222,10 +266,10 @@ function setDraftFormValues(shelf, draft) {
   );
   els.rowIndex.value = adjusted.row;
   els.columnIndex.value = adjusted.column;
-  els.widthUnits.value = inputMeters(adjusted.width);
-  els.depthUnits.value = inputMeters(adjusted.depth);
+  els.widthUnits.value = inputCm(adjusted.width);
+  els.depthUnits.value = inputCm(adjusted.depth);
   appState.selected = { shelf, row: adjusted.row, column: adjusted.column };
-  els.selectedCell.textContent = `${shelf.name}: ${formatMeters(adjusted.width)} x ${formatMeters(adjusted.depth)} m gewählt`;
+  els.selectedCell.textContent = `${shelf.name}: ${formatSizeCm(adjusted.width, adjusted.depth)} gewählt`;
   return adjusted;
 }
 
@@ -237,8 +281,8 @@ function setPackageEditFormValues(shelf, draft) {
   );
   els.rowIndex.value = adjusted.row;
   els.columnIndex.value = adjusted.column;
-  els.widthUnits.value = inputMeters(adjusted.width);
-  els.depthUnits.value = inputMeters(adjusted.depth);
+  els.widthUnits.value = inputCm(adjusted.width);
+  els.depthUnits.value = inputCm(adjusted.depth);
   appState.selected = { shelf, row: adjusted.row, column: adjusted.column };
   els.selectedCell.textContent = `${shelf.name}: Änderung bereit`;
   return adjusted;
@@ -249,8 +293,8 @@ function applyDraftSelection(shelf, draft) {
   els.packageId.value = '';
   els.locationType.value = placeKind(shelf);
   els.shelfName.value = shelf.name;
-  els.shelfRows.value = inputMeters(shelf.rows);
-  els.shelfColumns.value = inputMeters(shelf.columns);
+  els.shelfRows.value = inputCm(shelf.rows);
+  els.shelfColumns.value = inputCm(shelf.columns);
   setDraftFormValues(shelf, draft);
   els.formTitle.textContent = 'Paket erfassen';
   els.saveButton.textContent = 'Paket speichern';
@@ -263,12 +307,12 @@ function selectCell(shelf, row, column, item) {
   els.packageId.value = item ? item.id : '';
   els.locationType.value = placeKind(shelf);
   els.shelfName.value = shelf.name;
-  els.shelfRows.value = inputMeters(shelf.rows);
-  els.shelfColumns.value = inputMeters(shelf.columns);
+  els.shelfRows.value = inputCm(shelf.rows);
+  els.shelfColumns.value = inputCm(shelf.columns);
   els.rowIndex.value = row;
   els.columnIndex.value = column;
-  els.widthUnits.value = item ? inputMeters(item.width_units || 1) : 1;
-  els.depthUnits.value = item ? inputMeters(item.depth_units || 1) : 1;
+  els.widthUnits.value = item ? inputCm(item.width_units || 120) : 120;
+  els.depthUnits.value = item ? inputCm(item.depth_units || 80) : 80;
   els.packageName.value = item ? item.package_name : '';
   els.quantity.value = item ? item.quantity : 1;
   els.note.value = item ? item.note || '' : '';
@@ -289,8 +333,8 @@ function clearPackageForm() {
   els.packageName.value = '';
   els.quantity.value = 1;
   els.note.value = '';
-  els.widthUnits.value = 1;
-  els.depthUnits.value = 1;
+  els.widthUnits.value = 120;
+  els.depthUnits.value = 80;
   els.formTitle.textContent = 'Paket erfassen';
   els.saveButton.textContent = 'Paket speichern';
   els.deletePackageButton.classList.add('hidden');
@@ -310,8 +354,8 @@ function updateDraftFromSizeInputs(event) {
     setPackageEditFormValues(appState.selected.shelf, {
       row: Number.parseInt(els.rowIndex.value, 10) || appState.selected.row,
       column: Number.parseInt(els.columnIndex.value, 10) || appState.selected.column,
-      width: metersToCm(els.widthUnits.value, 1),
-      depth: metersToCm(els.depthUnits.value, 1)
+      width: cmInputToCm(els.widthUnits.value, 100),
+      depth: cmInputToCm(els.depthUnits.value, 100)
     });
   }
   render();
@@ -330,8 +374,8 @@ function clearPlaceForm() {
   els.placeId.value = '';
   els.placeLocationType.value = 'shelf';
   els.placeName.value = '';
-  els.placeRows.value = 4;
-  els.placeColumns.value = 8;
+  els.placeRows.value = 245;
+  els.placeColumns.value = 600;
   els.placeNotes.value = '';
   els.savePlaceButton.textContent = 'Ort speichern';
   els.cancelPlaceButton.classList.add('hidden');
@@ -355,15 +399,14 @@ function render() {
     return;
   }
 
-  const total = appState.shelves.reduce((sum, shelf) => sum + shelf.totalPlaces, 0);
-  const free = appState.shelves.reduce((sum, shelf) => sum + shelf.freePlaces, 0);
   const floorPlaces = appState.shelves.filter(shelf => placeKind(shelf) === 'floor');
   const shelfPlaces = appState.shelves.filter(shelf => placeKind(shelf) === 'shelf');
+  const freeLength = totalFreeRun(appState.shelves);
   els.summaryText.textContent = appState.shelves.length
-    ? `${formatSquareMeters(free)} von ${formatSquareMeters(total)} m² frei.`
+    ? `${formatCm(freeLength)} cm freie nutzbare Länge über alle Flächen.`
     : 'Noch keine Regale angelegt.';
 
-  renderOverview(total, free, shelfPlaces, floorPlaces);
+  renderOverview(appState.shelves, shelfPlaces, floorPlaces);
   renderWarehouseMap(shelfPlaces, floorPlaces);
   renderPlaces();
 
@@ -380,9 +423,9 @@ function render() {
         <h2>${escapeHtml(shelf.label || shelf.name)}</h2>
       </div>
       <div class="stats">
-        <span class="stat">${formatSquareMeters(shelf.freePlaces)} m² frei</span>
-        <span class="stat">${formatSquareMeters(shelf.usedPlaces)} m² belegt</span>
-        <span class="stat">${formatMeters(shelf.columns)} x ${formatMeters(shelf.rows)} m</span>
+        <span class="stat">${lengthSummary(shelf)}</span>
+        <span class="stat">${formatCm(shelf.columns)} x ${formatCm(shelf.rows)} cm</span>
+        ${placeKind(shelf) === 'shelf' ? '<span class="stat">4 Felder à 150 cm</span>' : ''}
       </div>
     `;
     section.append(meta);
@@ -398,9 +441,10 @@ function renderPlaceCanvas(shelf, kind) {
   let dragDraft = null;
   let dragMarker = null;
   canvas.className = `place-canvas ${kind === 'floor' ? 'floor-canvas' : ''}`;
-  canvas.style.setProperty('--cols', Math.max(1, Math.ceil(shelf.columns / 100)));
+  canvas.style.setProperty('--cols', Math.max(1, Math.round(shelf.columns / (kind === 'shelf' ? 150 : 100))));
   canvas.style.setProperty('--rows', Math.max(1, Math.ceil(shelf.rows / 100)));
   canvas.style.aspectRatio = `${shelf.columns} / ${Math.max(1, shelf.rows)}`;
+  canvas.append(renderDimensionLabels(shelf, kind));
   canvas.addEventListener('pointerdown', event => {
     if (event.target !== canvas) return;
     event.preventDefault();
@@ -466,6 +510,8 @@ function renderPlaceCanvas(shelf, kind) {
       }
       : item;
     rectangle.className = `package-rect ${selectedPackage ? 'selected' : ''}`;
+    rectangle.classList.toggle('blocked-zone', isBlockedItem(displayItem));
+    rectangle.classList.toggle('stacked-zone', isStackedItem(displayItem));
     rectangle.type = 'button';
     rectangle.style.left = `${((displayItem.column_index - 1) / shelf.columns) * 100}%`;
     rectangle.style.top = `${((displayItem.row_index - 1) / shelf.rows) * 100}%`;
@@ -505,9 +551,20 @@ function updateDragMarker(shelf, marker, draft) {
   marker.style.height = `${(draft.depth / shelf.rows) * 100}%`;
 }
 
+function renderDimensionLabels(shelf, kind) {
+  const labels = document.createElement('div');
+  labels.className = 'dimension-labels';
+  labels.innerHTML = `
+    <span class="dim dim-top">${formatCm(shelf.columns)} cm</span>
+    <span class="dim dim-left">${formatCm(shelf.rows)} cm</span>
+    ${kind === 'shelf' ? '<span class="dim dim-bays">150 + 150 + 150 + 150 cm</span>' : ''}
+  `;
+  return labels;
+}
+
 function draftMarkerHtml(draft) {
   return `
-    <span class="draft-size">${formatMeters(draft.width)} x ${formatMeters(draft.depth)} m</span>
+    <span class="draft-size">${formatSizeCm(draft.width, draft.depth)}</span>
     <b data-handle="n"></b>
     <b data-handle="e"></b>
     <b data-handle="s"></b>
@@ -565,7 +622,7 @@ function startDraftEdit(event, canvas, shelf, marker, draft) {
 
     const adjusted = setDraftFormValues(shelf, currentDraft);
     updateDragMarker(shelf, marker, adjusted);
-    marker.querySelector('.draft-size').textContent = `${formatMeters(adjusted.width)} x ${formatMeters(adjusted.depth)} m`;
+    marker.querySelector('.draft-size').textContent = formatSizeCm(adjusted.width, adjusted.depth);
   };
 
   const finish = () => {
@@ -619,7 +676,7 @@ function startPackageEdit(event, canvas, shelf, item, rectangle, displayItem) {
     displayItem.width_units = adjusted.width;
     displayItem.depth_units = adjusted.depth;
     updateDragMarker(shelf, rectangle, adjusted);
-    rectangle.querySelector('.measure').textContent = `${formatMeters(adjusted.width)} x ${formatMeters(adjusted.depth)} m`;
+    rectangle.querySelector('.measure').textContent = formatSizeCm(adjusted.width, adjusted.depth);
   };
 
   const finish = () => {
@@ -691,12 +748,12 @@ async function movePackage(shelf, item, draft) {
     packageId: item.id,
     locationType: placeKind(shelf),
     shelfName: shelf.name,
-    shelfRows: inputMeters(shelf.rows),
-    shelfColumns: inputMeters(shelf.columns),
+    shelfRows: cmInputToMeters(shelf.rows, shelf.rows),
+    shelfColumns: cmInputToMeters(shelf.columns, shelf.columns),
     rowIndex: draft.row,
     columnIndex: draft.column,
-    widthUnits: inputMeters(item.width_units || 1),
-    depthUnits: inputMeters(item.depth_units || 1),
+    widthUnits: cmInputToMeters(item.width_units || 1, item.width_units || 1),
+    depthUnits: cmInputToMeters(item.depth_units || 1, item.depth_units || 1),
     packageName: item.package_name,
     quantity: item.quantity,
     note: item.note || ''
@@ -718,7 +775,7 @@ function renderPlaces() {
       <div>
         <span class="place-type">${placeLabel(kind)}</span>
         <h3>${escapeHtml(place.label || place.name)}</h3>
-        <p>${formatMeters(place.columns)} x ${formatMeters(place.rows)} m · ${formatSquareMeters(place.freePlaces)} m² frei</p>
+        <p>${formatSizeCm(place.columns, place.rows)} · ${lengthSummary(place)}</p>
       </div>
       <div class="place-row-actions">
         <button class="ghost edit-place" type="button">Bearbeiten</button>
@@ -737,20 +794,22 @@ function selectPlace(place) {
   els.placeId.value = place.id;
   els.placeLocationType.value = placeKind(place);
   els.placeName.value = place.name;
-  els.placeRows.value = inputMeters(place.rows);
-  els.placeColumns.value = inputMeters(place.columns);
+  els.placeRows.value = inputCm(place.rows);
+  els.placeColumns.value = inputCm(place.columns);
   els.placeNotes.value = place.notes || '';
   els.savePlaceButton.textContent = 'Ort aktualisieren';
   els.cancelPlaceButton.classList.remove('hidden');
 }
 
-function renderOverview(total, free, shelfPlaces, floorPlaces) {
-  const used = total - free;
+function renderOverview(shelves, shelfPlaces, floorPlaces) {
+  const freeLength = totalFreeRun(shelves);
+  const blockedCount = shelves.reduce((sum, shelf) => sum + shelf.packages.filter(isBlockedItem).length, 0);
+  const stackedCount = shelves.reduce((sum, shelf) => sum + shelf.packages.filter(isStackedItem).length, 0);
   const cards = [
-    ['Freie Fläche', free, `${formatSquareMeters(total)} m² insgesamt`],
-    ['Belegt', used, `${total ? Math.round((used / total) * 100) : 0}% genutzt`],
-    ['Regale', shelfPlaces.length, 'vertikale Bereiche'],
-    ['Bodenplätze', floorPlaces.length, 'freie Stellflächen']
+    ['Freie Länge', `${formatCm(freeLength)} cm`, 'längste freie Strecken addiert'],
+    ['Sperrflächen', blockedCount, 'rot markiert, nicht abstellen'],
+    ['Regal', shelfPlaces.length, '4 Felder à 150 cm'],
+    ['Bodenflächen', floorPlaces.length, 'normale Stellflächen']
   ];
 
   cards.forEach(([label, value, hint]) => {
@@ -758,30 +817,33 @@ function renderOverview(total, free, shelfPlaces, floorPlaces) {
     card.className = 'overview-card';
     card.innerHTML = `
       <span>${escapeHtml(label)}</span>
-      <strong>${label.includes('Fläche') || label === 'Belegt' ? `${formatSquareMeters(value)} m²` : escapeHtml(value)}</strong>
+      <strong>${escapeHtml(value)}</strong>
       <small>${escapeHtml(hint)}</small>
     `;
     els.overviewCards.append(card);
   });
+  if (stackedCount) {
+    els.summaryText.textContent += ` ${stackedCount} gestapelte Positionen markiert.`;
+  }
 }
 
 function renderWarehouseMap(shelfPlaces, floorPlaces) {
   const zones = [
-    ['Regalwand', shelfPlaces],
-    ['Boden Mitte', floorPlaces.filter(shelf => String(shelf.name).toLowerCase().includes('mitte'))],
-    ['Wareneingang/Ausgang', floorPlaces.filter(shelf => !String(shelf.name).toLowerCase().includes('mitte'))]
+    ['Regal 600 cm', shelfPlaces],
+    ['Bodenfläche 1', floorPlaces.slice(0, 1)],
+    ['Bodenfläche 2', floorPlaces.slice(1)]
   ];
 
   zones.forEach(([label, places]) => {
     const zone = document.createElement('button');
     zone.className = `map-zone ${places.length ? '' : 'empty-zone'}`;
     zone.type = 'button';
-    const free = places.reduce((sum, shelf) => sum + shelf.freePlaces, 0);
-    const total = places.reduce((sum, shelf) => sum + shelf.totalPlaces, 0);
+    const free = totalFreeRun(places);
+    const total = places.reduce((sum, shelf) => sum + (shelf.columns || 0), 0);
     const usedPercent = total ? Math.round(((total - free) / total) * 100) : 0;
     zone.innerHTML = `
       <span>${escapeHtml(label)}</span>
-      <strong>${places.length ? `${formatSquareMeters(free)}/${formatSquareMeters(total)} m² frei` : 'noch frei planbar'}</strong>
+      <strong>${places.length ? `${formatCm(free)} cm freie Länge` : 'noch frei planbar'}</strong>
       <i class="zone-meter" aria-hidden="true"><b style="width: ${usedPercent}%"></b></i>
     `;
     els.warehouseMap.append(zone);
@@ -790,9 +852,9 @@ function renderWarehouseMap(shelfPlaces, floorPlaces) {
 
 function packageHtml(item, selected = false) {
   return `
-    <span class="measure">${formatMeters(item.width_units || 1)} x ${formatMeters(item.depth_units || 1)} m</span>
+    <span class="measure">${formatSizeCm(item.width_units || 1, item.depth_units || 1)}</span>
     <span class="pkg">${escapeHtml(item.package_name)}</span>
-    <span class="note">${escapeHtml(item.quantity)}x ${escapeHtml(item.note || '')}</span>
+    <span class="note">${escapeHtml(item.quantity)}x ${isStackedItem(item) ? 'gestapelt ' : ''}${escapeHtml(item.note || '')}</span>
     ${selected ? draftMarkerHtml({
       width: item.width_units || 1,
       depth: item.depth_units || 1
@@ -825,6 +887,10 @@ async function submitPackage(event) {
   normalizeDecimalFields(els.shelfRows, els.shelfColumns, els.widthUnits, els.depthUnits);
   updateDraftFromSizeInputs();
   const payload = Object.fromEntries(new FormData(els.packageForm).entries());
+  payload.shelfRows = cmInputToMeters(payload.shelfRows, 245);
+  payload.shelfColumns = cmInputToMeters(payload.shelfColumns, 600);
+  payload.widthUnits = cmInputToMeters(payload.widthUnits, 100);
+  payload.depthUnits = cmInputToMeters(payload.depthUnits, 100);
   if (payload.locationType === 'floor' && !String(payload.shelfName || '').toLowerCase().includes('boden')) {
     payload.shelfName = `Boden - ${payload.shelfName}`;
   }
@@ -842,6 +908,8 @@ async function submitPlace(event) {
   event.preventDefault();
   normalizeDecimalFields(els.placeRows, els.placeColumns);
   const payload = Object.fromEntries(new FormData(els.placeForm).entries());
+  payload.rows = cmInputToMeters(payload.rows, 245);
+  payload.columns = cmInputToMeters(payload.columns, 600);
   const isEdit = Boolean(payload.id);
   await apiFetch('/api/places', {
     method: isEdit ? 'PATCH' : 'POST',
@@ -855,6 +923,23 @@ async function submitPlace(event) {
 async function deletePlace(id) {
   await apiFetch(`/api/places?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
   showMessage('Ort gelöscht.');
+  await loadShelves();
+}
+
+async function deleteAllPlaces() {
+  const ok = window.confirm('Alle Pakete und alle Flächen wirklich löschen?');
+  if (!ok) return;
+
+  const packageIds = appState.shelves.flatMap(shelf => shelf.packages.map(item => item.id));
+  for (const id of packageIds) {
+    await apiFetch(`/api/regale?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+  }
+  for (const shelf of appState.shelves) {
+    await apiFetch(`/api/places?id=${encodeURIComponent(shelf.id)}`, { method: 'DELETE' });
+  }
+  clearPackageForm();
+  clearPlaceForm();
+  showMessage('Alle Flächen gelöscht.');
   await loadShelves();
 }
 
@@ -914,23 +999,35 @@ els.deletePackageButton.addEventListener('click', async () => {
 });
 
 els.cancelPlaceButton.addEventListener('click', clearPlaceForm);
+els.deleteAllPlacesButton.addEventListener('click', () => {
+  deleteAllPlaces().catch(error => showMessage(error.message, 'error'));
+});
 
-document.querySelectorAll('[data-example]').forEach(button => {
+document.querySelectorAll('[data-preset]').forEach(button => {
   button.addEventListener('click', () => {
-    const [place, type, rows, columns, row, column, width, depth, name, quantity, note] = button.dataset.example.split('|');
-    els.packageId.value = '';
-    els.locationType.value = type;
-    els.shelfName.value = place;
-    els.shelfRows.value = rows;
-    els.shelfColumns.value = columns;
-    els.rowIndex.value = row;
-    els.columnIndex.value = column;
+    const [width, depth, height, name, quantity, note = ''] = button.dataset.preset.split('|');
     els.widthUnits.value = width;
     els.depthUnits.value = depth;
     els.packageName.value = name;
     els.quantity.value = quantity;
-    els.note.value = note;
-    els.selectedCell.textContent = `${place}: ${width} x ${depth} m`;
+    els.note.value = height && height !== '0'
+      ? `${note ? `${note}, ` : ''}Höhe ${height} cm`
+      : note;
+    updateDraftFromSizeInputs();
+  });
+});
+
+document.querySelectorAll('[data-place-preset]').forEach(button => {
+  button.addEventListener('click', () => {
+    const [name, type, rows, columns, notes] = button.dataset.placePreset.split('|');
+    els.placeId.value = '';
+    els.placeName.value = name;
+    els.placeLocationType.value = type;
+    els.placeRows.value = rows;
+    els.placeColumns.value = columns;
+    els.placeNotes.value = notes;
+    els.savePlaceButton.textContent = 'Ort speichern';
+    els.cancelPlaceButton.classList.add('hidden');
   });
 });
 
