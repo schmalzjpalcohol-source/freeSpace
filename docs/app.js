@@ -425,6 +425,9 @@ function applyDraftSelection(shelf, draft) {
   els.shelfRows.value = inputCm(shelf.rows);
   els.shelfColumns.value = inputCm(shelf.columns);
   setDraftFormValues(shelf, draft);
+  if (!els.packageName.value.trim()) {
+    els.packageName.value = 'Teil';
+  }
   els.formTitle.textContent = 'Paket erfassen';
   els.saveButton.textContent = 'Paket speichern';
   els.deletePackageButton.classList.add('hidden');
@@ -665,18 +668,10 @@ function renderPlanPlaceholder(role, shelf) {
   placeholder.append(renderDimensionLabels(shelf, placeKind(shelf), role));
   const mark = document.createElement('span');
   mark.className = 'placeholder-action';
-  mark.textContent = 'In Orte verwalten anlegen';
+  mark.textContent = 'Ort anlegen';
   placeholder.append(mark);
   placeholder.addEventListener('click', () => {
-    setActiveView('places');
-    const type = role === 'rack' ? 'shelf' : 'floor';
-    els.placeId.value = '';
-    els.placeName.value = planTitle(role);
-    els.placeLocationType.value = type;
-    els.placeRows.value = inputCm(shelf.rows);
-    els.placeColumns.value = inputCm(shelf.columns);
-    els.placeNotes.value = planPlaces[role]?.notes || '';
-    els.savePlaceButton.textContent = 'Ort speichern';
+    createPlanPlace(role).catch(error => showMessage(error.message, 'error'));
   });
   return placeholder;
 }
@@ -703,6 +698,12 @@ function renderRackDisplay(shelf) {
     `;
     button.addEventListener('click', () => {
       appState.activeRackLevel = level;
+      applyDraftSelection(shelf, draftInRackRange(
+        shelf,
+        range,
+        { column: 1, row: 1 },
+        currentPackageSize()
+      ));
       render();
     });
     levels.append(button);
@@ -1342,6 +1343,20 @@ async function createDefaultPlanPlaces() {
     });
   }
   showMessage(`${missingRoles.length} Ort(e) angelegt.`);
+  await loadShelves();
+}
+
+async function createPlanPlace(role) {
+  const existing = appState.shelves.find(shelf => planPlaceRole(shelf) === role);
+  if (existing) {
+    showMessage(`${existing.name} ist schon angelegt.`);
+    return;
+  }
+  await apiFetch('/api/places', {
+    method: 'POST',
+    body: JSON.stringify(defaultPlacePayload(role))
+  });
+  showMessage(`${planTitle(role)} angelegt.`);
   await loadShelves();
 }
 
