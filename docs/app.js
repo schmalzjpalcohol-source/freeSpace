@@ -214,7 +214,7 @@ function rackLevelSpecs(shelf) {
     { level: 2, label: 'Regalplatz 2', start: 1, end: fullDepth, xStart: bayWidth + 1, xEnd: bayWidth * 2, short: false },
     { level: 3, label: 'Regalplatz 3', start: 1, end: fullDepth, xStart: (bayWidth * 2) + 1, xEnd: bayWidth * 3, short: false },
     { level: 4, label: 'Regalplatz 4', start: 1, end: fullDepth, xStart: (bayWidth * 3) + 1, xEnd: width, short: false },
-    { level: 5, label: 'Kleinregal rechts', start: Math.max(1, height - smallDepth + 1), end: height, xStart: Math.max(1, width - bayWidth + 1), xEnd: width, short: true }
+    { level: 5, label: 'Kleinregal', start: Math.max(1, height - smallDepth + 1), end: height, xStart: Math.max(1, width - bayWidth + 1), xEnd: width, short: true }
   ];
 }
 
@@ -749,11 +749,6 @@ function renderRackLevelDetail(shelf, level) {
   canvas.style.setProperty('--rows', 1);
   canvas.style.aspectRatio = `${range.width} / ${Math.max(1, range.height)}`;
   canvas.append(renderDimensionLabels({ ...shelf, columns: range.width, rows: range.height }, 'shelf', range.short ? 'rack-short-detail' : 'rack-detail'));
-  if (range.short) {
-    const shortShelf = document.createElement('div');
-    shortShelf.className = 'rack-short-shelf';
-    canvas.append(shortShelf);
-  }
 
   const visiblePackages = shelf.packages.filter(item => packageInRackLevel(item, range));
   visiblePackages.forEach(item => {
@@ -779,7 +774,31 @@ function renderRackLevelDetail(shelf, level) {
     canvas.append(rectangle);
   });
 
-  if (!visiblePackages.length) {
+  const draft = selectedDraft();
+  const draftVisibleInRange = draft && draft.shelf.id === shelf.id && packageInRackLevel({
+    row_index: draft.row,
+    column_index: draft.column,
+    width_units: draft.width,
+    depth_units: draft.depth
+  }, range);
+  if (draftVisibleInRange) {
+    const marker = document.createElement('div');
+    const clippedTop = Math.max(draft.row, range.start);
+    const clippedBottom = Math.min(draft.row + draft.depth - 1, range.end);
+    const clippedLeft = Math.max(draft.column, range.xStart);
+    const clippedRight = Math.min(draft.column + draft.width - 1, range.xEnd);
+    marker.className = 'draft-marker rack-draft-marker';
+    marker.innerHTML = `<span class="draft-size">${formatSizeCm(draft.width, draft.depth)}</span>`;
+    updateDragMarker({ columns: range.width, rows: range.height }, marker, {
+      row: clippedTop - range.start + 1,
+      column: clippedLeft - range.xStart + 1,
+      width: Math.max(1, clippedRight - clippedLeft + 1),
+      depth: Math.max(1, clippedBottom - clippedTop + 1)
+    });
+    canvas.append(marker);
+  }
+
+  if (!visiblePackages.length && !draftVisibleInRange) {
     const empty = document.createElement('div');
     empty.className = 'canvas-empty';
     empty.textContent = `${range.label} frei`;
@@ -787,7 +806,8 @@ function renderRackLevelDetail(shelf, level) {
   }
 
   canvas.addEventListener('pointerdown', event => {
-    if (event.target !== canvas) return;
+    if (event.target.closest('.package-rect, .draft-marker')) return;
+    event.preventDefault();
     const cell = canvasCellFromEvent(event, canvas, { ...shelf, columns: range.width, rows: range.height });
     applyDraftSelection(shelf, draftInRackRange(shelf, range, cell, currentPackageSize()));
     render();

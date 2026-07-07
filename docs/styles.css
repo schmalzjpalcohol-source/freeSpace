@@ -525,8 +525,8 @@ select:hover {
 }
 
 .rack-level.short-level::before {
-  width: 22px;
-  background: var(--accent);
+  width: 32px;
+  background: var(--line-strong);
 }
 
 .rack-level:hover,
@@ -556,23 +556,12 @@ select:hover {
 }
 
 .rack-level-detail.short-rack-detail {
-  width: min(100%, 320px);
-  justify-self: end;
-  min-height: 92px;
+  width: 100%;
+  min-height: 86px;
 }
 
 .rack-package {
   z-index: 3;
-}
-
-.rack-short-shelf {
-  position: absolute;
-  inset: 58% 0 18%;
-  z-index: 1;
-  border-top: 3px solid var(--accent);
-  border-bottom: 3px solid var(--accent);
-  background: rgba(15, 118, 110, 0.08);
-  pointer-events: none;
 }
 
 .floor-main .place-canvas {
