@@ -507,7 +507,7 @@ select:hover {
 }
 
 .rack-level.short-level {
-  grid-column: 1 / -1;
+  grid-column: 4;
   min-height: 42px;
   display: flex;
   align-items: center;
