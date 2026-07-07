@@ -73,9 +73,9 @@ const planPlaces = {
     notes: '4 Plätze à 150 x 90 cm, Kleinregal 150 x 90 cm, Höhe 16 cm'
   },
   'floor-long': {
-    title: 'Bodenplatz 2 - 390 x 740',
+    title: 'Bodenplatz 2 - 380 x 740',
     rows: 740,
-    columns: 390,
+    columns: 380,
     notes: 'Sperrfläche links oben 70 x 380 cm'
   }
 };
@@ -688,7 +688,7 @@ function planPlaceRole(shelf) {
       ? 'rack'
       : null;
   }
-  if (text.includes('bodenplatz 2') || text.includes('390 x 740') || text.includes('380 x 70') || isNearSize(shelf, 'floor-long')) {
+  if (text.includes('bodenplatz 2') || text.includes('380 x 740') || text.includes('390 x 740') || text.includes('70 x 380') || text.includes('380 x 70') || isNearSize(shelf, 'floor-long')) {
     return 'floor-long';
   }
   if (text.includes('bodenplatz 1') || text.includes('880 x 380') || text.includes('80 x 100') || isNearSize(shelf, 'floor-main')) {
@@ -1568,6 +1568,24 @@ function renderWarehouseMap(shelfPlaces, floorPlaces) {
   });
 }
 
+function setupPresetButton(button) {
+  const [width, depth, height, name] = button.dataset.preset.split('|');
+  const presetWidth = cmInputToCm(width, 100);
+  const presetDepth = cmInputToCm(depth, 100);
+  const scale = Math.max(presetWidth, presetDepth, 1);
+  const visualWidth = clamp((presetWidth / scale) * 100, 16, 100);
+  const visualDepth = clamp((presetDepth / scale) * 100, 14, 100);
+  const isBlocked = String(name || '').toLowerCase().includes('sperr');
+  button.classList.add('preset-button');
+  button.classList.toggle('blocked-preset', isBlocked);
+  button.style.setProperty('--preset-w', `${visualWidth}%`);
+  button.style.setProperty('--preset-h', `${visualDepth}%`);
+  button.innerHTML = `
+    <span class="preset-preview" aria-hidden="true"><i></i></span>
+    <span class="preset-label">${escapeHtml(button.textContent.trim())}</span>
+  `;
+}
+
 function packageHtml(item, selected = false) {
   return `
     <span class="measure">${formatSizeCm(item.width_units || 1, item.depth_units || 1)}</span>
@@ -1771,6 +1789,7 @@ els.resetPlanButton.addEventListener('click', () => {
 });
 
 document.querySelectorAll('[data-preset]').forEach(button => {
+  setupPresetButton(button);
   button.addEventListener('click', () => {
     const [width, depth, height, name, quantity, note = ''] = button.dataset.preset.split('|');
     els.widthUnits.value = width;

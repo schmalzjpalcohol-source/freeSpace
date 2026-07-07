@@ -1075,12 +1075,56 @@ select:hover {
 }
 
 .examples button {
-  min-height: 36px;
-  padding: 0 10px;
+  min-height: 74px;
+  padding: 8px;
   border: 1px solid var(--line);
   background: var(--surface-soft);
   color: var(--muted);
   font-size: 0.82rem;
+}
+
+.preset-button {
+  display: grid;
+  grid-template-rows: 38px auto;
+  align-items: center;
+  gap: 5px;
+  text-align: center;
+}
+
+.preset-preview {
+  width: 100%;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border: 1px dashed rgba(102, 116, 119, 0.32);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.preset-preview i {
+  display: block;
+  width: var(--preset-w, 50%);
+  height: var(--preset-h, 50%);
+  min-width: 8px;
+  min-height: 6px;
+  border: 1px solid rgba(98, 65, 22, 0.5);
+  border-radius: 4px;
+  background: #f4c56f;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.38);
+}
+
+.blocked-preset .preset-preview i {
+  border-color: rgba(180, 35, 53, 0.72);
+  background:
+    repeating-linear-gradient(135deg, rgba(180, 35, 53, 0.2) 0 5px, rgba(255, 255, 255, 0.54) 5px 10px),
+    #ffe2e5;
+}
+
+.preset-label {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 900;
+  line-height: 1.15;
 }
 
 .package-actions {
