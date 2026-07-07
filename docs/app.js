@@ -236,6 +236,15 @@ function packageInRackLevel(item, range) {
   return top <= range.end && bottom >= range.start && left <= range.xEnd && right >= range.xStart;
 }
 
+function packageRect(item) {
+  return {
+    column: item.column_index,
+    row: item.row_index,
+    width: item.width_units || 1,
+    depth: item.depth_units || 1
+  };
+}
+
 function rackLevelFreeRunCm(shelf, level) {
   const range = rackLevelRange(shelf, level);
   return maxFreeRunCm({
@@ -258,6 +267,23 @@ function draftInRackRange(shelf, range, cell, size) {
   const column = clamp(range.xStart + cell.column - 1, range.xStart, Math.max(range.xStart, range.xEnd - width + 1));
   const row = clamp(range.start + cell.row - 1, range.start, Math.max(range.start, range.end - depth + 1));
   return draftAtCell({ column, row }, shelf, { width, depth });
+}
+
+function findFreeRackDraft(shelf, range, size) {
+  const width = Math.min(size.width, range.width);
+  const depth = Math.min(size.depth, range.height);
+  const step = Math.max(1, Math.min(10, Math.round(Math.min(width, depth) / 4)));
+
+  for (let row = range.start; row <= range.end - depth + 1; row += step) {
+    for (let column = range.xStart; column <= range.xEnd - width + 1; column += step) {
+      const draft = { row, column, width, depth };
+      const collision = shelf.packages.some(item => rectsOverlap(draftRect(draft), packageRect(item)));
+      if (!collision) return draft;
+    }
+  }
+
+  const fallback = { row: range.start, column: range.xStart, width, depth };
+  return shelf.packages.some(item => rectsOverlap(draftRect(fallback), packageRect(item))) ? null : fallback;
 }
 
 function totalFreeRun(shelves) {
@@ -414,9 +440,13 @@ function setPackageEditFormValues(shelf, draft) {
 }
 
 function applyDraftSelection(shelf, draft) {
+  if (!draft) {
+    showMessage('In diesem Regalplatz ist kein freier Bereich für diese Größe.', 'error');
+    return false;
+  }
   if (touchesForbiddenArea(shelf, draft)) {
     showMessage('Diese Ecke ist gesperrt. Dort bitte nichts abstellen.', 'error');
-    return;
+    return false;
   }
   appState.selected = { shelf, row: draft.row, column: draft.column };
   els.packageId.value = '';
@@ -432,6 +462,8 @@ function applyDraftSelection(shelf, draft) {
   els.saveButton.textContent = 'Paket speichern';
   els.deletePackageButton.classList.add('hidden');
   els.cancelEditButton.classList.add('hidden');
+  showMessage(`${shelf.name}: Platz gewählt. Jetzt speichern.`);
+  return true;
 }
 
 function selectCell(shelf, row, column, item) {
@@ -698,12 +730,7 @@ function renderRackDisplay(shelf) {
     `;
     button.addEventListener('click', () => {
       appState.activeRackLevel = level;
-      applyDraftSelection(shelf, draftInRackRange(
-        shelf,
-        range,
-        { column: 1, row: 1 },
-        currentPackageSize()
-      ));
+      applyDraftSelection(shelf, findFreeRackDraft(shelf, range, currentPackageSize()));
       render();
     });
     levels.append(button);
