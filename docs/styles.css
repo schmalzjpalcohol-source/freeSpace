@@ -453,131 +453,112 @@ select:hover {
 
 .plan-drawing {
   display: grid;
-  grid-template-columns: minmax(280px, 0.95fr) minmax(380px, 1.15fr);
-  grid-template-areas:
-    "floor rack"
-    "long long";
-  gap: 16px;
+  grid-template-columns: 1fr;
+  gap: 14px;
   align-items: start;
   padding: 0;
   border: 0;
-  border-radius: 8px;
   background: transparent;
 }
 
 .plan-slot {
-  padding: 14px;
+  padding: 12px;
   border: 1px solid var(--line);
   background: #fff;
   border-radius: 8px;
   box-shadow: none;
 }
 
-.plan-slot.floor-main {
-  grid-area: floor;
-}
-
-.plan-slot.rack {
-  grid-area: rack;
-}
-
-.plan-slot.floor-long {
-  grid-area: long;
-  width: 100%;
-  justify-self: stretch;
-}
-
 .plan-meta {
-  min-height: 48px;
-  margin-bottom: 10px;
+  min-height: 0;
+  margin-bottom: 8px;
 }
 
 .rack-display {
   display: grid;
-  grid-template-columns: minmax(280px, 0.9fr) minmax(260px, 1fr);
-  gap: 12px;
-  align-items: stretch;
-  overflow-x: auto;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  overflow: visible;
 }
 
 .rack-levels {
-  position: relative;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  grid-template-rows: minmax(112px, 1fr) 44px;
-  gap: 0;
-  min-width: 480px;
-  padding: 10px 16px;
-  border: 2px solid var(--line-strong);
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
   border-radius: 8px;
-  background:
-    linear-gradient(to right, var(--line-strong) 0 2px, transparent 2px calc(25% - 1px), var(--line-strong) calc(25% - 1px) calc(25% + 1px), transparent calc(25% + 1px) calc(50% - 1px), var(--line-strong) calc(50% - 1px) calc(50% + 1px), transparent calc(50% + 1px) calc(75% - 1px), var(--line-strong) calc(75% - 1px) calc(75% + 1px), transparent calc(75% + 1px) calc(100% - 2px), var(--line-strong) calc(100% - 2px)),
-    var(--surface-soft);
+  background: transparent;
 }
 
 .rack-level {
-  position: relative;
-  min-height: 104px;
-  border: 1px solid var(--line-strong);
+  min-height: 58px;
+  border: 1px solid var(--line);
   border-radius: 6px;
-  padding: 8px 10px;
-  background: #ffffff;
+  padding: 8px;
+  background: var(--surface-soft);
   color: var(--ink);
   display: grid;
   align-content: center;
-  gap: 3px;
-  text-align: left;
+  gap: 2px;
+  text-align: center;
   transform: none;
 }
 
 .rack-level.short-level {
-  grid-column: 4;
-  grid-row: 2;
-  min-width: 0;
-  min-height: 44px;
-  padding: 5px 8px;
-  font-size: 0.78rem;
+  min-height: 58px;
 }
 
 .short-shelf-mark {
-  position: absolute;
-  inset: auto 8px 6px;
+  display: none;
+}
+
+.rack-level::before {
+  content: "";
+  display: block;
+  width: 32px;
   height: 6px;
-  border-top: 2px solid var(--primary);
-  border-bottom: 2px solid var(--primary);
-  background: rgba(15, 118, 110, 0.12);
+  margin: 0 auto 3px;
+  border-radius: 999px;
+  background: var(--line-strong);
+}
+
+.rack-level.short-level::before {
+  width: 22px;
+  background: var(--accent);
 }
 
 .rack-level:hover,
 .rack-level.active {
   border-color: var(--primary);
-  background:
-    linear-gradient(180deg, rgba(236, 253, 245, 0.95), rgba(209, 250, 229, 0.65)),
-    #f7faf9;
-  box-shadow: inset 0 0 0 2px rgba(15, 118, 110, 0.16);
+  background: #edf7f5;
+  box-shadow: inset 0 0 0 1px rgba(15, 118, 110, 0.14);
 }
 
 .rack-level span {
   font-weight: 950;
+  overflow-wrap: anywhere;
 }
 
 .rack-level strong {
-  font-size: 0.88rem;
+  font-size: 0.78rem;
 }
 
 .rack-level small {
   color: var(--muted);
+  font-size: 0.7rem;
   font-weight: 850;
 }
 
 .rack-level-detail {
-  min-height: 140px;
+  min-height: 132px;
 }
 
 .rack-level-detail.short-rack-detail {
-  width: min(100%, 240px);
+  width: min(100%, 320px);
   justify-self: end;
-  min-height: 86px;
+  min-height: 92px;
 }
 
 .rack-package {
@@ -588,19 +569,19 @@ select:hover {
   position: absolute;
   inset: 58% 0 18%;
   z-index: 1;
-  border-top: 4px solid #151515;
-  border-bottom: 4px solid #151515;
+  border-top: 3px solid var(--accent);
+  border-bottom: 3px solid var(--accent);
   background: rgba(15, 118, 110, 0.08);
   pointer-events: none;
 }
 
 .floor-main .place-canvas {
-  min-height: 210px;
+  min-height: 220px;
 }
 
 .floor-long .place-canvas {
-  width: min(100%, 520px);
-  min-height: 360px;
+  width: min(100%, 360px);
+  min-height: 520px;
   justify-self: center;
 }
 
@@ -629,15 +610,15 @@ select:hover {
 .place-canvas {
   position: relative;
   width: 100%;
-  min-height: 280px;
+  min-height: 240px;
   border: 2px solid var(--line-strong);
   border-radius: 8px;
   overflow: hidden;
   background-color: #ffffff;
   background-image:
-    linear-gradient(to right, rgba(20, 32, 34, 0.045) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(20, 32, 34, 0.045) 1px, transparent 1px);
-  background-size: 10% 25%;
+    linear-gradient(to right, rgba(20, 32, 34, 0.035) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(20, 32, 34, 0.035) 1px, transparent 1px);
+  background-size: 64px 64px;
   cursor: crosshair;
   touch-action: none;
   user-select: none;
@@ -1133,16 +1114,7 @@ select:hover {
 
   .plan-drawing {
     grid-template-columns: 1fr;
-    grid-template-areas:
-      "floor"
-      "rack"
-      "long";
     background: transparent;
-  }
-
-  .plan-slot.floor-long {
-    width: 100%;
-    justify-self: stretch;
   }
 
   .rack-display {
@@ -1150,7 +1122,7 @@ select:hover {
   }
 
   .rack-levels {
-    min-width: 500px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .content {
@@ -1162,7 +1134,8 @@ select:hover {
   }
 
   .floor-long .place-canvas {
-    min-height: 320px;
+    width: min(100%, 320px);
+    min-height: 460px;
   }
 
   .place-item {
@@ -1189,6 +1162,10 @@ select:hover {
 
   .shelf-meta {
     flex-direction: column;
+  }
+
+  .rack-levels {
+    grid-template-columns: 1fr;
   }
 
   .stats {
