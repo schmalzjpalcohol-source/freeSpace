@@ -493,26 +493,30 @@ select:hover {
 
 .rack-display {
   display: grid;
-  grid-template-columns: minmax(220px, 0.75fr) minmax(280px, 1fr);
+  grid-template-columns: minmax(280px, 0.9fr) minmax(260px, 1fr);
   gap: 12px;
   align-items: stretch;
+  overflow-x: auto;
 }
 
 .rack-levels {
   position: relative;
   display: grid;
-  gap: 8px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-rows: minmax(112px, 1fr) 44px;
+  gap: 0;
+  min-width: 520px;
   padding: 12px 20px;
   border: 3px solid #151515;
   border-radius: 2px;
   background:
-    linear-gradient(to right, transparent 0 8%, rgba(20, 32, 34, 0.9) 8% 10%, transparent 10% 48%, rgba(20, 32, 34, 0.9) 48% 50%, transparent 50% 88%, rgba(20, 32, 34, 0.9) 88% 90%, transparent 90%),
+    linear-gradient(to right, rgba(20, 32, 34, 0.9) 0 3px, transparent 3px calc(25% - 2px), rgba(20, 32, 34, 0.9) calc(25% - 2px) calc(25% + 2px), transparent calc(25% + 2px) calc(50% - 2px), rgba(20, 32, 34, 0.9) calc(50% - 2px) calc(50% + 2px), transparent calc(50% + 2px) calc(75% - 2px), rgba(20, 32, 34, 0.9) calc(75% - 2px) calc(75% + 2px), transparent calc(75% + 2px) calc(100% - 3px), rgba(20, 32, 34, 0.9) calc(100% - 3px)),
     #fff;
 }
 
 .rack-level {
   position: relative;
-  min-height: 64px;
+  min-height: 112px;
   border: 2px solid #151515;
   border-radius: 2px;
   padding: 8px 10px;
@@ -528,17 +532,18 @@ select:hover {
 }
 
 .rack-level.short-level {
-  margin-left: auto;
-  width: 38%;
-  min-width: 132px;
+  grid-column: 4;
+  grid-row: 2;
+  min-width: 0;
+  min-height: 44px;
+  padding: 5px 8px;
+  font-size: 0.78rem;
 }
 
 .short-shelf-mark {
   position: absolute;
-  right: 10px;
-  bottom: 8px;
-  width: calc(100% - 20px);
-  height: 8px;
+  inset: auto 8px 6px;
+  height: 6px;
   border-top: 3px solid #151515;
   border-bottom: 3px solid #151515;
   background: rgba(15, 118, 110, 0.12);
@@ -571,8 +576,9 @@ select:hover {
 }
 
 .rack-level-detail.short-rack-detail {
-  width: min(100%, 260px);
+  width: min(100%, 240px);
   justify-self: end;
+  min-height: 86px;
 }
 
 .rack-package {
@@ -590,11 +596,13 @@ select:hover {
 }
 
 .floor-main .place-canvas {
-  min-height: 0;
+  min-height: 220px;
 }
 
 .floor-long .place-canvas {
-  min-height: 220px;
+  width: min(100%, 440px);
+  min-height: 420px;
+  justify-self: end;
 }
 
 .shelf-meta h2 {
@@ -1114,6 +1122,10 @@ select:hover {
 
   .rack-display {
     grid-template-columns: 1fr;
+  }
+
+  .rack-levels {
+    min-width: 500px;
   }
 
   .content {

@@ -62,17 +62,17 @@
             </label>
             <label>
               Ort
-              <input id="shelfName" name="shelfName" autocomplete="off" list="placeExamples" placeholder="Regal A" required>
+              <input id="shelfName" name="shelfName" autocomplete="off" list="placeExamples" placeholder="Regalplatz 1" required>
               <datalist id="placeExamples">
-                <option value="Regal 600"></option>
-                <option value="Bodenfläche 380x180"></option>
-                <option value="Bodenfläche 740x390"></option>
+                <option value="Regal 600 x 106"></option>
+                <option value="Bodenplatz 1 - 880 x 380"></option>
+                <option value="Bodenplatz 2 - 390 x 740"></option>
               </datalist>
             </label>
             <div class="split">
               <label>
                 Fläche Tiefe (cm)
-                <input id="shelfRows" name="shelfRows" inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*" value="245">
+                <input id="shelfRows" name="shelfRows" inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*" value="106">
               </label>
               <label>
                 Fläche Breite (cm)
@@ -118,7 +118,8 @@
               <button type="button" data-preset="800|35|45|Palette 800x35x45|1">800 x 35</button>
               <button type="button" data-preset="310|80|35|Palette 310x80x35|1">310 x 80</button>
               <button type="button" data-preset="410|80|35|Palette 410x80x35|1">410 x 80</button>
-              <button type="button" data-preset="80|70|0|Sperrfläche rot|1|nicht abstellen">Sperrfläche</button>
+              <button type="button" data-preset="80|100|0|Sperrfläche 80x100|1|nicht abstellen">Sperre 80 x 100</button>
+              <button type="button" data-preset="380|70|0|Sperrfläche 380x70|1|nicht abstellen">Sperre 380 x 70</button>
             </div>
             <div class="package-actions">
               <button id="saveButton" class="primary" type="submit">Paket speichern</button>
@@ -137,6 +138,7 @@
             <div class="toolbar-actions">
               <button id="packagesTab" class="tab active" type="button">Pakete</button>
               <button id="placesTab" class="tab" type="button">Orte verwalten</button>
+              <button id="defaultPlanButton" class="ghost" type="button">3 Orte anlegen</button>
               <button id="refreshButton" class="ghost" type="button">Neu laden</button>
               <button id="resetPlanButton" class="danger" type="button">Alles löschen</button>
             </div>
@@ -158,12 +160,12 @@
               </label>
               <label>
                 Name
-                <input id="placeName" name="name" autocomplete="off" placeholder="Boden - Mitte" required>
+                <input id="placeName" name="name" autocomplete="off" placeholder="Bodenplatz 1 - 880 x 380" required>
               </label>
               <div class="split">
                 <label>
                   Fläche Tiefe (cm)
-                  <input id="placeRows" name="rows" inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*" value="245">
+                  <input id="placeRows" name="rows" inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*" value="106">
                 </label>
                 <label>
                   Fläche Breite (cm)
@@ -171,9 +173,9 @@
                 </label>
               </div>
               <div class="examples">
-                <button type="button" data-place-preset="Regal 600|shelf|245|600|4 Felder à 150 cm">Regal 600 x 245</button>
-                <button type="button" data-place-preset="Bodenfläche 380x180|floor|180|380|rote Ecke frei halten">Boden 380 x 180</button>
-                <button type="button" data-place-preset="Bodenfläche 740x390|floor|390|740|320 cm frei plus 70 cm Sperrstreifen">Boden 740 x 390</button>
+                <button type="button" data-place-preset="Regal 600 x 106|shelf|106|600|5 Säulen, 4 Plätze à 150 x 90 cm, rechts unten 150 x 16 cm">Regal 600 x 106</button>
+                <button type="button" data-place-preset="Bodenplatz 1 - 880 x 380|floor|380|880|Sperrfläche Ecke 80 x 100 cm">Boden 880 x 380</button>
+                <button type="button" data-place-preset="Bodenplatz 2 - 390 x 740|floor|740|390|Sperrfläche Ecke 380 x 70 cm">Boden 390 x 740</button>
               </div>
               <label>
                 Notiz

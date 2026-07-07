@@ -3,6 +3,7 @@ const els = {
   loginForm: document.querySelector('#loginForm'),
   logoutButton: document.querySelector('#logoutButton'),
   refreshButton: document.querySelector('#refreshButton'),
+  defaultPlanButton: document.querySelector('#defaultPlanButton'),
   packagesTab: document.querySelector('#packagesTab'),
   placesTab: document.querySelector('#placesTab'),
   userLabel: document.querySelector('#userLabel'),
@@ -55,6 +56,27 @@ let appState = {
   selected: null,
   activeView: 'packages',
   activeRackLevel: 1
+};
+
+const planPlaces = {
+  'floor-main': {
+    title: 'Bodenplatz 1 - 880 x 380',
+    rows: 380,
+    columns: 880,
+    notes: 'Sperrfläche Ecke 80 x 100 cm'
+  },
+  rack: {
+    title: 'Regal 600 x 106',
+    rows: 106,
+    columns: 600,
+    notes: '5 Säulen, 4 Plätze à 150 x 90 cm, rechts unten 150 x 16 cm'
+  },
+  'floor-long': {
+    title: 'Bodenplatz 2 - 390 x 740',
+    rows: 740,
+    columns: 390,
+    notes: 'Sperrfläche Ecke 380 x 70 cm'
+  }
 };
 
 function apiBase() {
@@ -182,13 +204,17 @@ function lengthSummary(shelf) {
 }
 
 function rackLevelSpecs(shelf) {
-  const height = Math.max(1, shelf.rows || 245);
-  const fullLevelHeight = Math.max(1, Math.round(height * (65 / 245)));
+  const width = Math.max(1, shelf.columns || planPlaces.rack.columns);
+  const height = Math.max(1, shelf.rows || planPlaces.rack.rows);
+  const bayWidth = Math.max(1, Math.round(width / 4));
+  const fullDepth = Math.min(90, height);
+  const smallDepth = Math.min(16, height);
   return [
-    { level: 1, label: 'Regal 1', start: 1, end: fullLevelHeight, xStart: 1, xEnd: shelf.columns || 600, short: false },
-    { level: 2, label: 'Regal 2', start: fullLevelHeight + 1, end: fullLevelHeight * 2, xStart: 1, xEnd: shelf.columns || 600, short: false },
-    { level: 3, label: 'Regal 3', start: (fullLevelHeight * 2) + 1, end: fullLevelHeight * 3, xStart: 1, xEnd: shelf.columns || 600, short: false },
-    { level: 4, label: 'Regal 4 kurz', start: (fullLevelHeight * 3) + 1, end: height, xStart: Math.max(1, (shelf.columns || 600) - 149), xEnd: shelf.columns || 600, short: true }
+    { level: 1, label: 'Regalplatz 1', start: 1, end: fullDepth, xStart: 1, xEnd: bayWidth, short: false },
+    { level: 2, label: 'Regalplatz 2', start: 1, end: fullDepth, xStart: bayWidth + 1, xEnd: bayWidth * 2, short: false },
+    { level: 3, label: 'Regalplatz 3', start: 1, end: fullDepth, xStart: (bayWidth * 2) + 1, xEnd: bayWidth * 3, short: false },
+    { level: 4, label: 'Regalplatz 4', start: 1, end: fullDepth, xStart: (bayWidth * 3) + 1, xEnd: width, short: false },
+    { level: 5, label: 'Kleinregal rechts', start: Math.max(1, height - smallDepth + 1), end: height, xStart: Math.max(1, width - bayWidth + 1), xEnd: width, short: true }
   ];
 }
 
@@ -224,6 +250,14 @@ function rackLevelFreeRunCm(shelf, level) {
         column_index: Math.max(1, item.column_index - range.xStart + 1)
       }))
   });
+}
+
+function draftInRackRange(shelf, range, cell, size) {
+  const width = Math.min(size.width, range.width);
+  const depth = Math.min(size.depth, range.height);
+  const column = clamp(range.xStart + cell.column - 1, range.xStart, Math.max(range.xStart, range.xEnd - width + 1));
+  const row = clamp(range.start + cell.row - 1, range.start, Math.max(range.start, range.end - depth + 1));
+  return draftAtCell({ column, row }, shelf, { width, depth });
 }
 
 function totalFreeRun(shelves) {
@@ -284,6 +318,50 @@ function draftFromCorners(start, end, shelf) {
   return draftAtCell({ column, row }, shelf, { width, depth });
 }
 
+function forbiddenRect(shelf) {
+  const role = planRole(shelf);
+  if (role === 'floor-main') {
+    return {
+      column: Math.max(1, shelf.columns - 80 + 1),
+      row: Math.max(1, shelf.rows - 100 + 1),
+      width: Math.min(80, shelf.columns),
+      depth: Math.min(100, shelf.rows)
+    };
+  }
+  if (role === 'floor-long') {
+    return {
+      column: 1,
+      row: Math.max(1, shelf.rows - 70 + 1),
+      width: Math.min(380, shelf.columns),
+      depth: Math.min(70, shelf.rows)
+    };
+  }
+  return null;
+}
+
+function draftRect(draft) {
+  return {
+    column: draft.column ?? draft.columnIndex ?? 1,
+    row: draft.row ?? draft.rowIndex ?? 1,
+    width: draft.width ?? draft.widthUnits ?? 1,
+    depth: draft.depth ?? draft.depthUnits ?? 1
+  };
+}
+
+function rectsOverlap(a, b) {
+  return (
+    a.column < b.column + b.width &&
+    a.column + a.width > b.column &&
+    a.row < b.row + b.depth &&
+    a.row + a.depth > b.row
+  );
+}
+
+function touchesForbiddenArea(shelf, draft) {
+  const blocked = forbiddenRect(shelf);
+  return Boolean(blocked && rectsOverlap(draftRect(draft), blocked));
+}
+
 function selectedDraft() {
   if (!appState.selected || els.packageId.value) return null;
   return {
@@ -336,6 +414,10 @@ function setPackageEditFormValues(shelf, draft) {
 }
 
 function applyDraftSelection(shelf, draft) {
+  if (touchesForbiddenArea(shelf, draft)) {
+    showMessage('Diese Ecke ist gesperrt. Dort bitte nichts abstellen.', 'error');
+    return;
+  }
   appState.selected = { shelf, row: draft.row, column: draft.column };
   els.packageId.value = '';
   els.locationType.value = placeKind(shelf);
@@ -421,7 +503,7 @@ function clearPlaceForm() {
   els.placeId.value = '';
   els.placeLocationType.value = 'shelf';
   els.placeName.value = '';
-  els.placeRows.value = 245;
+  els.placeRows.value = planPlaces.rack.rows;
   els.placeColumns.value = 600;
   els.placeNotes.value = '';
   els.savePlaceButton.textContent = 'Ort speichern';
@@ -469,20 +551,28 @@ function selectedPlanShelves(shelfPlaces, floorPlaces) {
 function planRole(shelf) {
   const text = `${shelf.name || ''} ${shelf.label || ''} ${shelf.notes || ''}`.toLowerCase();
   if (placeKind(shelf) === 'shelf') return 'rack';
-  if (text.includes('740') || shelf.columns >= 700) return 'floor-long';
+  if (text.includes('bodenplatz 2') || text.includes('390 x 740') || text.includes('380 x 70') || shelf.rows >= 700) return 'floor-long';
   return 'floor-main';
 }
 
 function planTitle(role) {
-  if (role === 'rack') return 'Regal';
-  if (role === 'floor-long') return 'Bodenfläche 740 x 390';
-  return 'Bodenfläche 380 x 180';
+  return planPlaces[role]?.title || 'Lagerplatz';
 }
 
 function expectedPlanSize(role) {
-  if (role === 'rack') return { columns: 600, rows: 245 };
-  if (role === 'floor-long') return { columns: 740, rows: 390 };
-  return { columns: 380, rows: 180 };
+  const place = planPlaces[role] || planPlaces['floor-main'];
+  return { columns: place.columns, rows: place.rows };
+}
+
+function defaultPlacePayload(role) {
+  const place = planPlaces[role];
+  return {
+    locationType: role === 'rack' ? 'shelf' : 'floor',
+    name: place.title,
+    rows: cmInputToMeters(place.rows, place.rows),
+    columns: cmInputToMeters(place.columns, place.columns),
+    notes: place.notes
+  };
 }
 
 function findPlanShelf(role, shelves) {
@@ -528,7 +618,7 @@ function renderPlanSlot(role, shelf) {
     <div class="stats">
       <span class="stat">${formatSizeCm(displayShelf.columns, displayShelf.rows)}</span>
       <span class="stat">${shelf ? lengthSummary(displayShelf) : 'noch nicht angelegt'}</span>
-      ${role === 'rack' ? '<span class="stat">150 + 150 + 150 + 150 cm</span>' : ''}
+      ${role === 'rack' ? '<span class="stat">4 x 150 cm, Tiefe 90 cm</span>' : ''}
     </div>
   `;
   slot.append(meta);
@@ -562,7 +652,7 @@ function renderPlanPlaceholder(role, shelf) {
     els.placeLocationType.value = type;
     els.placeRows.value = inputCm(shelf.rows);
     els.placeColumns.value = inputCm(shelf.columns);
-    els.placeNotes.value = role === 'rack' ? '4 Felder à 150 cm' : '';
+    els.placeNotes.value = planPlaces[role]?.notes || '';
     els.savePlaceButton.textContent = 'Ort speichern';
   });
   return placeholder;
@@ -604,7 +694,7 @@ function renderRackLevelDetail(shelf, level) {
   const range = rackLevelRange(shelf, level);
   const canvas = document.createElement('div');
   canvas.className = `rack-level-detail place-canvas ${range.short ? 'short-rack-detail' : ''}`;
-  canvas.style.setProperty('--cols', Math.max(1, Math.round(range.width / 150)));
+  canvas.style.setProperty('--cols', 1);
   canvas.style.setProperty('--rows', 1);
   canvas.style.aspectRatio = `${range.width} / ${Math.max(1, range.height)}`;
   canvas.append(renderDimensionLabels({ ...shelf, columns: range.width, rows: range.height }, 'shelf', range.short ? 'rack-short-detail' : 'rack-detail'));
@@ -648,11 +738,7 @@ function renderRackLevelDetail(shelf, level) {
   canvas.addEventListener('pointerdown', event => {
     if (event.target !== canvas) return;
     const cell = canvasCellFromEvent(event, canvas, { ...shelf, columns: range.width, rows: range.height });
-    applyDraftSelection(shelf, draftAtCell(
-      { column: range.xStart + cell.column - 1, row: range.start + cell.row - 1 },
-      shelf,
-      currentPackageSize()
-    ));
+    applyDraftSelection(shelf, draftInRackRange(shelf, range, cell, currentPackageSize()));
     render();
     els.packageName.focus();
   });
@@ -670,7 +756,7 @@ function renderPlaceCanvas(shelf, kind, role = planRole(shelf)) {
   canvas.style.setProperty('--rows', Math.max(1, Math.ceil(shelf.rows / 100)));
   canvas.style.aspectRatio = `${shelf.columns} / ${Math.max(1, shelf.rows)}`;
   canvas.append(renderDimensionLabels(shelf, kind, role));
-  canvas.append(renderForbiddenArea(role));
+  canvas.append(renderForbiddenArea(shelf, role));
   canvas.addEventListener('pointerdown', event => {
     if (event.target !== canvas) return;
     event.preventDefault();
@@ -770,22 +856,22 @@ function renderPlaceCanvas(shelf, kind, role = planRole(shelf)) {
   return canvas;
 }
 
-function renderForbiddenArea(role) {
+function renderForbiddenArea(shelf, role) {
   const area = document.createElement('div');
   area.className = 'forbidden-area hidden';
   if (role === 'floor-main') {
     area.classList.remove('hidden');
-    area.style.left = `${((380 - 80) / 380) * 100}%`;
-    area.style.top = `${((180 - 70) / 180) * 100}%`;
-    area.style.width = `${(80 / 380) * 100}%`;
-    area.style.height = `${(70 / 180) * 100}%`;
+    area.style.left = `${((shelf.columns - 80) / shelf.columns) * 100}%`;
+    area.style.top = `${((shelf.rows - 100) / shelf.rows) * 100}%`;
+    area.style.width = `${(80 / shelf.columns) * 100}%`;
+    area.style.height = `${(100 / shelf.rows) * 100}%`;
   }
   if (role === 'floor-long') {
     area.classList.remove('hidden');
     area.style.left = '0';
-    area.style.top = `${(320 / 390) * 100}%`;
-    area.style.width = `${(380 / 740) * 100}%`;
-    area.style.height = `${(70 / 390) * 100}%`;
+    area.style.top = `${((shelf.rows - 70) / shelf.rows) * 100}%`;
+    area.style.width = `${(380 / shelf.columns) * 100}%`;
+    area.style.height = `${(70 / shelf.rows) * 100}%`;
   }
   return area;
 }
@@ -803,9 +889,9 @@ function renderDimensionLabels(shelf, kind, role = planRole(shelf)) {
   labels.innerHTML = `
     <span class="dim dim-top">${formatCm(shelf.columns)} cm</span>
     <span class="dim dim-left">${formatCm(shelf.rows)} cm</span>
-    ${kind === 'shelf' ? '<span class="dim dim-bays">150 + 150 + 150 + 150 cm</span>' : ''}
-    ${role === 'floor-main' ? '<span class="dim dim-blocked">80 x 70 cm Sperrfläche</span>' : ''}
-    ${role === 'floor-long' ? '<span class="dim dim-depth">320 + 70 cm</span><span class="dim dim-blocked">380 x 70 cm Sperrfläche</span>' : ''}
+    ${kind === 'shelf' ? '<span class="dim dim-bays">5 Säulen / 4 x 150 cm</span>' : ''}
+    ${role === 'floor-main' ? '<span class="dim dim-depth">550 + 330 cm</span><span class="dim dim-blocked">80 x 100 cm Sperrfläche</span>' : ''}
+    ${role === 'floor-long' ? '<span class="dim dim-depth">420 + 320 cm</span><span class="dim dim-blocked">380 x 70 cm Sperrfläche</span>' : ''}
   `;
   return labels;
 }
@@ -1056,7 +1142,7 @@ function renderOverview(shelves, shelfPlaces, floorPlaces) {
   const cards = [
     ['Freie Länge', `${formatCm(freeLength)} cm`, 'längste freie Strecken addiert'],
     ['Sperrflächen', blockedCount, 'rot markiert, nicht abstellen'],
-    ['Regal', shelfPlaces.length, '4 Felder à 150 cm'],
+    ['Regal', shelfPlaces.length, '4 Plätze à 150 cm plus Kleinregal'],
     ['Bodenflächen', floorPlaces.length, 'normale Stellflächen']
   ];
 
@@ -1077,9 +1163,9 @@ function renderOverview(shelves, shelfPlaces, floorPlaces) {
 
 function renderWarehouseMap(shelfPlaces, floorPlaces) {
   const zones = [
-    ['Regal 600 cm', shelfPlaces],
-    ['Bodenfläche 1', floorPlaces.slice(0, 1)],
-    ['Bodenfläche 2', floorPlaces.slice(1)]
+    ['Regal 600 x 106', shelfPlaces],
+    ['Bodenplatz 1', floorPlaces.slice(0, 1)],
+    ['Bodenplatz 2', floorPlaces.slice(1)]
   ];
 
   zones.forEach(([label, places]) => {
@@ -1135,7 +1221,17 @@ async function submitPackage(event) {
   normalizeDecimalFields(els.shelfRows, els.shelfColumns, els.widthUnits, els.depthUnits);
   updateDraftFromSizeInputs();
   const payload = Object.fromEntries(new FormData(els.packageForm).entries());
-  payload.shelfRows = cmInputToMeters(payload.shelfRows, 245);
+  const selectedShelf = appState.selected?.shelf;
+  if (selectedShelf && touchesForbiddenArea(selectedShelf, {
+    row: cmInputToCm(payload.rowIndex, 1),
+    column: cmInputToCm(payload.columnIndex, 1),
+    width: cmInputToCm(payload.widthUnits, 100),
+    depth: cmInputToCm(payload.depthUnits, 100)
+  })) {
+    showMessage('Diese Ecke ist gesperrt. Dort bitte nichts abstellen.', 'error');
+    return;
+  }
+  payload.shelfRows = cmInputToMeters(payload.shelfRows, planPlaces.rack.rows);
   payload.shelfColumns = cmInputToMeters(payload.shelfColumns, 600);
   payload.widthUnits = cmInputToMeters(payload.widthUnits, 100);
   payload.depthUnits = cmInputToMeters(payload.depthUnits, 100);
@@ -1156,7 +1252,7 @@ async function submitPlace(event) {
   event.preventDefault();
   normalizeDecimalFields(els.placeRows, els.placeColumns);
   const payload = Object.fromEntries(new FormData(els.placeForm).entries());
-  payload.rows = cmInputToMeters(payload.rows, 245);
+  payload.rows = cmInputToMeters(payload.rows, planPlaces.rack.rows);
   payload.columns = cmInputToMeters(payload.columns, 600);
   const isEdit = Boolean(payload.id);
   await apiFetch('/api/places', {
@@ -1191,6 +1287,24 @@ async function deleteAllPlaces() {
   await loadShelves();
 }
 
+async function createDefaultPlanPlaces() {
+  const existingRoles = new Set(appState.shelves.map(planRole));
+  const missingRoles = ['floor-main', 'rack', 'floor-long'].filter(role => !existingRoles.has(role));
+  if (!missingRoles.length) {
+    showMessage('Die 3 Orte sind schon angelegt.');
+    return;
+  }
+
+  for (const role of missingRoles) {
+    await apiFetch('/api/places', {
+      method: 'POST',
+      body: JSON.stringify(defaultPlacePayload(role))
+    });
+  }
+  showMessage(`${missingRoles.length} Ort(e) angelegt.`);
+  await loadShelves();
+}
+
 async function submitLogin(event) {
   event.preventDefault();
   const payload = Object.fromEntries(new FormData(els.loginForm).entries());
@@ -1220,6 +1334,10 @@ els.logoutButton.addEventListener('click', () => {
 
 els.refreshButton.addEventListener('click', () => {
   loadShelves().catch(error => showMessage(error.message, 'error'));
+});
+
+els.defaultPlanButton.addEventListener('click', () => {
+  createDefaultPlanPlaces().catch(error => showMessage(error.message, 'error'));
 });
 
 els.packagesTab.addEventListener('click', () => setActiveView('packages'));
