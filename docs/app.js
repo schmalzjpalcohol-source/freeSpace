@@ -64,19 +64,19 @@ const planPlaces = {
     title: 'Bodenplatz 1 - 880 x 380',
     rows: 380,
     columns: 880,
-    notes: 'Sperrfläche Ecke 80 x 100 cm'
+    notes: 'Sperrfläche rechts oben 80 x 100 cm'
   },
   rack: {
     title: 'Regal 600 x 90',
     rows: 90,
     columns: 600,
-    notes: '4 Plätze à 150 x 90 cm'
+    notes: '4 Plätze à 150 x 90 cm, Kleinregal 150 x 90 cm, Höhe 16 cm'
   },
   'floor-long': {
     title: 'Bodenplatz 2 - 390 x 740',
     rows: 740,
     columns: 390,
-    notes: 'Sperrfläche Ecke 380 x 70 cm'
+    notes: 'Sperrfläche links oben 70 x 380 cm'
   }
 };
 
@@ -217,7 +217,8 @@ function rackLevelSpecs(shelf) {
     { level: 1, label: 'Regalplatz 1', start: 1, end: fullDepth, xStart: 1, xEnd: bayWidth, short: false },
     { level: 2, label: 'Regalplatz 2', start: 1, end: fullDepth, xStart: bayWidth + 1, xEnd: bayWidth * 2, short: false },
     { level: 3, label: 'Regalplatz 3', start: 1, end: fullDepth, xStart: (bayWidth * 2) + 1, xEnd: bayWidth * 3, short: false },
-    { level: 4, label: 'Regalplatz 4', start: 1, end: fullDepth, xStart: (bayWidth * 3) + 1, xEnd: width, short: false }
+    { level: 4, label: 'Regalplatz 4', start: 1, end: fullDepth, xStart: (bayWidth * 3) + 1, xEnd: width, short: false },
+    { level: 5, label: 'Kleinregal', start: 1, end: fullDepth, xStart: (bayWidth * 3) + 1, xEnd: width, short: true, heightLabel: 'Höhe 16 cm' }
   ];
 }
 
@@ -436,7 +437,7 @@ function forbiddenRect(shelf) {
   if (role === 'floor-main') {
     return {
       column: Math.max(1, shelf.columns - 80 + 1),
-      row: Math.max(1, shelf.rows - 100 + 1),
+      row: 1,
       width: Math.min(80, shelf.columns),
       depth: Math.min(100, shelf.rows)
     };
@@ -444,9 +445,9 @@ function forbiddenRect(shelf) {
   if (role === 'floor-long') {
     return {
       column: 1,
-      row: Math.max(1, shelf.rows - 70 + 1),
-      width: Math.min(380, shelf.columns),
-      depth: Math.min(70, shelf.rows)
+      row: 1,
+      width: Math.min(70, shelf.columns),
+      depth: Math.min(380, shelf.rows)
     };
   }
   return null;
@@ -812,7 +813,7 @@ function renderRackDisplay(shelf) {
     button.innerHTML = `
       <span>${escapeHtml(range.label)}</span>
       <strong>${formatCm(rackLevelFreeRunCm(shelf, level))} cm frei</strong>
-      <small>${packages.length} Positionen</small>
+      <small>${range.heightLabel || `${packages.length} Positionen`}</small>
       ${range.short ? '<i class="short-shelf-mark" aria-hidden="true"></i>' : ''}
     `;
     button.addEventListener('click', () => {
@@ -1121,16 +1122,16 @@ function renderForbiddenArea(shelf, role) {
   if (role === 'floor-main') {
     area.classList.remove('hidden');
     area.style.left = `${((shelf.columns - 80) / shelf.columns) * 100}%`;
-    area.style.top = `${((shelf.rows - 100) / shelf.rows) * 100}%`;
+    area.style.top = '0';
     area.style.width = `${(80 / shelf.columns) * 100}%`;
     area.style.height = `${(100 / shelf.rows) * 100}%`;
   }
   if (role === 'floor-long') {
     area.classList.remove('hidden');
     area.style.left = '0';
-    area.style.top = `${((shelf.rows - 70) / shelf.rows) * 100}%`;
-    area.style.width = `${(380 / shelf.columns) * 100}%`;
-    area.style.height = `${(70 / shelf.rows) * 100}%`;
+    area.style.top = '0';
+    area.style.width = `${(70 / shelf.columns) * 100}%`;
+    area.style.height = `${(380 / shelf.rows) * 100}%`;
   }
   return area;
 }
@@ -1149,8 +1150,8 @@ function renderDimensionLabels(shelf, kind, role = planRole(shelf)) {
     <span class="dim dim-top">${formatCm(shelf.columns)} cm</span>
     <span class="dim dim-left">${formatCm(shelf.rows)} cm</span>
     ${kind === 'shelf' ? '<span class="dim dim-bays">4 x 150 cm</span>' : ''}
-    ${role === 'floor-main' ? '<span class="dim dim-depth">550 + 330 cm</span><span class="dim dim-blocked">80 x 100 cm Sperrfläche</span>' : ''}
-    ${role === 'floor-long' ? '<span class="dim dim-depth">420 + 320 cm</span><span class="dim dim-blocked">380 x 70 cm Sperrfläche</span>' : ''}
+    ${role === 'floor-main' ? '<span class="dim dim-blocked">80 x 100 cm Sperrfläche</span>' : ''}
+    ${role === 'floor-long' ? '<span class="dim dim-blocked">70 x 380 cm Sperrfläche</span>' : ''}
   `;
   return labels;
 }

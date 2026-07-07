@@ -507,7 +507,14 @@ select:hover {
 }
 
 .rack-level.short-level {
-  min-height: 58px;
+  grid-column: 1 / -1;
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: #fff9ec;
+  border-color: #ead6ad;
 }
 
 .short-shelf-mark {
@@ -525,8 +532,9 @@ select:hover {
 }
 
 .rack-level.short-level::before {
-  width: 32px;
-  background: var(--line-strong);
+  width: 40px;
+  margin: 0;
+  background: var(--accent);
 }
 
 .rack-level:hover,
@@ -1047,12 +1055,6 @@ select:hover {
   bottom: 8px;
   color: var(--danger);
   border-color: rgba(180, 35, 53, 0.25);
-}
-
-.dim-depth {
-  right: 8px;
-  top: 50%;
-  transform: translateY(-50%) rotate(90deg);
 }
 
 .examples {
