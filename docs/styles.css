@@ -339,7 +339,7 @@ select:hover {
 }
 
 .overview-cards {
-  display: grid;
+  display: none;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
   margin-bottom: 14px;
@@ -427,11 +427,11 @@ select:hover {
 }
 
 .shelves {
-  display: grid;
-  gap: 16px;
+  display: block;
 }
 
-.shelf {
+.shelf,
+.plan-slot {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 14px;
@@ -449,6 +449,60 @@ select:hover {
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 10px;
+}
+
+.plan-drawing {
+  display: grid;
+  grid-template-columns: minmax(230px, 0.82fr) minmax(360px, 1.35fr);
+  grid-template-areas:
+    "floor rack"
+    "long long";
+  gap: 18px;
+  align-items: start;
+  padding: 16px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background:
+    linear-gradient(to right, transparent calc(43% - 1px), rgba(15, 118, 110, 0.55) calc(43% - 1px), rgba(15, 118, 110, 0.55) calc(43% + 1px), transparent calc(43% + 1px)),
+    #fff;
+}
+
+.plan-slot {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.plan-slot.floor-main {
+  grid-area: floor;
+}
+
+.plan-slot.rack {
+  grid-area: rack;
+}
+
+.plan-slot.floor-long {
+  grid-area: long;
+  width: min(100%, 760px);
+  justify-self: end;
+}
+
+.plan-meta {
+  min-height: 54px;
+  margin-bottom: 8px;
+}
+
+.rack .place-canvas {
+  min-height: 250px;
+}
+
+.floor-main .place-canvas {
+  min-height: 330px;
+}
+
+.floor-long .place-canvas {
+  min-height: 160px;
 }
 
 .shelf-meta h2 {
@@ -477,30 +531,34 @@ select:hover {
   position: relative;
   width: 100%;
   min-height: 280px;
-  border: 1px solid var(--line-strong);
-  border-radius: 8px;
+  border: 3px solid #151515;
+  border-radius: 2px;
   overflow: hidden;
-  background-color: #eef7f4;
+  background-color: #ffffff;
   background-image:
-    linear-gradient(to right, rgba(20, 32, 34, 0.08) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(20, 32, 34, 0.08) 1px, transparent 1px),
-    radial-gradient(circle at 18% 18%, rgba(255, 255, 255, 0.72), transparent 34%);
+    linear-gradient(to right, rgba(20, 32, 34, 0.12) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(20, 32, 34, 0.10) 1px, transparent 1px);
   background-size:
     calc(100% / var(--cols)) 100%,
-    100% calc(100% / var(--rows)),
-    100% 100%;
+    100% calc(100% / var(--rows));
   cursor: crosshair;
   touch-action: none;
   user-select: none;
 }
 
 .floor-canvas {
-  background-color: var(--floor);
-  border-color: var(--floor-line);
+  background-color: #fffdf8;
+  border-color: #151515;
   background-image:
-    linear-gradient(to right, rgba(89, 69, 39, 0.08) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(89, 69, 39, 0.08) 1px, transparent 1px),
-    radial-gradient(circle at 16% 20%, rgba(255, 255, 255, 0.68), transparent 34%);
+    linear-gradient(to right, rgba(89, 69, 39, 0.12) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(89, 69, 39, 0.10) 1px, transparent 1px);
+}
+
+.rack .place-canvas {
+  background-image:
+    linear-gradient(to right, rgba(20, 32, 34, 0.16) 2px, transparent 2px),
+    repeating-linear-gradient(to bottom, transparent 0 31%, rgba(20, 32, 34, 0.28) 31% 33%, transparent 33% 34%),
+    linear-gradient(to bottom, rgba(20, 32, 34, 0.10) 1px, transparent 1px);
 }
 
 .package-rect,
@@ -772,6 +830,36 @@ select:hover {
   pointer-events: none;
 }
 
+.plan-placeholder {
+  display: grid;
+  place-items: center;
+  text-align: center;
+}
+
+.placeholder-action {
+  position: relative;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.88);
+  color: var(--primary-dark);
+  font-weight: 900;
+}
+
+.forbidden-area {
+  position: absolute;
+  z-index: 2;
+  border: 2px solid rgba(180, 35, 53, 0.95);
+  background:
+    repeating-linear-gradient(135deg, rgba(180, 35, 53, 0.2) 0 7px, rgba(255, 255, 255, 0.5) 7px 13px),
+    rgba(255, 226, 229, 0.9);
+  pointer-events: none;
+}
+
 .dimension-labels {
   position: absolute;
   inset: 0;
@@ -806,6 +894,13 @@ select:hover {
 .dim-bays {
   right: 8px;
   bottom: 8px;
+}
+
+.dim-blocked {
+  right: 8px;
+  bottom: 8px;
+  color: var(--danger);
+  border-color: rgba(180, 35, 53, 0.25);
 }
 
 .examples {
@@ -910,6 +1005,20 @@ select:hover {
   .overview-cards,
   .warehouse-map {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .plan-drawing {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "floor"
+      "rack"
+      "long";
+    background: #fff;
+  }
+
+  .plan-slot.floor-long {
+    width: 100%;
+    justify-self: stretch;
   }
 
   .content {

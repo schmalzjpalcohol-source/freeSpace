@@ -23,6 +23,7 @@ const els = {
   savePlaceButton: document.querySelector('#savePlaceButton'),
   cancelPlaceButton: document.querySelector('#cancelPlaceButton'),
   deleteAllPlacesButton: document.querySelector('#deleteAllPlacesButton'),
+  resetPlanButton: document.querySelector('#resetPlanButton'),
   shelves: document.querySelector('#shelves'),
   summaryText: document.querySelector('#summaryText'),
   packageForm: document.querySelector('#packageForm'),
@@ -401,41 +402,127 @@ function render() {
 
   const floorPlaces = appState.shelves.filter(shelf => placeKind(shelf) === 'floor');
   const shelfPlaces = appState.shelves.filter(shelf => placeKind(shelf) === 'shelf');
-  const freeLength = totalFreeRun(appState.shelves);
+  const planShelves = selectedPlanShelves(shelfPlaces, floorPlaces);
+  const freeLength = totalFreeRun(planShelves);
   els.summaryText.textContent = appState.shelves.length
     ? `${formatCm(freeLength)} cm freie nutzbare Länge über alle Flächen.`
     : 'Noch keine Regale angelegt.';
 
-  renderOverview(appState.shelves, shelfPlaces, floorPlaces);
-  renderWarehouseMap(shelfPlaces, floorPlaces);
+  renderOverview(planShelves, shelfPlaces, floorPlaces);
+  renderPlanDrawing(shelfPlaces, floorPlaces);
   renderPlaces();
-
-  appState.shelves.forEach(shelf => {
-    const section = document.createElement('section');
-    const kind = placeKind(shelf);
-    section.className = `shelf ${kind === 'floor' ? 'floor-place' : ''}`;
-
-    const meta = document.createElement('div');
-    meta.className = 'shelf-meta';
-    meta.innerHTML = `
-      <div>
-        <span class="place-type">${placeLabel(kind)}</span>
-        <h2>${escapeHtml(shelf.label || shelf.name)}</h2>
-      </div>
-      <div class="stats">
-        <span class="stat">${lengthSummary(shelf)}</span>
-        <span class="stat">${formatCm(shelf.columns)} x ${formatCm(shelf.rows)} cm</span>
-        ${placeKind(shelf) === 'shelf' ? '<span class="stat">4 Felder à 150 cm</span>' : ''}
-      </div>
-    `;
-    section.append(meta);
-
-    section.append(renderPlaceCanvas(shelf, kind));
-    els.shelves.append(section);
-  });
 }
 
-function renderPlaceCanvas(shelf, kind) {
+function selectedPlanShelves(shelfPlaces, floorPlaces) {
+  const all = [...shelfPlaces, ...floorPlaces];
+  return ['floor-main', 'rack', 'floor-long']
+    .map(role => findPlanShelf(role, all))
+    .filter(Boolean);
+}
+
+function planRole(shelf) {
+  const text = `${shelf.name || ''} ${shelf.label || ''} ${shelf.notes || ''}`.toLowerCase();
+  if (placeKind(shelf) === 'shelf') return 'rack';
+  if (text.includes('740') || shelf.columns >= 700 || shelf.rows <= 90) return 'floor-long';
+  return 'floor-main';
+}
+
+function planTitle(role) {
+  if (role === 'rack') return 'Regal';
+  if (role === 'floor-long') return 'Bodenfläche 740 x 70';
+  return 'Bodenfläche 380 x 180';
+}
+
+function expectedPlanSize(role) {
+  if (role === 'rack') return { columns: 600, rows: 245 };
+  if (role === 'floor-long') return { columns: 740, rows: 70 };
+  return { columns: 380, rows: 180 };
+}
+
+function findPlanShelf(role, shelves) {
+  return shelves.find(shelf => planRole(shelf) === role) || null;
+}
+
+function renderPlanDrawing(shelfPlaces, floorPlaces) {
+  const all = [...shelfPlaces, ...floorPlaces];
+  const plan = document.createElement('section');
+  plan.className = 'plan-drawing';
+  plan.append(renderPlanSlot('floor-main', findPlanShelf('floor-main', all)));
+  plan.append(renderPlanSlot('rack', findPlanShelf('rack', all)));
+  plan.append(renderPlanSlot('floor-long', findPlanShelf('floor-long', all)));
+  els.shelves.append(plan);
+}
+
+function renderPlanSlot(role, shelf) {
+  const slot = document.createElement('section');
+  slot.className = `plan-slot ${role}`;
+
+  const expected = expectedPlanSize(role);
+  const displayShelf = shelf || {
+    id: `placeholder-${role}`,
+    name: planTitle(role),
+    label: planTitle(role),
+    rows: expected.rows,
+    columns: expected.columns,
+    packages: [],
+    freePlaces: expected.rows * expected.columns,
+    usedPlaces: 0,
+    totalPlaces: expected.rows * expected.columns,
+    location_type: role === 'rack' ? 'shelf' : 'floor'
+  };
+  const kind = placeKind(displayShelf);
+
+  const meta = document.createElement('div');
+  meta.className = 'shelf-meta plan-meta';
+  meta.innerHTML = `
+    <div>
+      <span class="place-type">${placeLabel(kind)}</span>
+      <h2>${escapeHtml(displayShelf.label || displayShelf.name)}</h2>
+    </div>
+    <div class="stats">
+      <span class="stat">${formatSizeCm(displayShelf.columns, displayShelf.rows)}</span>
+      <span class="stat">${shelf ? lengthSummary(displayShelf) : 'noch nicht angelegt'}</span>
+      ${role === 'rack' ? '<span class="stat">150 + 150 + 150 + 150 cm</span>' : ''}
+    </div>
+  `;
+  slot.append(meta);
+
+  if (shelf) {
+    slot.append(renderPlaceCanvas(displayShelf, kind, role));
+  } else {
+    slot.append(renderPlanPlaceholder(role, displayShelf));
+  }
+
+  return slot;
+}
+
+function renderPlanPlaceholder(role, shelf) {
+  const placeholder = document.createElement('button');
+  placeholder.type = 'button';
+  placeholder.className = `place-canvas plan-placeholder ${role === 'rack' ? '' : 'floor-canvas'}`;
+  placeholder.style.setProperty('--cols', Math.max(1, Math.round(shelf.columns / (role === 'rack' ? 150 : 100))));
+  placeholder.style.setProperty('--rows', Math.max(1, Math.ceil(shelf.rows / 100)));
+  placeholder.style.aspectRatio = `${shelf.columns} / ${Math.max(1, shelf.rows)}`;
+  placeholder.append(renderDimensionLabels(shelf, placeKind(shelf), role));
+  const mark = document.createElement('span');
+  mark.className = 'placeholder-action';
+  mark.textContent = 'In Orte verwalten anlegen';
+  placeholder.append(mark);
+  placeholder.addEventListener('click', () => {
+    setActiveView('places');
+    const type = role === 'rack' ? 'shelf' : 'floor';
+    els.placeId.value = '';
+    els.placeName.value = planTitle(role);
+    els.placeLocationType.value = type;
+    els.placeRows.value = inputCm(shelf.rows);
+    els.placeColumns.value = inputCm(shelf.columns);
+    els.placeNotes.value = role === 'rack' ? '4 Felder à 150 cm' : '';
+    els.savePlaceButton.textContent = 'Ort speichern';
+  });
+  return placeholder;
+}
+
+function renderPlaceCanvas(shelf, kind, role = planRole(shelf)) {
   const canvas = document.createElement('div');
   let dragStart = null;
   let dragDraft = null;
@@ -444,7 +531,8 @@ function renderPlaceCanvas(shelf, kind) {
   canvas.style.setProperty('--cols', Math.max(1, Math.round(shelf.columns / (kind === 'shelf' ? 150 : 100))));
   canvas.style.setProperty('--rows', Math.max(1, Math.ceil(shelf.rows / 100)));
   canvas.style.aspectRatio = `${shelf.columns} / ${Math.max(1, shelf.rows)}`;
-  canvas.append(renderDimensionLabels(shelf, kind));
+  canvas.append(renderDimensionLabels(shelf, kind, role));
+  canvas.append(renderForbiddenArea(role));
   canvas.addEventListener('pointerdown', event => {
     if (event.target !== canvas) return;
     event.preventDefault();
@@ -544,6 +632,26 @@ function renderPlaceCanvas(shelf, kind) {
   return canvas;
 }
 
+function renderForbiddenArea(role) {
+  const area = document.createElement('div');
+  area.className = 'forbidden-area hidden';
+  if (role === 'floor-main') {
+    area.classList.remove('hidden');
+    area.style.left = `${((380 - 80) / 380) * 100}%`;
+    area.style.top = `${((180 - 70) / 180) * 100}%`;
+    area.style.width = `${(80 / 380) * 100}%`;
+    area.style.height = `${(70 / 180) * 100}%`;
+  }
+  if (role === 'floor-long') {
+    area.classList.remove('hidden');
+    area.style.left = '0';
+    area.style.top = `${((70 - 32) / 70) * 100}%`;
+    area.style.width = `${(80 / 740) * 100}%`;
+    area.style.height = `${(32 / 70) * 100}%`;
+  }
+  return area;
+}
+
 function updateDragMarker(shelf, marker, draft) {
   marker.style.left = `${((draft.column - 1) / shelf.columns) * 100}%`;
   marker.style.top = `${((draft.row - 1) / shelf.rows) * 100}%`;
@@ -551,13 +659,15 @@ function updateDragMarker(shelf, marker, draft) {
   marker.style.height = `${(draft.depth / shelf.rows) * 100}%`;
 }
 
-function renderDimensionLabels(shelf, kind) {
+function renderDimensionLabels(shelf, kind, role = planRole(shelf)) {
   const labels = document.createElement('div');
   labels.className = 'dimension-labels';
   labels.innerHTML = `
     <span class="dim dim-top">${formatCm(shelf.columns)} cm</span>
     <span class="dim dim-left">${formatCm(shelf.rows)} cm</span>
     ${kind === 'shelf' ? '<span class="dim dim-bays">150 + 150 + 150 + 150 cm</span>' : ''}
+    ${role === 'floor-main' ? '<span class="dim dim-blocked">80 x 70 cm Sperrfläche</span>' : ''}
+    ${role === 'floor-long' ? '<span class="dim dim-blocked">80 x 32 cm Sperrfläche</span>' : ''}
   `;
   return labels;
 }
@@ -1000,6 +1110,9 @@ els.deletePackageButton.addEventListener('click', async () => {
 
 els.cancelPlaceButton.addEventListener('click', clearPlaceForm);
 els.deleteAllPlacesButton.addEventListener('click', () => {
+  deleteAllPlaces().catch(error => showMessage(error.message, 'error'));
+});
+els.resetPlanButton.addEventListener('click', () => {
   deleteAllPlaces().catch(error => showMessage(error.message, 'error'));
 });
 
