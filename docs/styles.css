@@ -527,11 +527,17 @@ select:hover {
   transform: none;
 }
 
+.rack-level.short-level {
+  margin-left: auto;
+  width: 38%;
+  min-width: 132px;
+}
+
 .short-shelf-mark {
   position: absolute;
   right: 10px;
   bottom: 8px;
-  width: 28%;
+  width: calc(100% - 20px);
   height: 8px;
   border-top: 3px solid #151515;
   border-bottom: 3px solid #151515;
@@ -564,16 +570,18 @@ select:hover {
   min-height: 140px;
 }
 
+.rack-level-detail.short-rack-detail {
+  width: min(100%, 260px);
+  justify-self: end;
+}
+
 .rack-package {
   z-index: 3;
 }
 
 .rack-short-shelf {
   position: absolute;
-  left: 75%;
-  top: 60%;
-  width: 25%;
-  height: 20%;
+  inset: 58% 0 18%;
   z-index: 1;
   border-top: 4px solid #151515;
   border-bottom: 4px solid #151515;

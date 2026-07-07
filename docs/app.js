@@ -181,22 +181,33 @@ function lengthSummary(shelf) {
   return `${formatCm(freeRun)} cm freie Länge`;
 }
 
-function rackLevelCount() {
-  return 3;
+function rackLevelSpecs(shelf) {
+  const height = Math.max(1, shelf.rows || 245);
+  const fullLevelHeight = Math.max(1, Math.round(height * (65 / 245)));
+  return [
+    { level: 1, label: 'Regal 1', start: 1, end: fullLevelHeight, xStart: 1, xEnd: shelf.columns || 600, short: false },
+    { level: 2, label: 'Regal 2', start: fullLevelHeight + 1, end: fullLevelHeight * 2, xStart: 1, xEnd: shelf.columns || 600, short: false },
+    { level: 3, label: 'Regal 3', start: (fullLevelHeight * 2) + 1, end: fullLevelHeight * 3, xStart: 1, xEnd: shelf.columns || 600, short: false },
+    { level: 4, label: 'Regal 4 kurz', start: (fullLevelHeight * 3) + 1, end: height, xStart: Math.max(1, (shelf.columns || 600) - 149), xEnd: shelf.columns || 600, short: true }
+  ];
 }
 
 function rackLevelRange(shelf, level) {
-  const count = rackLevelCount();
-  const levelHeight = Math.max(1, Math.ceil((shelf.rows || 1) / count));
-  const start = ((level - 1) * levelHeight) + 1;
-  const end = Math.min(shelf.rows || levelHeight, level * levelHeight);
-  return { start, end, height: Math.max(1, end - start + 1) };
+  const fallback = rackLevelSpecs(shelf)[0];
+  const spec = rackLevelSpecs(shelf).find(item => item.level === level) || fallback;
+  return {
+    ...spec,
+    height: Math.max(1, spec.end - spec.start + 1),
+    width: Math.max(1, spec.xEnd - spec.xStart + 1)
+  };
 }
 
 function packageInRackLevel(item, range) {
   const top = item.row_index;
   const bottom = item.row_index + (item.depth_units || 1) - 1;
-  return top <= range.end && bottom >= range.start;
+  const left = item.column_index;
+  const right = item.column_index + (item.width_units || 1) - 1;
+  return top <= range.end && bottom >= range.start && left <= range.xEnd && right >= range.xStart;
 }
 
 function rackLevelFreeRunCm(shelf, level) {
@@ -204,11 +215,13 @@ function rackLevelFreeRunCm(shelf, level) {
   return maxFreeRunCm({
     ...shelf,
     rows: range.height,
+    columns: range.width,
     packages: shelf.packages
       .filter(item => packageInRackLevel(item, range))
       .map(item => ({
         ...item,
-        row_index: Math.max(1, item.row_index - range.start + 1)
+        row_index: Math.max(1, item.row_index - range.start + 1),
+        column_index: Math.max(1, item.column_index - range.xStart + 1)
       }))
   });
 }
@@ -562,24 +575,25 @@ function renderRackDisplay(shelf) {
   const levels = document.createElement('div');
   levels.className = 'rack-levels';
 
-  for (let level = rackLevelCount(); level >= 1; level -= 1) {
+  rackLevelSpecs(shelf).forEach(spec => {
+    const level = spec.level;
     const button = document.createElement('button');
     const range = rackLevelRange(shelf, level);
     const packages = shelf.packages.filter(item => packageInRackLevel(item, range));
     button.type = 'button';
-    button.className = `rack-level ${appState.activeRackLevel === level ? 'active' : ''}`;
+    button.className = `rack-level ${range.short ? 'short-level' : ''} ${appState.activeRackLevel === level ? 'active' : ''}`;
     button.innerHTML = `
-      <span>Etage ${level}</span>
+      <span>${escapeHtml(range.label)}</span>
       <strong>${formatCm(rackLevelFreeRunCm(shelf, level))} cm frei</strong>
       <small>${packages.length} Positionen</small>
-      ${level === 3 ? '<i class="short-shelf-mark" aria-hidden="true"></i>' : ''}
+      ${range.short ? '<i class="short-shelf-mark" aria-hidden="true"></i>' : ''}
     `;
     button.addEventListener('click', () => {
       appState.activeRackLevel = level;
       render();
     });
     levels.append(button);
-  }
+  });
 
   wrapper.append(levels);
   wrapper.append(renderRackLevelDetail(shelf, appState.activeRackLevel));
@@ -589,12 +603,12 @@ function renderRackDisplay(shelf) {
 function renderRackLevelDetail(shelf, level) {
   const range = rackLevelRange(shelf, level);
   const canvas = document.createElement('div');
-  canvas.className = 'rack-level-detail place-canvas';
-  canvas.style.setProperty('--cols', Math.max(1, Math.round(shelf.columns / 150)));
+  canvas.className = `rack-level-detail place-canvas ${range.short ? 'short-rack-detail' : ''}`;
+  canvas.style.setProperty('--cols', Math.max(1, Math.round(range.width / 150)));
   canvas.style.setProperty('--rows', 1);
-  canvas.style.aspectRatio = `${shelf.columns} / ${Math.max(1, range.height)}`;
-  canvas.append(renderDimensionLabels({ ...shelf, rows: range.height }, 'shelf', 'rack-detail'));
-  if (level === 3) {
+  canvas.style.aspectRatio = `${range.width} / ${Math.max(1, range.height)}`;
+  canvas.append(renderDimensionLabels({ ...shelf, columns: range.width, rows: range.height }, 'shelf', range.short ? 'rack-short-detail' : 'rack-detail'));
+  if (range.short) {
     const shortShelf = document.createElement('div');
     shortShelf.className = 'rack-short-shelf';
     canvas.append(shortShelf);
@@ -605,14 +619,17 @@ function renderRackLevelDetail(shelf, level) {
     const rectangle = document.createElement('button');
     const clippedTop = Math.max(item.row_index, range.start);
     const clippedBottom = Math.min(item.row_index + (item.depth_units || 1) - 1, range.end);
+    const clippedLeft = Math.max(item.column_index, range.xStart);
+    const clippedRight = Math.min(item.column_index + (item.width_units || 1) - 1, range.xEnd);
     const visibleDepth = Math.max(1, clippedBottom - clippedTop + 1);
+    const visibleWidth = Math.max(1, clippedRight - clippedLeft + 1);
     rectangle.className = 'package-rect rack-package';
     rectangle.classList.toggle('blocked-zone', isBlockedItem(item));
     rectangle.classList.toggle('stacked-zone', isStackedItem(item));
     rectangle.type = 'button';
-    rectangle.style.left = `${((item.column_index - 1) / shelf.columns) * 100}%`;
+    rectangle.style.left = `${((clippedLeft - range.xStart) / range.width) * 100}%`;
     rectangle.style.top = `${((clippedTop - range.start) / range.height) * 100}%`;
-    rectangle.style.width = `${((item.width_units || 1) / shelf.columns) * 100}%`;
+    rectangle.style.width = `${(visibleWidth / range.width) * 100}%`;
     rectangle.style.height = `${(visibleDepth / range.height) * 100}%`;
     rectangle.dataset.tooltip = item.package_name;
     rectangle.setAttribute('aria-label', item.package_name);
@@ -624,15 +641,15 @@ function renderRackLevelDetail(shelf, level) {
   if (!visiblePackages.length) {
     const empty = document.createElement('div');
     empty.className = 'canvas-empty';
-    empty.textContent = `Etage ${level} frei`;
+    empty.textContent = `${range.label} frei`;
     canvas.append(empty);
   }
 
   canvas.addEventListener('pointerdown', event => {
     if (event.target !== canvas) return;
-    const cell = canvasCellFromEvent(event, canvas, { ...shelf, rows: range.height });
+    const cell = canvasCellFromEvent(event, canvas, { ...shelf, columns: range.width, rows: range.height });
     applyDraftSelection(shelf, draftAtCell(
-      { column: cell.column, row: range.start + cell.row - 1 },
+      { column: range.xStart + cell.column - 1, row: range.start + cell.row - 1 },
       shelf,
       currentPackageSize()
     ));
