@@ -469,19 +469,19 @@ function selectedPlanShelves(shelfPlaces, floorPlaces) {
 function planRole(shelf) {
   const text = `${shelf.name || ''} ${shelf.label || ''} ${shelf.notes || ''}`.toLowerCase();
   if (placeKind(shelf) === 'shelf') return 'rack';
-  if (text.includes('740') || shelf.columns >= 700 || shelf.rows <= 90) return 'floor-long';
+  if (text.includes('740') || shelf.columns >= 700) return 'floor-long';
   return 'floor-main';
 }
 
 function planTitle(role) {
   if (role === 'rack') return 'Regal';
-  if (role === 'floor-long') return 'Bodenfläche 740 x 70';
+  if (role === 'floor-long') return 'Bodenfläche 740 x 390';
   return 'Bodenfläche 380 x 180';
 }
 
 function expectedPlanSize(role) {
   if (role === 'rack') return { columns: 600, rows: 245 };
-  if (role === 'floor-long') return { columns: 740, rows: 70 };
+  if (role === 'floor-long') return { columns: 740, rows: 390 };
   return { columns: 380, rows: 180 };
 }
 
@@ -783,9 +783,9 @@ function renderForbiddenArea(role) {
   if (role === 'floor-long') {
     area.classList.remove('hidden');
     area.style.left = '0';
-    area.style.top = `${((70 - 32) / 70) * 100}%`;
-    area.style.width = `${(80 / 740) * 100}%`;
-    area.style.height = `${(32 / 70) * 100}%`;
+    area.style.top = `${(320 / 390) * 100}%`;
+    area.style.width = `${(380 / 740) * 100}%`;
+    area.style.height = `${(70 / 390) * 100}%`;
   }
   return area;
 }
@@ -805,7 +805,7 @@ function renderDimensionLabels(shelf, kind, role = planRole(shelf)) {
     <span class="dim dim-left">${formatCm(shelf.rows)} cm</span>
     ${kind === 'shelf' ? '<span class="dim dim-bays">150 + 150 + 150 + 150 cm</span>' : ''}
     ${role === 'floor-main' ? '<span class="dim dim-blocked">80 x 70 cm Sperrfläche</span>' : ''}
-    ${role === 'floor-long' ? '<span class="dim dim-blocked">80 x 32 cm Sperrfläche</span>' : ''}
+    ${role === 'floor-long' ? '<span class="dim dim-depth">320 + 70 cm</span><span class="dim dim-blocked">380 x 70 cm Sperrfläche</span>' : ''}
   `;
   return labels;
 }

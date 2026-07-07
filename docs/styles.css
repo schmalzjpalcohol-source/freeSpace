@@ -594,7 +594,7 @@ select:hover {
 }
 
 .floor-long .place-canvas {
-  min-height: 70px;
+  min-height: 220px;
 }
 
 .shelf-meta h2 {
@@ -986,6 +986,12 @@ select:hover {
   bottom: 8px;
   color: var(--danger);
   border-color: rgba(180, 35, 53, 0.25);
+}
+
+.dim-depth {
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%) rotate(90deg);
 }
 
 .examples {
