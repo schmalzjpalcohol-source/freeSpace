@@ -513,6 +513,7 @@ select:hover {
 }
 
 .rack-level {
+  grid-column: 1 / -1;
   min-height: 58px;
   border: 1px solid var(--line);
   border-radius: 6px;
@@ -1270,10 +1271,6 @@ select:hover {
     grid-template-columns: 1fr;
   }
 
-  .rack-levels {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .content {
     padding: 14px;
   }
@@ -1311,10 +1308,6 @@ select:hover {
 
   .shelf-meta {
     flex-direction: column;
-  }
-
-  .rack-levels {
-    grid-template-columns: 1fr;
   }
 
   .stats {

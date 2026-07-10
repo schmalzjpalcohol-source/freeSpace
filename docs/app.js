@@ -211,12 +211,11 @@ function lengthSummary(shelf) {
 
 function rackLevelSpecs(shelf) {
   const width = Math.max(1, shelf.columns || planPlaces.rack.columns);
-  const height = Math.max(1, shelf.rows || planPlaces.rack.rows);
-  const levelDepth = Math.max(1, Math.min(90, Math.floor(height / 4) || 90));
-  const hasStackedLevels = height >= levelDepth * 4;
+  const height = Math.max(planPlaces.rack.rows, shelf.rows || planPlaces.rack.rows);
+  const levelDepth = 90;
   const levelRange = index => {
-    const start = hasStackedLevels ? ((index - 1) * levelDepth) + 1 : 1;
-    const end = hasStackedLevels ? Math.min(index * levelDepth, height) : Math.min(levelDepth, height);
+    const start = ((index - 1) * levelDepth) + 1;
+    const end = Math.min(index * levelDepth, height);
     return { start, end };
   };
   const fourth = levelRange(4);
@@ -1639,7 +1638,7 @@ function setupPresetButton(button) {
   const presetWidth = cmInputToCm(width, 100);
   const presetDepth = cmInputToCm(depth, 100);
   const visualWidth = clamp((presetWidth / 600) * 100, 8, 100);
-  const visualDepth = clamp((presetDepth / 380) * 100, 8, 100);
+  const visualDepth = clamp((presetDepth / 90) * 100, 8, 100);
   const isBlocked = String(name || '').toLowerCase().includes('sperr');
   button.classList.add('preset-button');
   button.classList.toggle('blocked-preset', isBlocked);
