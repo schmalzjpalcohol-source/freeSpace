@@ -15,7 +15,7 @@ function numberValue(value, fallback) {
 
 function metersToCm(value, fallbackMeters, maxMeters = 1000) {
   const meters = Math.max(0.01, Math.min(maxMeters, numberValue(value, fallbackMeters)));
-  return Math.max(1, Math.round(meters * 100));
+  return Math.max(1, Number((meters * 100).toFixed(1)));
 }
 
 function cmBetween(value, min, max, fallback) {
@@ -61,12 +61,27 @@ async function ensureShelf(body) {
     throw error;
   }
 
-  const existing = await findShelf(shelfName);
-  if (existing) return existing;
-
   const rows = metersToCm(body.shelfRows, 4);
   const columns = metersToCm(body.shelfColumns, 8);
   const locationType = body.locationType === 'floor' ? 'floor' : 'shelf';
+  const existing = await findShelf(shelfName);
+  if (existing) {
+    const nextRows = Math.max(existing.rows || 1, rows);
+    const nextColumns = Math.max(existing.columns || 1, columns);
+    if (nextRows !== existing.rows || nextColumns !== existing.columns || existing.location_type !== locationType) {
+      const updated = await supabaseFetch(`shelves?id=eq.${encodeURIComponent(existing.id)}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          rows: nextRows,
+          columns: nextColumns,
+          location_type: locationType
+        })
+      });
+      return updated[0] || { ...existing, rows: nextRows, columns: nextColumns, location_type: locationType };
+    }
+    return existing;
+  }
+
   const created = await supabaseFetch('shelves', {
     method: 'POST',
     body: JSON.stringify({
@@ -98,7 +113,7 @@ function buildOverview(shelves, packages) {
 
 async function assertPlaceFree(shelf, candidate, excludeId) {
   if (candidate.rowIndex + candidate.depthUnits - 1 > shelf.rows || candidate.columnIndex + candidate.widthUnits - 1 > shelf.columns) {
-    const error = new Error('Die Packung passt nicht in diesen Bereich.');
+    const error = new Error('The item does not fit in this area.');
     error.status = 400;
     throw error;
   }
@@ -106,7 +121,7 @@ async function assertPlaceFree(shelf, candidate, excludeId) {
   const shelfPackages = await supabaseFetch(`packages?shelf_id=eq.${shelf.id}&select=id,row_index,column_index,width_units,depth_units,package_name`);
   const collision = shelfPackages.find(item => item.id !== excludeId && overlaps(candidate, packageRect(item)));
   if (collision) {
-    const error = new Error(`Dieser Bereich ist schon belegt von ${collision.package_name}.`);
+    const error = new Error(`This area is already occupied by ${collision.package_name}.`);
     error.status = 409;
     throw error;
   }

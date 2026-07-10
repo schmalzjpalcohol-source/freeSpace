@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="de">
+<html lang="en">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>freeSpace Regalübersicht</title>
+    <title>freeSpace Storage Layout</title>
     <link rel="stylesheet" href="./styles.css">
   </head>
   <body>
@@ -11,36 +11,36 @@
       <section class="topbar">
         <div>
           <p class="eyebrow">freeSpace</p>
-          <h1>Lagerplan</h1>
+          <h1>Storage Layout</h1>
         </div>
         <div class="auth">
-          <span id="userLabel" class="user-label">Nicht angemeldet</span>
+          <span id="userLabel" class="user-label">Not signed in</span>
           <button id="logoutButton" class="ghost hidden">Logout</button>
         </div>
       </section>
 
       <section id="setupPanel" class="setup hidden">
-        <strong>API-URL fehlt.</strong>
-        Trage nach dem Vercel-Deploy in <code>docs/config.js</code> deine Vercel-URL ein.
+        <strong>API URL is missing.</strong>
+        After deploying to Vercel, add your Vercel URL in <code>docs/config.js</code>.
       </section>
 
       <section id="message" class="message hidden"></section>
 
       <section id="loginView" class="login-view">
         <div class="login-box">
-          <p class="eyebrow">Zugang</p>
-          <h2>Anmelden</h2>
-          <p class="login-copy">Melde dich an, um Lagerflächen, Pakete und freie Bereiche zu bearbeiten.</p>
+          <p class="eyebrow">Access</p>
+          <h2>Sign in</h2>
+          <p class="login-copy">Sign in to manage storage areas, items, and available space.</p>
           <form id="loginForm">
             <label>
-              Benutzername
+              Username
               <input id="username" name="username" autocomplete="username" required>
             </label>
             <label>
-              Passwort
+              Password
               <input id="password" name="password" type="password" autocomplete="current-password" required>
             </label>
-            <button class="primary wide" type="submit">Einloggen</button>
+            <button class="primary wide" type="submit">Sign in</button>
           </form>
         </div>
       </section>
@@ -48,99 +48,98 @@
       <section id="appView" class="layout hidden">
         <aside class="panel">
           <div class="panel-head">
-            <h2 id="formTitle">Paket erfassen</h2>
-            <span id="selectedCell">Keine Fläche gewählt</span>
+            <h2 id="formTitle">Add item</h2>
+            <span id="selectedCell">No area selected</span>
           </div>
           <form id="packageForm">
             <input id="packageId" name="packageId" type="hidden">
             <label>
-              Ort-Typ
+              Area type
               <select id="locationType" name="locationType">
-                <option value="shelf">Regal</option>
-                <option value="floor">Bodenplatz</option>
+                <option value="shelf">Rack</option>
+                <option value="floor">Floor area</option>
               </select>
             </label>
             <label>
-              Ort
-              <input id="shelfName" name="shelfName" autocomplete="off" list="placeExamples" placeholder="Regalplatz 1" required>
+              Area
+              <input id="shelfName" name="shelfName" autocomplete="off" list="placeExamples" placeholder="Rack area 1" required>
               <datalist id="placeExamples">
-                <option value="Regal 600 x 360"></option>
-                <option value="Bodenplatz 1 - 880 x 380"></option>
-                <option value="Bodenplatz 2 - 380 x 740"></option>
+                <option value="Rack 600 x 450"></option>
+                <option value="Floor area 1 - 880 x 380"></option>
+                <option value="Floor area 2 - 380 x 740"></option>
               </datalist>
             </label>
             <div class="split">
               <label>
-                Fläche Tiefe (cm)
-                <input id="shelfRows" name="shelfRows" inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*" value="360">
+                Area depth (cm)
+                <input id="shelfRows" name="shelfRows" inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*" step="0.1" value="450">
               </label>
               <label>
-                Fläche Breite (cm)
-                <input id="shelfColumns" name="shelfColumns" inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*" value="600">
+                Area width (cm)
+                <input id="shelfColumns" name="shelfColumns" inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*" step="0.1" value="600">
               </label>
             </div>
             <input id="rowIndex" name="rowIndex" type="hidden" value="1">
             <input id="columnIndex" name="columnIndex" type="hidden" value="1">
             <div class="split">
               <label>
-                Paket-Breite (cm)
-                <input id="widthUnits" name="widthUnits" inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*" value="120">
+                Item width (cm)
+                <input id="widthUnits" name="widthUnits" inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*" step="0.1" value="120">
               </label>
               <label>
-                Paket-Tiefe (cm)
-                <input id="depthUnits" name="depthUnits" inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*" value="80">
+                Item depth (cm)
+                <input id="depthUnits" name="depthUnits" inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*" step="0.1" value="80">
               </label>
             </div>
             <label>
-              Packung
-              <input id="packageName" name="packageName" autocomplete="off" placeholder="Schrauben M4" required>
+              Item
+              <input id="packageName" name="packageName" autocomplete="off" placeholder="M4 screws" required>
             </label>
             <div class="split">
               <label>
-                Menge
+                Quantity
                 <input id="quantity" name="quantity" type="number" min="1" value="1">
               </label>
               <label>
-                Notiz
+                Note
                 <input id="note" name="note" autocomplete="off" placeholder="optional">
               </label>
             </div>
             <div class="examples">
-              <button type="button" data-preset="120|80|110|Palette 120x80x110|1">120 x 80</button>
-              <button type="button" data-preset="600|80|60|Palette 600x80x60|1">600 x 80</button>
-              <button type="button" data-preset="600|80|40|Palette 600x80x40|1">600 x 80 flach</button>
-              <button type="button" data-preset="540|75|40|Palette 540x75x40|1">540 x 75</button>
-              <button type="button" data-preset="300|35|50|Palette 300x35x50|1">300 x 35</button>
-              <button type="button" data-preset="410|35|40|Palette 410x35x40|1">410 x 35</button>
-              <button type="button" data-preset="310|35|50|Palette 310x35x50|1">310 x 35</button>
-              <button type="button" data-preset="340|45|45|Palette 340x45x45|4|gestapelt">4x 340 x 45</button>
-              <button type="button" data-preset="270|45|45|Palette 270x45x45|1">270 x 45</button>
-              <button type="button" data-preset="800|35|45|Palette 800x35x45|1">800 x 35</button>
-              <button type="button" data-preset="310|80|35|Palette 310x80x35|1">310 x 80</button>
-              <button type="button" data-preset="410|80|35|Palette 410x80x35|1">410 x 80</button>
-              <button type="button" data-preset="80|100|0|Sperrfläche 80x100|1|nicht abstellen">Sperre 80 x 100</button>
-              <button type="button" data-preset="70|380|0|Sperrfläche 70x380|1|nicht abstellen">Sperre 70 x 380</button>
+              <button type="button" data-preset="120|80|110|Pallet 120x80x110|1">120 x 80</button>
+              <button type="button" data-preset="600|80|60|Pallet 600x80x60|1">600 x 80</button>
+              <button type="button" data-preset="600|80|40|Pallet 600x80x40|1">600 x 80 low</button>
+              <button type="button" data-preset="540|75|40|Pallet 540x75x40|1">540 x 75</button>
+              <button type="button" data-preset="300|35|50|Pallet 300x35x50|1">300 x 35</button>
+              <button type="button" data-preset="410|35|40|Pallet 410x35x40|1">410 x 35</button>
+              <button type="button" data-preset="310|35|50|Pallet 310x35x50|1">310 x 35</button>
+              <button type="button" data-preset="340|45|45|Pallet 340x45x45|4|stacked">4x 340 x 45</button>
+              <button type="button" data-preset="270|45|45|Pallet 270x45x45|1">270 x 45</button>
+              <button type="button" data-preset="800|35|45|Pallet 800x35x45|1">800 x 35</button>
+              <button type="button" data-preset="310|80|35|Pallet 310x80x35|1">310 x 80</button>
+              <button type="button" data-preset="410|80|35|Pallet 410x80x35|1">410 x 80</button>
+              <button type="button" data-preset="100|80|0|Blocked area 100x80|1|do not place">Blocked 100 x 80</button>
+              <button type="button" data-preset="70|380|0|Blocked area 70x380|1|do not place">Blocked 70 x 380</button>
             </div>
             <div class="package-actions">
-              <button id="saveButton" class="primary" type="submit">Paket speichern</button>
-              <button id="deletePackageButton" class="danger hidden" type="button">Löschen</button>
+              <button id="saveButton" class="primary" type="submit">Save item</button>
+              <button id="deletePackageButton" class="danger hidden" type="button">Delete</button>
             </div>
-            <button id="cancelEditButton" class="ghost wide hidden" type="button">Bearbeiten abbrechen</button>
+            <button id="cancelEditButton" class="ghost wide hidden" type="button">Cancel editing</button>
           </form>
         </aside>
 
         <section class="content">
           <div class="toolbar">
             <div>
-              <h2>Flächenübersicht</h2>
-              <p id="summaryText">Bitte einloggen.</p>
+              <h2>Area overview</h2>
+              <p id="summaryText">Please sign in.</p>
             </div>
             <div class="toolbar-actions">
-              <button id="packagesTab" class="tab active" type="button">Pakete</button>
-              <button id="placesTab" class="tab" type="button">Orte verwalten</button>
-              <button id="defaultPlanButton" class="ghost" type="button">3 Orte anlegen</button>
-              <button id="refreshButton" class="ghost" type="button">Neu laden</button>
-              <button id="resetPlanButton" class="danger" type="button">Alles löschen</button>
+              <button id="packagesTab" class="tab active" type="button">Items</button>
+              <button id="placesTab" class="tab" type="button">Manage areas</button>
+              <button id="refreshButton" class="ghost" type="button">Reload</button>
+              <button id="resetPlanButton" class="danger" type="button">Delete all</button>
             </div>
           </div>
           <div id="packageView">
@@ -152,39 +151,39 @@
             <form id="placeForm" class="place-form">
               <input id="placeId" name="id" type="hidden">
               <label>
-                Typ
+                Type
                 <select id="placeLocationType" name="locationType">
-                  <option value="shelf">Regal</option>
-                  <option value="floor">Bodenplatz</option>
+                  <option value="shelf">Rack</option>
+                  <option value="floor">Floor area</option>
                 </select>
               </label>
               <label>
                 Name
-                <input id="placeName" name="name" autocomplete="off" placeholder="Bodenplatz 1 - 880 x 380" required>
+                <input id="placeName" name="name" autocomplete="off" placeholder="Floor area 1 - 880 x 380" required>
               </label>
               <div class="split">
                 <label>
-                  Fläche Tiefe (cm)
-                  <input id="placeRows" name="rows" inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*" value="360">
+                  Area depth (cm)
+                  <input id="placeRows" name="rows" inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*" step="0.1" value="450">
                 </label>
                 <label>
-                  Fläche Breite (cm)
-                  <input id="placeColumns" name="columns" inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*" value="600">
+                  Area width (cm)
+                  <input id="placeColumns" name="columns" inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*" step="0.1" value="600">
                 </label>
               </div>
               <div class="examples">
-                <button type="button" data-place-preset="Regal 600 x 360|shelf|360|600|4 Regale je 600 x 90 cm, Kleinregal 150 x 90 cm, Höhe 16 cm">Regal 600 x 360</button>
-                <button type="button" data-place-preset="Bodenplatz 1 - 880 x 380|floor|380|880|Sperrfläche rechts oben 80 x 100 cm">Boden 880 x 380</button>
-                <button type="button" data-place-preset="Bodenplatz 2 - 380 x 740|floor|740|380|Sperrfläche links oben 70 x 380 cm">Boden 380 x 740</button>
+                <button type="button" data-place-preset="Rack 600 x 450|shelf|450|600|4 rack levels 600 x 90 cm, small rack 150 x 90 cm, height 16 cm">Rack 600 x 450</button>
+                <button type="button" data-place-preset="Floor area 1 - 880 x 380|floor|380|880|Blocked area top right 100 x 80 cm">Floor 880 x 380</button>
+                <button type="button" data-place-preset="Floor area 2 - 380 x 740|floor|740|380|Blocked area top left 70 x 380 cm">Floor 380 x 740</button>
               </div>
               <label>
-                Notiz
-                <input id="placeNotes" name="notes" autocomplete="off" placeholder="z.B. links neben Eingang">
+                Note
+                <input id="placeNotes" name="notes" autocomplete="off" placeholder="e.g. left of the entrance">
               </label>
               <div class="place-actions">
-                <button id="savePlaceButton" class="primary" type="submit">Ort speichern</button>
-                <button id="cancelPlaceButton" class="ghost hidden" type="button">Abbrechen</button>
-                <button id="deleteAllPlacesButton" class="danger" type="button">Alle Flächen löschen</button>
+                <button id="savePlaceButton" class="primary" type="submit">Save area</button>
+                <button id="cancelPlaceButton" class="ghost hidden" type="button">Cancel</button>
+                <button id="deleteAllPlacesButton" class="danger" type="button">Delete all areas</button>
               </div>
             </form>
             <div id="placeList" class="place-list"></div>

@@ -62,22 +62,22 @@ let appState = {
 
 const planPlaces = {
   'floor-main': {
-    title: 'Bodenplatz 1 - 880 x 380',
+    title: 'Floor area 1 - 880 x 380',
     rows: 380,
     columns: 880,
-    notes: 'Sperrfläche rechts oben 80 x 100 cm'
+    notes: 'Blocked area top right 100 x 80 cm'
   },
   rack: {
-    title: 'Regal 600 x 360',
-    rows: 360,
+    title: 'Rack 600 x 450',
+    rows: 450,
     columns: 600,
-    notes: '4 Regale à 600 x 90 cm, Kleinregal 150 x 90 cm, Höhe 16 cm'
+    notes: '4 rack levels 600 x 90 cm, small rack 150 x 90 cm, height 16 cm'
   },
   'floor-long': {
-    title: 'Bodenplatz 2 - 380 x 740',
+    title: 'Floor area 2 - 380 x 740',
     rows: 740,
     columns: 380,
-    notes: 'Sperrfläche links oben 70 x 380 cm'
+    notes: 'Blocked area top left 70 x 380 cm'
   }
 };
 
@@ -87,9 +87,9 @@ function apiBase() {
 
 function showMessage(text, type = 'info') {
   const readable = {
-    invalid_login: 'Benutzername oder Passwort ist falsch.',
-    auth_config: 'Login-Tabelle ist nicht erreichbar. Prüfe SUPABASE_URL und ob app_users existiert.',
-    login_version: 'Alter Login-Code ist noch deployed. Bitte Vercel neu deployen.'
+    invalid_login: 'Username or password is incorrect.',
+    auth_config: 'The login table is not reachable. Check SUPABASE_URL and make sure app_users exists.',
+    login_version: 'An old login version is still deployed. Please redeploy on Vercel.'
   };
   els.message.textContent = readable[text] || text;
   els.message.className = `message ${type === 'error' ? 'error' : ''}`;
@@ -105,7 +105,7 @@ function authHeaders() {
 
 async function apiFetch(path, options = {}) {
   const base = apiBase();
-  if (!base) throw new Error('API-URL fehlt.');
+  if (!base) throw new Error('API URL is missing.');
   const response = await fetch(`${base}${path}`, {
     ...options,
     headers: {
@@ -125,10 +125,10 @@ function setAuthUi() {
   els.loginView.classList.toggle('hidden', Boolean(appState.token));
   els.appView.classList.toggle('hidden', !appState.token);
   els.userLabel.textContent = appState.user
-    ? `Angemeldet: ${appState.user.login}`
+    ? `Signed in: ${appState.user.login}`
     : appState.token
-      ? 'Angemeldet'
-      : 'Nicht angemeldet';
+      ? 'Signed in'
+      : 'Not signed in';
 }
 
 function placeKind(shelf) {
@@ -139,7 +139,18 @@ function placeKind(shelf) {
 }
 
 function placeLabel(kind) {
-  return kind === 'floor' ? 'Bodenplatz' : 'Regal';
+  return kind === 'floor' ? 'Floor area' : 'Rack';
+}
+
+function packageTooltip(item) {
+  const parts = [
+    item.package_name,
+    formatSizeCm(item.width_units || 1, item.depth_units || 1),
+    `${item.quantity || 1}x`
+  ];
+  if (isStackedItem(item)) parts.push('stacked');
+  if (item.note) parts.push(item.note);
+  return parts.filter(Boolean).join(' | ');
 }
 
 function clamp(value, min, max) {
@@ -156,7 +167,7 @@ function formatDecimal(value) {
 }
 
 function formatCm(cm) {
-  return String(Math.max(1, Math.round(Number(cm) || 1)));
+  return formatDecimal(Math.max(1, Number(cm) || 1));
 }
 
 function formatSizeCm(width, depth) {
@@ -172,7 +183,7 @@ function inputCm(cm) {
 }
 
 function cmInputToCm(value, fallbackCm = 100) {
-  return Math.max(1, Math.round(Math.max(1, numberValue(value, fallbackCm))));
+  return Math.max(1, numberValue(value, fallbackCm));
 }
 
 function cmInputToMeters(value, fallbackCm = 100) {
@@ -206,7 +217,7 @@ function maxFreeRunCm(shelf) {
 
 function lengthSummary(shelf) {
   const freeRun = maxFreeRunCm(shelf);
-  return `${formatCm(freeRun)} cm freie Länge`;
+  return `${formatCm(freeRun)} cm available length`;
 }
 
 function rackLevelSpecs(shelf) {
@@ -218,13 +229,13 @@ function rackLevelSpecs(shelf) {
     const end = Math.min(index * levelDepth, height);
     return { start, end };
   };
-  const fourth = levelRange(4);
+  const small = levelRange(5);
   return [
-    { level: 1, label: 'Regal 1', ...levelRange(1), xStart: 1, xEnd: width, short: false },
-    { level: 2, label: 'Regal 2', ...levelRange(2), xStart: 1, xEnd: width, short: false },
-    { level: 3, label: 'Regal 3', ...levelRange(3), xStart: 1, xEnd: width, short: false },
-    { level: 4, label: 'Regal 4', ...fourth, xStart: 1, xEnd: width, short: false },
-    { level: 5, label: 'Kleinregal', ...fourth, xStart: Math.max(1, width - 149), xEnd: width, short: true, heightLabel: '150 x 90 cm, Höhe 16 cm' }
+    { level: 1, label: 'Rack level 1', ...levelRange(1), xStart: 1, xEnd: width, short: false },
+    { level: 2, label: 'Rack level 2', ...levelRange(2), xStart: 1, xEnd: width, short: false },
+    { level: 3, label: 'Rack level 3', ...levelRange(3), xStart: 1, xEnd: width, short: false },
+    { level: 4, label: 'Rack level 4', ...levelRange(4), xStart: 1, xEnd: width, short: false },
+    { level: 5, label: 'Small rack', ...small, xStart: Math.max(1, width - 149), xEnd: width, short: true, heightLabel: '150 x 90 cm, height 16 cm' }
   ];
 }
 
@@ -235,6 +246,19 @@ function rackLevelRange(shelf, level) {
     ...spec,
     height: Math.max(1, spec.end - spec.start + 1),
     width: Math.max(1, spec.xEnd - spec.xStart + 1)
+  };
+}
+
+function effectiveRowsForShelf(shelf) {
+  return planPlaceRole(shelf) === 'rack'
+    ? Math.max(planPlaces.rack.rows, shelf.rows || planPlaces.rack.rows)
+    : shelf.rows;
+}
+
+function shelfForSaving(shelf) {
+  return {
+    ...shelf,
+    rows: effectiveRowsForShelf(shelf)
   };
 }
 
@@ -272,11 +296,12 @@ function rackLevelFreeRunCm(shelf, level) {
 }
 
 function draftInRackRange(shelf, range, cell, size) {
+  const savingShelf = shelfForSaving(shelf);
   const width = Math.min(size.width, range.width);
   const depth = Math.min(size.depth, range.height);
   const column = clamp(range.xStart + cell.column - 1, range.xStart, Math.max(range.xStart, range.xEnd - width + 1));
   const row = clamp(range.start + cell.row - 1, range.start, Math.max(range.start, range.end - depth + 1));
-  return draftAtCell({ column, row }, shelf, { width, depth });
+  return draftAtCell({ column, row }, savingShelf, { width, depth });
 }
 
 function rackLocalDraft(draft, range) {
@@ -442,10 +467,10 @@ function forbiddenRect(shelf) {
   const role = planRole(shelf);
   if (role === 'floor-main') {
     return {
-      column: Math.max(1, shelf.columns - 80 + 1),
+      column: Math.max(1, shelf.columns - 100 + 1),
       row: 1,
-      width: Math.min(80, shelf.columns),
-      depth: Math.min(100, shelf.rows)
+      width: Math.min(100, shelf.columns),
+      depth: Math.min(80, shelf.rows)
     };
   }
   if (role === 'floor-long') {
@@ -504,9 +529,10 @@ function selectedPackageDraft(item) {
 }
 
 function setDraftFormValues(shelf, draft) {
+  const savingShelf = shelfForSaving(shelf);
   const adjusted = draftAtCell(
     { row: draft.row, column: draft.column },
-    shelf,
+    savingShelf,
     { width: draft.width, depth: draft.depth }
   );
   els.rowIndex.value = adjusted.row;
@@ -514,14 +540,15 @@ function setDraftFormValues(shelf, draft) {
   els.widthUnits.value = inputCm(adjusted.width);
   els.depthUnits.value = inputCm(adjusted.depth);
   appState.selected = { shelf, row: adjusted.row, column: adjusted.column };
-  els.selectedCell.textContent = `${shelf.name}: ${formatSizeCm(adjusted.width, adjusted.depth)} gewählt`;
+  els.selectedCell.textContent = `${shelf.name}: ${formatSizeCm(adjusted.width, adjusted.depth)} selected`;
   return adjusted;
 }
 
 function setPackageEditFormValues(shelf, draft) {
+  const savingShelf = shelfForSaving(shelf);
   const adjusted = draftAtCell(
     { row: draft.row, column: draft.column },
-    shelf,
+    savingShelf,
     { width: draft.width, depth: draft.depth }
   );
   els.rowIndex.value = adjusted.row;
@@ -529,34 +556,34 @@ function setPackageEditFormValues(shelf, draft) {
   els.widthUnits.value = inputCm(adjusted.width);
   els.depthUnits.value = inputCm(adjusted.depth);
   appState.selected = { shelf, row: adjusted.row, column: adjusted.column };
-  els.selectedCell.textContent = `${shelf.name}: Änderung bereit`;
+  els.selectedCell.textContent = `${shelf.name}: change ready`;
   return adjusted;
 }
 
 function applyDraftSelection(shelf, draft) {
   if (!draft) {
-    showMessage('In diesem Regalplatz ist kein freier Bereich für diese Größe.', 'error');
+    showMessage('There is no available space for this size in this rack area.', 'error');
     return false;
   }
   if (touchesForbiddenArea(shelf, draft)) {
-    showMessage('Diese Ecke ist gesperrt. Dort bitte nichts abstellen.', 'error');
+    showMessage('This corner is blocked. Do not place items there.', 'error');
     return false;
   }
   appState.selected = { shelf, row: draft.row, column: draft.column };
   els.packageId.value = '';
   els.locationType.value = placeKind(shelf);
   els.shelfName.value = shelf.name;
-  els.shelfRows.value = inputCm(shelf.rows);
+  els.shelfRows.value = inputCm(effectiveRowsForShelf(shelf));
   els.shelfColumns.value = inputCm(shelf.columns);
   setDraftFormValues(shelf, draft);
   if (!els.packageName.value.trim()) {
-    els.packageName.value = 'Teil';
+    els.packageName.value = 'Item';
   }
-  els.formTitle.textContent = 'Paket erfassen';
-  els.saveButton.textContent = 'Paket speichern';
+  els.formTitle.textContent = 'Add item';
+  els.saveButton.textContent = 'Save item';
   els.deletePackageButton.classList.add('hidden');
   els.cancelEditButton.classList.add('hidden');
-  showMessage(`${shelf.name}: Platz gewählt. Jetzt speichern.`);
+  showMessage(`${shelf.name}: space selected. Save when ready.`);
   return true;
 }
 
@@ -565,7 +592,7 @@ function selectCell(shelf, row, column, item) {
   els.packageId.value = item ? item.id : '';
   els.locationType.value = placeKind(shelf);
   els.shelfName.value = shelf.name;
-  els.shelfRows.value = inputCm(shelf.rows);
+  els.shelfRows.value = inputCm(effectiveRowsForShelf(shelf));
   els.shelfColumns.value = inputCm(shelf.columns);
   els.rowIndex.value = row;
   els.columnIndex.value = column;
@@ -574,13 +601,13 @@ function selectCell(shelf, row, column, item) {
   els.packageName.value = item ? item.package_name : '';
   els.quantity.value = item ? item.quantity : 1;
   els.note.value = item ? item.note || '' : '';
-  els.formTitle.textContent = item ? 'Paket bearbeiten' : 'Paket erfassen';
-  els.saveButton.textContent = item ? 'Änderung speichern' : 'Paket speichern';
+  els.formTitle.textContent = item ? 'Edit item' : 'Add item';
+  els.saveButton.textContent = item ? 'Save changes' : 'Save item';
   els.deletePackageButton.classList.toggle('hidden', !item);
   els.cancelEditButton.classList.toggle('hidden', !item);
   els.selectedCell.textContent = item
-    ? `${shelf.name}: Bearbeitung aktiv`
-    : `${shelf.name}: Platz gewählt`;
+    ? `${shelf.name}: editing active`
+    : `${shelf.name}: space selected`;
   if (!item) els.packageName.focus();
   render();
 }
@@ -593,8 +620,8 @@ function clearPackageForm() {
   els.note.value = '';
   els.widthUnits.value = 120;
   els.depthUnits.value = 80;
-  els.formTitle.textContent = 'Paket erfassen';
-  els.saveButton.textContent = 'Paket speichern';
+  els.formTitle.textContent = 'Add item';
+  els.saveButton.textContent = 'Save item';
   els.deletePackageButton.classList.add('hidden');
   els.cancelEditButton.classList.add('hidden');
 }
@@ -641,7 +668,7 @@ function setActiveView(view) {
 function setActivePlanRole(role) {
   appState.activePlanRole = role;
   clearPackageForm();
-  els.selectedCell.textContent = 'Keine Fläche gewählt';
+  els.selectedCell.textContent = 'No area selected';
   render();
 }
 
@@ -652,13 +679,13 @@ function clearPlaceForm() {
   els.placeRows.value = planPlaces.rack.rows;
   els.placeColumns.value = 600;
   els.placeNotes.value = '';
-  els.savePlaceButton.textContent = 'Ort speichern';
+  els.savePlaceButton.textContent = 'Save area';
   els.cancelPlaceButton.classList.add('hidden');
 }
 
 async function deletePackage(id) {
   await apiFetch(`/api/regale?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
-  showMessage('Paket entfernt.');
+  showMessage('Item deleted.');
   await loadShelves();
 }
 
@@ -670,7 +697,7 @@ function render() {
   els.placeList.innerHTML = '';
 
   if (!appState.token) {
-    els.summaryText.textContent = 'Bitte einloggen.';
+    els.summaryText.textContent = 'Please sign in.';
     return;
   }
 
@@ -680,8 +707,8 @@ function render() {
   const oldPlaces = appState.shelves.filter(shelf => !planPlaceRole(shelf));
   const freeLength = totalFreeRun(planShelves);
   els.summaryText.textContent = planShelves.length
-    ? `${formatCm(freeLength)} cm freie nutzbare Länge in den neuen 3 Orten.${oldPlaces.length ? ` ${oldPlaces.length} alter Ort ausgeblendet.` : ''}`
-    : `Noch keine neuen 3 Orte angelegt.${oldPlaces.length ? ` ${oldPlaces.length} alter Ort ist unter Orte verwalten.` : ''}`;
+    ? `${formatCm(freeLength)} cm usable available length across the 3 layout areas.${oldPlaces.length ? ` ${oldPlaces.length} old area hidden.` : ''}`
+    : `The 3 layout areas have not been created yet.${oldPlaces.length ? ` ${oldPlaces.length} old area is listed under Manage areas.` : ''}`;
 
   renderOverview(
     planShelves,
@@ -707,14 +734,14 @@ function isNearSize(shelf, role) {
 function planPlaceRole(shelf) {
   const text = `${shelf.name || ''} ${shelf.label || ''} ${shelf.notes || ''}`.toLowerCase();
   if (placeKind(shelf) === 'shelf') {
-    return isNearSize(shelf, 'rack') || text.includes('4 regale') || text.includes('4 plätze') || text.includes('600 x 360') || text.includes('600 x 90') || text.includes('600 x 106')
+    return isNearSize(shelf, 'rack') || text.includes('4 rack') || text.includes('4 regale') || text.includes('4 plätze') || text.includes('600 x 450') || text.includes('600 x 360') || text.includes('600 x 90') || text.includes('600 x 106')
       ? 'rack'
       : null;
   }
-  if (text.includes('bodenplatz 2') || text.includes('380 x 740') || text.includes('390 x 740') || text.includes('70 x 380') || text.includes('380 x 70') || isNearSize(shelf, 'floor-long')) {
+  if (text.includes('floor area 2') || text.includes('bodenplatz 2') || text.includes('380 x 740') || text.includes('390 x 740') || text.includes('70 x 380') || text.includes('380 x 70') || isNearSize(shelf, 'floor-long')) {
     return 'floor-long';
   }
-  if (text.includes('bodenplatz 1') || text.includes('880 x 380') || text.includes('80 x 100') || isNearSize(shelf, 'floor-main')) {
+  if (text.includes('floor area 1') || text.includes('bodenplatz 1') || text.includes('880 x 380') || text.includes('100 x 80') || text.includes('80 x 100') || isNearSize(shelf, 'floor-main')) {
     return 'floor-main';
   }
   return null;
@@ -725,7 +752,7 @@ function planRole(shelf) {
 }
 
 function planTitle(role) {
-  return planPlaces[role]?.title || 'Lagerplatz';
+  return planPlaces[role]?.title || 'Storage area';
 }
 
 function expectedPlanSize(role) {
@@ -786,9 +813,9 @@ function renderPlanSwitcher() {
   const nav = document.createElement('div');
   nav.className = 'plan-switcher';
   [
-    ['floor-main', 'Bodenplatz 1'],
-    ['rack', 'Regal'],
-    ['floor-long', 'Bodenplatz 2']
+    ['floor-main', 'Floor area 1'],
+    ['rack', 'Rack'],
+    ['floor-long', 'Floor area 2']
   ].forEach(([role, label]) => {
     const button = document.createElement('button');
     button.type = 'button';
@@ -828,8 +855,8 @@ function renderPlanSlot(role, shelf) {
     </div>
     <div class="stats">
       <span class="stat">${formatSizeCm(displayShelf.columns, displayShelf.rows)}</span>
-      <span class="stat">${shelf ? lengthSummary(displayShelf) : 'noch nicht angelegt'}</span>
-      ${role === 'rack' ? '<span class="stat">4 Regale je 600 x 90 cm</span>' : ''}
+      <span class="stat">${shelf ? lengthSummary(displayShelf) : 'not created yet'}</span>
+      ${role === 'rack' ? '<span class="stat">4 rack levels 600 x 90 cm + small rack</span>' : ''}
     </div>
   `;
   slot.append(meta);
@@ -853,7 +880,7 @@ function renderPlanPlaceholder(role, shelf) {
   placeholder.append(renderDimensionLabels(shelf, placeKind(shelf), role));
   const mark = document.createElement('span');
   mark.className = 'placeholder-action';
-  mark.textContent = 'Ort anlegen';
+  mark.textContent = 'Create area';
   placeholder.append(mark);
   placeholder.addEventListener('click', () => {
     createPlanPlace(role).catch(error => showMessage(error.message, 'error'));
@@ -877,8 +904,8 @@ function renderRackDisplay(shelf) {
     button.className = `rack-level ${range.short ? 'short-level' : ''} ${appState.activeRackLevel === level ? 'active' : ''}`;
     button.innerHTML = `
       <span>${escapeHtml(range.label)}</span>
-      <strong>${formatCm(rackLevelFreeRunCm(shelf, level))} cm frei</strong>
-      <small>${range.heightLabel || `${packages.length} Positionen`}</small>
+      <strong>${formatCm(rackLevelFreeRunCm(shelf, level))} cm free</strong>
+      <small>${range.heightLabel || `${packages.length} positions`}</small>
       ${range.short ? '<i class="short-shelf-mark" aria-hidden="true"></i>' : ''}
     `;
     button.addEventListener('click', () => {
@@ -902,7 +929,7 @@ function renderRackTools(shelf, level) {
   const button = document.createElement('button');
   button.type = 'button';
   button.className = `measure-toggle ${measurement?.active ? 'active' : ''}`;
-  button.innerHTML = '<span class="measure-icon" aria-hidden="true"></span><span>Messen</span>';
+  button.innerHTML = '<span class="measure-icon" aria-hidden="true"></span><span>Measure</span>';
   button.addEventListener('click', () => {
     toggleRackMeasurement(shelf, level);
     render();
@@ -912,13 +939,13 @@ function renderRackTools(shelf, level) {
   const label = document.createElement('span');
   label.className = 'measure-status';
   if (!measurement?.active) {
-    label.textContent = 'Punkt 1, dann Punkt 2 messen';
+    label.textContent = 'Pick point 1, then point 2';
   } else if (!measurement.start) {
-    label.textContent = 'Punkt 1 wählen';
+    label.textContent = 'Pick point 1';
   } else if (!measurement.end) {
-    label.textContent = 'Punkt 2 wählen';
+    label.textContent = 'Pick point 2';
   } else {
-    label.textContent = `Gemessen: ${formatMeasureCm(measureDistanceCm(measurement))}`;
+    label.textContent = `Measured: ${formatMeasureCm(measureDistanceCm(measurement))}`;
   }
   tools.append(label);
   return tools;
@@ -963,7 +990,7 @@ function renderRackLevelDetail(shelf, level) {
     rectangle.style.top = `${((clippedTop - range.start) / range.height) * 100}%`;
     rectangle.style.width = `${(visibleWidth / range.width) * 100}%`;
     rectangle.style.height = `${(visibleDepth / range.height) * 100}%`;
-    rectangle.dataset.tooltip = item.package_name;
+    rectangle.dataset.tooltip = packageTooltip(displayItem);
     rectangle.setAttribute('aria-label', item.package_name);
     rectangle.innerHTML = packageHtml(displayItem, selectedPackage);
     rectangle.addEventListener('pointerdown', event => {
@@ -1000,7 +1027,7 @@ function renderRackLevelDetail(shelf, level) {
   if (!visiblePackages.length && !draftVisibleInRange) {
     const empty = document.createElement('div');
     empty.className = 'canvas-empty';
-    empty.textContent = `${range.label} frei`;
+    empty.textContent = `${range.label} is free`;
     canvas.append(empty);
   }
 
@@ -1154,7 +1181,7 @@ function renderPlaceCanvas(shelf, kind, role = planRole(shelf)) {
     rectangle.style.top = `${((displayItem.row_index - 1) / shelf.rows) * 100}%`;
     rectangle.style.width = `${((displayItem.width_units || 1) / shelf.columns) * 100}%`;
     rectangle.style.height = `${((displayItem.depth_units || 1) / shelf.rows) * 100}%`;
-    rectangle.dataset.tooltip = item.package_name;
+    rectangle.dataset.tooltip = packageTooltip(displayItem);
     rectangle.setAttribute('aria-label', item.package_name);
     rectangle.innerHTML = packageHtml(displayItem, selectedPackage);
     rectangle.addEventListener('pointerdown', event => {
@@ -1174,7 +1201,7 @@ function renderPlaceCanvas(shelf, kind, role = planRole(shelf)) {
   if (!shelf.packages.length && (!draft || draft.shelf.id !== shelf.id)) {
     const empty = document.createElement('div');
     empty.className = 'canvas-empty';
-    empty.textContent = 'Freie Fläche';
+    empty.textContent = 'Available area';
     canvas.append(empty);
   }
 
@@ -1186,10 +1213,10 @@ function renderForbiddenArea(shelf, role) {
   area.className = 'forbidden-area hidden';
   if (role === 'floor-main') {
     area.classList.remove('hidden');
-    area.style.left = `${((shelf.columns - 80) / shelf.columns) * 100}%`;
+    area.style.left = `${((shelf.columns - 100) / shelf.columns) * 100}%`;
     area.style.top = '0';
-    area.style.width = `${(80 / shelf.columns) * 100}%`;
-    area.style.height = `${(100 / shelf.rows) * 100}%`;
+    area.style.width = `${(100 / shelf.columns) * 100}%`;
+    area.style.height = `${(80 / shelf.rows) * 100}%`;
   }
   if (role === 'floor-long') {
     area.classList.remove('hidden');
@@ -1214,9 +1241,9 @@ function renderDimensionLabels(shelf, kind, role = planRole(shelf)) {
   labels.innerHTML = `
     <span class="dim dim-top">${formatCm(shelf.columns)} cm</span>
     <span class="dim dim-left">${formatCm(shelf.rows)} cm</span>
-    ${kind === 'shelf' ? '<span class="dim dim-bays">600 cm Länge</span>' : ''}
-    ${role === 'floor-main' ? '<span class="dim dim-blocked">80 x 100 cm Sperrfläche</span>' : ''}
-    ${role === 'floor-long' ? '<span class="dim dim-blocked">70 x 380 cm Sperrfläche</span>' : ''}
+    ${kind === 'shelf' ? '<span class="dim dim-bays">600 cm length</span>' : ''}
+    ${role === 'floor-main' ? '<span class="dim dim-blocked">100 x 80 cm blocked</span>' : ''}
+    ${role === 'floor-long' ? '<span class="dim dim-blocked">70 x 380 cm blocked</span>' : ''}
   `;
   return labels;
 }
@@ -1510,12 +1537,13 @@ function startPackageMove(event, canvas, shelf, item, rectangle) {
 }
 
 async function movePackage(shelf, item, draft) {
+  const savingShelf = shelfForSaving(shelf);
   const payload = {
     packageId: item.id,
     locationType: placeKind(shelf),
     shelfName: shelf.name,
-    shelfRows: cmInputToMeters(shelf.rows, shelf.rows),
-    shelfColumns: cmInputToMeters(shelf.columns, shelf.columns),
+    shelfRows: cmInputToMeters(savingShelf.rows, savingShelf.rows),
+    shelfColumns: cmInputToMeters(savingShelf.columns, savingShelf.columns),
     rowIndex: draft.row,
     columnIndex: draft.column,
     widthUnits: cmInputToMeters(item.width_units || 1, item.width_units || 1),
@@ -1528,7 +1556,7 @@ async function movePackage(shelf, item, draft) {
     method: 'PATCH',
     body: JSON.stringify(payload)
   });
-  showMessage('Paket verschoben.');
+  showMessage('Item moved.');
   await loadShelves();
 }
 
@@ -1536,10 +1564,10 @@ function renderPlaces() {
   const planPlacesList = appState.shelves.filter(planPlaceRole);
   const oldPlaces = appState.shelves.filter(place => !planPlaceRole(place));
   if (planPlacesList.length) {
-    renderPlaceGroup('Aktuelle 3 Orte', planPlacesList);
+    renderPlaceGroup('Current 3 areas', planPlacesList);
   }
   if (oldPlaces.length) {
-    renderPlaceGroup('Alte/sonstige Orte', oldPlaces, true);
+    renderPlaceGroup('Old/other areas', oldPlaces, true);
   }
 }
 
@@ -1560,8 +1588,8 @@ function renderPlaceGroup(title, places, muted = false) {
         <p>${formatSizeCm(place.columns, place.rows)} · ${lengthSummary(place)}</p>
       </div>
       <div class="place-row-actions">
-        <button class="ghost edit-place" type="button">Bearbeiten</button>
-        <button class="ghost delete-place" type="button">Löschen</button>
+        <button class="ghost edit-place" type="button">Edit</button>
+        <button class="ghost delete-place" type="button">Delete</button>
       </div>
     `;
     item.querySelector('.edit-place').addEventListener('click', () => selectPlace(place));
@@ -1580,7 +1608,7 @@ function selectPlace(place) {
   els.placeRows.value = inputCm(place.rows);
   els.placeColumns.value = inputCm(place.columns);
   els.placeNotes.value = place.notes || '';
-  els.savePlaceButton.textContent = 'Ort aktualisieren';
+  els.savePlaceButton.textContent = 'Update area';
   els.cancelPlaceButton.classList.remove('hidden');
 }
 
@@ -1589,10 +1617,10 @@ function renderOverview(shelves, shelfPlaces, floorPlaces) {
   const blockedCount = shelves.reduce((sum, shelf) => sum + shelf.packages.filter(isBlockedItem).length, 0);
   const stackedCount = shelves.reduce((sum, shelf) => sum + shelf.packages.filter(isStackedItem).length, 0);
   const cards = [
-    ['Freie Länge', `${formatCm(freeLength)} cm`, 'längste freie Strecken addiert'],
-    ['Sperrflächen', blockedCount, 'rot markiert, nicht abstellen'],
-    ['Regal', shelfPlaces.length, '4 Regale je 600 x 90 cm'],
-    ['Bodenflächen', floorPlaces.length, 'normale Stellflächen']
+    ['Available length', `${formatCm(freeLength)} cm`, 'longest open runs added together'],
+    ['Blocked areas', blockedCount, 'marked red, do not place items there'],
+    ['Rack', shelfPlaces.length, '4 rack levels 600 x 90 cm + small rack'],
+    ['Floor areas', floorPlaces.length, 'regular floor storage areas']
   ];
 
   cards.forEach(([label, value, hint]) => {
@@ -1606,15 +1634,15 @@ function renderOverview(shelves, shelfPlaces, floorPlaces) {
     els.overviewCards.append(card);
   });
   if (stackedCount) {
-    els.summaryText.textContent += ` ${stackedCount} gestapelte Positionen markiert.`;
+    els.summaryText.textContent += ` ${stackedCount} stacked positions marked.`;
   }
 }
 
 function renderWarehouseMap(shelfPlaces, floorPlaces) {
   const zones = [
-    ['Regal 600 x 360', shelfPlaces],
-    ['Bodenplatz 1', floorPlaces.slice(0, 1)],
-    ['Bodenplatz 2', floorPlaces.slice(1)]
+    ['Rack 600 x 450', shelfPlaces],
+    ['Floor area 1', floorPlaces.slice(0, 1)],
+    ['Floor area 2', floorPlaces.slice(1)]
   ];
 
   zones.forEach(([label, places]) => {
@@ -1626,7 +1654,7 @@ function renderWarehouseMap(shelfPlaces, floorPlaces) {
     const usedPercent = total ? Math.round(((total - free) / total) * 100) : 0;
     zone.innerHTML = `
       <span>${escapeHtml(label)}</span>
-      <strong>${places.length ? `${formatCm(free)} cm freie Länge` : 'noch frei planbar'}</strong>
+      <strong>${places.length ? `${formatCm(free)} cm available length` : 'available for planning'}</strong>
       <i class="zone-meter" aria-hidden="true"><b style="width: ${usedPercent}%"></b></i>
     `;
     els.warehouseMap.append(zone);
@@ -1639,7 +1667,7 @@ function setupPresetButton(button) {
   const presetDepth = cmInputToCm(depth, 100);
   const visualWidth = clamp((presetWidth / 600) * 100, 8, 100);
   const visualDepth = clamp((presetDepth / 90) * 100, 8, 100);
-  const isBlocked = String(name || '').toLowerCase().includes('sperr');
+  const isBlocked = /sperr|blocked/.test(String(name || '').toLowerCase());
   button.classList.add('preset-button');
   button.classList.toggle('blocked-preset', isBlocked);
   button.style.setProperty('--preset-w', `${visualWidth}%`);
@@ -1654,7 +1682,7 @@ function packageHtml(item, selected = false) {
   return `
     <span class="measure">${formatSizeCm(item.width_units || 1, item.depth_units || 1)}</span>
     <span class="pkg">${escapeHtml(item.package_name)}</span>
-    <span class="note">${escapeHtml(item.quantity)}x ${isStackedItem(item) ? 'gestapelt ' : ''}${escapeHtml(item.note || '')}</span>
+    <span class="note">${escapeHtml(item.quantity)}x ${isStackedItem(item) ? 'stacked ' : ''}${escapeHtml(item.note || '')}</span>
     ${selected ? draftMarkerHtml({
       width: item.width_units || 1,
       depth: item.depth_units || 1
@@ -1694,15 +1722,15 @@ async function submitPackage(event) {
     width: cmInputToCm(payload.widthUnits, 100),
     depth: cmInputToCm(payload.depthUnits, 100)
   })) {
-    showMessage('Diese Ecke ist gesperrt. Dort bitte nichts abstellen.', 'error');
+    showMessage('This corner is blocked. Do not place items there.', 'error');
     return;
   }
   payload.shelfRows = cmInputToMeters(payload.shelfRows, planPlaces.rack.rows);
   payload.shelfColumns = cmInputToMeters(payload.shelfColumns, 600);
   payload.widthUnits = cmInputToMeters(payload.widthUnits, 100);
   payload.depthUnits = cmInputToMeters(payload.depthUnits, 100);
-  if (payload.locationType === 'floor' && !String(payload.shelfName || '').toLowerCase().includes('boden')) {
-    payload.shelfName = `Boden - ${payload.shelfName}`;
+  if (payload.locationType === 'floor' && !/boden|floor/.test(String(payload.shelfName || '').toLowerCase())) {
+    payload.shelfName = `Floor - ${payload.shelfName}`;
   }
   const isEdit = Boolean(payload.packageId);
   await apiFetch('/api/regale', {
@@ -1710,7 +1738,7 @@ async function submitPackage(event) {
     body: JSON.stringify(payload)
   });
   clearPackageForm();
-  showMessage(isEdit ? 'Paket verschoben/aktualisiert.' : 'Paket gespeichert.');
+  showMessage(isEdit ? 'Item moved/updated.' : 'Item saved.');
   await loadShelves();
 }
 
@@ -1726,18 +1754,18 @@ async function submitPlace(event) {
     body: JSON.stringify(payload)
   });
   clearPlaceForm();
-  showMessage(isEdit ? 'Ort aktualisiert.' : 'Ort angelegt.');
+  showMessage(isEdit ? 'Area updated.' : 'Area created.');
   await loadShelves();
 }
 
 async function deletePlace(id) {
   await apiFetch(`/api/places?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
-  showMessage('Ort gelöscht.');
+  showMessage('Area deleted.');
   await loadShelves();
 }
 
 async function deleteAllPlaces() {
-  const ok = window.confirm('Alle Pakete und alle Flächen wirklich löschen?');
+  const ok = window.confirm('Really delete all items and all areas?');
   if (!ok) return;
 
   const packageIds = appState.shelves.flatMap(shelf => shelf.packages.map(item => item.id));
@@ -1749,7 +1777,7 @@ async function deleteAllPlaces() {
   }
   clearPackageForm();
   clearPlaceForm();
-  showMessage('Alle Flächen gelöscht.');
+  showMessage('All areas deleted.');
   await loadShelves();
 }
 
@@ -1764,21 +1792,21 @@ async function createDefaultPlanPlaces() {
     if (result === 'created') created += 1;
   }
   if (!created && !updated) {
-    showMessage('Die 3 Orte sind schon richtig angelegt.');
+    showMessage('The 3 areas are already set up correctly.');
     return;
   }
-  showMessage(`${created} Ort(e) angelegt, ${updated} aktualisiert.`);
+  showMessage(`${created} area(s) created, ${updated} updated.`);
   await loadShelves();
 }
 
 async function createPlanPlace(role) {
   const existing = appState.shelves.find(shelf => planPlaceRole(shelf) === role);
   if (existing && !placeNeedsPlanUpdate(existing, role)) {
-    showMessage(`${existing.name} ist schon richtig angelegt.`);
+    showMessage(`${existing.name} is already set up correctly.`);
     return;
   }
   const result = await saveDefaultPlanPlace(role, existing);
-  showMessage(`${planTitle(role)} ${result === 'updated' ? 'aktualisiert' : 'angelegt'}.`);
+  showMessage(`${planTitle(role)} ${result === 'updated' ? 'updated' : 'created'}.`);
   await loadShelves();
 }
 
@@ -1793,7 +1821,7 @@ async function submitLogin(event) {
   appState.user = data.user;
   localStorage.setItem(tokenKey, data.token);
   els.loginForm.reset();
-  showMessage('Login erfolgreich.');
+  showMessage('Signed in successfully.');
   await loadShelves();
 }
 
@@ -1813,9 +1841,11 @@ els.refreshButton.addEventListener('click', () => {
   loadShelves().catch(error => showMessage(error.message, 'error'));
 });
 
-els.defaultPlanButton.addEventListener('click', () => {
-  createDefaultPlanPlaces().catch(error => showMessage(error.message, 'error'));
-});
+if (els.defaultPlanButton) {
+  els.defaultPlanButton.addEventListener('click', () => {
+    createDefaultPlanPlaces().catch(error => showMessage(error.message, 'error'));
+  });
+}
 
 els.packagesTab.addEventListener('click', () => setActiveView('packages'));
 els.placesTab.addEventListener('click', () => setActiveView('places'));
@@ -1830,7 +1860,7 @@ els.placeForm.addEventListener('submit', event => {
 
 els.cancelEditButton.addEventListener('click', () => {
   clearPackageForm();
-  els.selectedCell.textContent = 'Keine Fläche gewählt';
+  els.selectedCell.textContent = 'No area selected';
   render();
 });
 
@@ -1838,7 +1868,7 @@ els.deletePackageButton.addEventListener('click', async () => {
   if (!els.packageId.value) return;
   await deletePackage(els.packageId.value).catch(error => showMessage(error.message, 'error'));
   clearPackageForm();
-  els.selectedCell.textContent = 'Keine Fläche gewählt';
+  els.selectedCell.textContent = 'No area selected';
 });
 
 els.cancelPlaceButton.addEventListener('click', clearPlaceForm);
@@ -1858,7 +1888,7 @@ document.querySelectorAll('[data-preset]').forEach(button => {
     els.packageName.value = name;
     els.quantity.value = quantity;
     els.note.value = height && height !== '0'
-      ? `${note ? `${note}, ` : ''}Höhe ${height} cm`
+      ? `${note ? `${note}, ` : ''}height ${height} cm`
       : note;
     updateDraftFromSizeInputs();
   });
@@ -1873,7 +1903,7 @@ document.querySelectorAll('[data-place-preset]').forEach(button => {
     els.placeRows.value = rows;
     els.placeColumns.value = columns;
     els.placeNotes.value = notes;
-    els.savePlaceButton.textContent = 'Ort speichern';
+    els.savePlaceButton.textContent = 'Save area';
     els.cancelPlaceButton.classList.add('hidden');
   });
 });

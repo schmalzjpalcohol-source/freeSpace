@@ -15,13 +15,13 @@ function numberValue(value, fallback) {
 
 function metersToCm(value, fallbackMeters, maxMeters = 1000) {
   const meters = Math.max(0.01, Math.min(maxMeters, numberValue(value, fallbackMeters)));
-  return Math.max(1, Math.round(meters * 100));
+  return Math.max(1, Number((meters * 100).toFixed(1)));
 }
 
 function placePayload(body) {
   const name = String(body.name || '').trim();
   if (!name) {
-    const error = new Error('Name ist erforderlich.');
+    const error = new Error('Name is required.');
     error.status = 400;
     throw error;
   }
@@ -47,7 +47,7 @@ function assertPackagesStillFit(packages, rows, columns) {
     return lastRow > rows || lastColumn > columns;
   });
   if (outside) {
-    const error = new Error(`Raster ist zu klein fuer ${outside.package_name}.`);
+    const error = new Error(`The area is too small for ${outside.package_name}.`);
     error.status = 409;
     throw error;
   }
@@ -130,7 +130,7 @@ module.exports = async function handler(req, res) {
 
       const packages = await packagesForPlace(id);
       if (packages.length) {
-        json(res, 409, { error: 'Ort kann erst geloescht werden, wenn keine Pakete mehr darauf liegen.' });
+        json(res, 409, { error: 'The area can only be deleted after all items have been removed from it.' });
         return;
       }
 
