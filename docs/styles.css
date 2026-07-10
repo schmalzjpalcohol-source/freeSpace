@@ -461,6 +461,26 @@ select:hover {
   background: transparent;
 }
 
+.plan-switcher {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.plan-switch {
+  min-height: 42px;
+  border: 1px solid var(--line);
+  background: var(--surface-soft);
+  color: var(--muted);
+}
+
+.plan-switch.active {
+  border-color: var(--primary);
+  background: #edf7f5;
+  color: var(--primary-dark);
+  box-shadow: inset 0 0 0 1px rgba(15, 118, 110, 0.12);
+}
+
 .plan-slot {
   padding: 12px;
   border: 1px solid var(--line);
@@ -560,7 +580,7 @@ select:hover {
 }
 
 .rack-level-detail {
-  min-height: 132px;
+  min-height: 260px;
 }
 
 .rack-level-detail.short-rack-detail {
@@ -611,12 +631,12 @@ select:hover {
 }
 
 .floor-main .place-canvas {
-  min-height: 220px;
+  min-height: 360px;
 }
 
 .floor-long .place-canvas {
-  width: min(100%, 360px);
-  min-height: 520px;
+  width: min(100%, 520px);
+  min-height: 720px;
   justify-self: center;
 }
 
@@ -1259,12 +1279,12 @@ select:hover {
   }
 
   .place-canvas {
-    min-height: 230px;
+    min-height: 320px;
   }
 
   .floor-long .place-canvas {
-    width: min(100%, 320px);
-    min-height: 460px;
+    width: min(100%, 420px);
+    min-height: 620px;
   }
 
   .place-item {

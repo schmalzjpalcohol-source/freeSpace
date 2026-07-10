@@ -55,6 +55,7 @@ let appState = {
   shelves: [],
   selected: null,
   activeView: 'packages',
+  activePlanRole: 'floor-main',
   activeRackLevel: 1,
   measurement: null
 };
@@ -67,10 +68,10 @@ const planPlaces = {
     notes: 'Sperrfläche rechts oben 80 x 100 cm'
   },
   rack: {
-    title: 'Regal 600 x 90',
-    rows: 90,
+    title: 'Regal 600 x 360',
+    rows: 360,
     columns: 600,
-    notes: '4 Plätze à 150 x 90 cm, Kleinregal 150 x 90 cm, Höhe 16 cm'
+    notes: '4 Regale à 600 x 90 cm, Kleinregal 150 x 90 cm, Höhe 16 cm'
   },
   'floor-long': {
     title: 'Bodenplatz 2 - 380 x 740',
@@ -211,14 +212,20 @@ function lengthSummary(shelf) {
 function rackLevelSpecs(shelf) {
   const width = Math.max(1, shelf.columns || planPlaces.rack.columns);
   const height = Math.max(1, shelf.rows || planPlaces.rack.rows);
-  const bayWidth = Math.max(1, Math.round(width / 4));
-  const fullDepth = Math.min(90, height);
+  const levelDepth = Math.max(1, Math.min(90, Math.floor(height / 4) || 90));
+  const hasStackedLevels = height >= levelDepth * 4;
+  const levelRange = index => {
+    const start = hasStackedLevels ? ((index - 1) * levelDepth) + 1 : 1;
+    const end = hasStackedLevels ? Math.min(index * levelDepth, height) : Math.min(levelDepth, height);
+    return { start, end };
+  };
+  const fourth = levelRange(4);
   return [
-    { level: 1, label: 'Regalplatz 1', start: 1, end: fullDepth, xStart: 1, xEnd: bayWidth, short: false },
-    { level: 2, label: 'Regalplatz 2', start: 1, end: fullDepth, xStart: bayWidth + 1, xEnd: bayWidth * 2, short: false },
-    { level: 3, label: 'Regalplatz 3', start: 1, end: fullDepth, xStart: (bayWidth * 2) + 1, xEnd: bayWidth * 3, short: false },
-    { level: 4, label: 'Regalplatz 4', start: 1, end: fullDepth, xStart: (bayWidth * 3) + 1, xEnd: width, short: false },
-    { level: 5, label: 'Kleinregal', start: 1, end: fullDepth, xStart: (bayWidth * 3) + 1, xEnd: width, short: true, heightLabel: 'Höhe 16 cm' }
+    { level: 1, label: 'Regal 1', ...levelRange(1), xStart: 1, xEnd: width, short: false },
+    { level: 2, label: 'Regal 2', ...levelRange(2), xStart: 1, xEnd: width, short: false },
+    { level: 3, label: 'Regal 3', ...levelRange(3), xStart: 1, xEnd: width, short: false },
+    { level: 4, label: 'Regal 4', ...fourth, xStart: 1, xEnd: width, short: false },
+    { level: 5, label: 'Kleinregal', ...fourth, xStart: Math.max(1, width - 149), xEnd: width, short: true, heightLabel: '150 x 90 cm, Höhe 16 cm' }
   ];
 }
 
@@ -632,6 +639,13 @@ function setActiveView(view) {
   render();
 }
 
+function setActivePlanRole(role) {
+  appState.activePlanRole = role;
+  clearPackageForm();
+  els.selectedCell.textContent = 'Keine Fläche gewählt';
+  render();
+}
+
 function clearPlaceForm() {
   els.placeId.value = '';
   els.placeLocationType.value = 'shelf';
@@ -694,7 +708,7 @@ function isNearSize(shelf, role) {
 function planPlaceRole(shelf) {
   const text = `${shelf.name || ''} ${shelf.label || ''} ${shelf.notes || ''}`.toLowerCase();
   if (placeKind(shelf) === 'shelf') {
-    return isNearSize(shelf, 'rack') || text.includes('4 plätze') || text.includes('600 x 90') || text.includes('600 x 106')
+    return isNearSize(shelf, 'rack') || text.includes('4 regale') || text.includes('4 plätze') || text.includes('600 x 360') || text.includes('600 x 90') || text.includes('600 x 106')
       ? 'rack'
       : null;
   }
@@ -731,6 +745,31 @@ function defaultPlacePayload(role) {
   };
 }
 
+function placeNeedsPlanUpdate(place, role) {
+  const expected = expectedPlanSize(role);
+  return (
+    Math.round(place.rows || 0) !== expected.rows ||
+    Math.round(place.columns || 0) !== expected.columns ||
+    place.name !== planTitle(role)
+  );
+}
+
+async function saveDefaultPlanPlace(role, existing = null) {
+  const payload = defaultPlacePayload(role);
+  if (existing) {
+    await apiFetch('/api/places', {
+      method: 'PATCH',
+      body: JSON.stringify({ ...payload, id: existing.id })
+    });
+    return 'updated';
+  }
+  await apiFetch('/api/places', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  return 'created';
+}
+
 function findPlanShelf(role, shelves) {
   return shelves.find(shelf => planPlaceRole(shelf) === role) || null;
 }
@@ -739,10 +778,27 @@ function renderPlanDrawing(shelfPlaces, floorPlaces) {
   const all = [...shelfPlaces, ...floorPlaces];
   const plan = document.createElement('section');
   plan.className = 'plan-drawing';
-  plan.append(renderPlanSlot('floor-main', findPlanShelf('floor-main', all)));
-  plan.append(renderPlanSlot('rack', findPlanShelf('rack', all)));
-  plan.append(renderPlanSlot('floor-long', findPlanShelf('floor-long', all)));
+  plan.append(renderPlanSwitcher());
+  plan.append(renderPlanSlot(appState.activePlanRole, findPlanShelf(appState.activePlanRole, all)));
   els.shelves.append(plan);
+}
+
+function renderPlanSwitcher() {
+  const nav = document.createElement('div');
+  nav.className = 'plan-switcher';
+  [
+    ['floor-main', 'Bodenplatz 1'],
+    ['rack', 'Regal'],
+    ['floor-long', 'Bodenplatz 2']
+  ].forEach(([role, label]) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `plan-switch ${appState.activePlanRole === role ? 'active' : ''}`;
+    button.textContent = label;
+    button.addEventListener('click', () => setActivePlanRole(role));
+    nav.append(button);
+  });
+  return nav;
 }
 
 function renderPlanSlot(role, shelf) {
@@ -774,7 +830,7 @@ function renderPlanSlot(role, shelf) {
     <div class="stats">
       <span class="stat">${formatSizeCm(displayShelf.columns, displayShelf.rows)}</span>
       <span class="stat">${shelf ? lengthSummary(displayShelf) : 'noch nicht angelegt'}</span>
-      ${role === 'rack' ? '<span class="stat">600 cm Länge, 90 cm Tiefe</span>' : ''}
+      ${role === 'rack' ? '<span class="stat">4 Regale je 600 x 90 cm</span>' : ''}
     </div>
   `;
   slot.append(meta);
@@ -1159,7 +1215,7 @@ function renderDimensionLabels(shelf, kind, role = planRole(shelf)) {
   labels.innerHTML = `
     <span class="dim dim-top">${formatCm(shelf.columns)} cm</span>
     <span class="dim dim-left">${formatCm(shelf.rows)} cm</span>
-    ${kind === 'shelf' ? '<span class="dim dim-bays">600 cm</span>' : ''}
+    ${kind === 'shelf' ? '<span class="dim dim-bays">600 cm Länge</span>' : ''}
     ${role === 'floor-main' ? '<span class="dim dim-blocked">80 x 100 cm Sperrfläche</span>' : ''}
     ${role === 'floor-long' ? '<span class="dim dim-blocked">70 x 380 cm Sperrfläche</span>' : ''}
   `;
@@ -1536,7 +1592,7 @@ function renderOverview(shelves, shelfPlaces, floorPlaces) {
   const cards = [
     ['Freie Länge', `${formatCm(freeLength)} cm`, 'längste freie Strecken addiert'],
     ['Sperrflächen', blockedCount, 'rot markiert, nicht abstellen'],
-    ['Regal', shelfPlaces.length, '4 Plätze à 150 x 90 cm'],
+    ['Regal', shelfPlaces.length, '4 Regale je 600 x 90 cm'],
     ['Bodenflächen', floorPlaces.length, 'normale Stellflächen']
   ];
 
@@ -1557,7 +1613,7 @@ function renderOverview(shelves, shelfPlaces, floorPlaces) {
 
 function renderWarehouseMap(shelfPlaces, floorPlaces) {
   const zones = [
-    ['Regal 600 x 90', shelfPlaces],
+    ['Regal 600 x 360', shelfPlaces],
     ['Bodenplatz 1', floorPlaces.slice(0, 1)],
     ['Bodenplatz 2', floorPlaces.slice(1)]
   ];
@@ -1699,34 +1755,31 @@ async function deleteAllPlaces() {
 }
 
 async function createDefaultPlanPlaces() {
-  const existingRoles = new Set(appState.shelves.map(planPlaceRole).filter(Boolean));
-  const missingRoles = ['floor-main', 'rack', 'floor-long'].filter(role => !existingRoles.has(role));
-  if (!missingRoles.length) {
-    showMessage('Die 3 Orte sind schon angelegt.');
+  let created = 0;
+  let updated = 0;
+  for (const role of ['floor-main', 'rack', 'floor-long']) {
+    const existing = appState.shelves.find(shelf => planPlaceRole(shelf) === role);
+    if (existing && !placeNeedsPlanUpdate(existing, role)) continue;
+    const result = await saveDefaultPlanPlace(role, existing);
+    if (result === 'updated') updated += 1;
+    if (result === 'created') created += 1;
+  }
+  if (!created && !updated) {
+    showMessage('Die 3 Orte sind schon richtig angelegt.');
     return;
   }
-
-  for (const role of missingRoles) {
-    await apiFetch('/api/places', {
-      method: 'POST',
-      body: JSON.stringify(defaultPlacePayload(role))
-    });
-  }
-  showMessage(`${missingRoles.length} Ort(e) angelegt.`);
+  showMessage(`${created} Ort(e) angelegt, ${updated} aktualisiert.`);
   await loadShelves();
 }
 
 async function createPlanPlace(role) {
   const existing = appState.shelves.find(shelf => planPlaceRole(shelf) === role);
-  if (existing) {
-    showMessage(`${existing.name} ist schon angelegt.`);
+  if (existing && !placeNeedsPlanUpdate(existing, role)) {
+    showMessage(`${existing.name} ist schon richtig angelegt.`);
     return;
   }
-  await apiFetch('/api/places', {
-    method: 'POST',
-    body: JSON.stringify(defaultPlacePayload(role))
-  });
-  showMessage(`${planTitle(role)} angelegt.`);
+  const result = await saveDefaultPlanPlace(role, existing);
+  showMessage(`${planTitle(role)} ${result === 'updated' ? 'aktualisiert' : 'angelegt'}.`);
   await loadShelves();
 }
 
