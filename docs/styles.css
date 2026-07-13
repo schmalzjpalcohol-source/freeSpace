@@ -723,6 +723,18 @@ select:hover {
   box-shadow: 0 1px 5px rgba(20, 32, 34, 0.18);
 }
 
+.measure-box {
+  position: absolute;
+  min-width: 2px;
+  min-height: 2px;
+  border: 2px solid var(--primary);
+  border-radius: 6px;
+  background: rgba(15, 118, 110, 0.12);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.58),
+    0 8px 18px rgba(20, 32, 34, 0.12);
+}
+
 .measure-label {
   position: absolute;
   padding: 5px 7px;
