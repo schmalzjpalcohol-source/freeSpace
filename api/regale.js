@@ -74,6 +74,10 @@ function canOverlap(candidate, item) {
   return itemZone === 'yellow';
 }
 
+function stackTotalHeightCm(item) {
+  return stackCount(item.quantity) * itemHeightCm(item);
+}
+
 function overlaps(a, b) {
   return (
     a.columnIndex < b.columnIndex + b.widthUnits &&
@@ -167,23 +171,33 @@ async function assertPlaceFree(shelf, candidate, excludeId) {
     throw error;
   }
 
-  const shelfPackages = await supabaseFetch(`packages?shelf_id=eq.${shelf.id}&select=id,row_index,column_index,width_units,depth_units,package_name,note`);
-  const collision = shelfPackages.find(item => (
+  const shelfPackages = await supabaseFetch(`packages?shelf_id=eq.${shelf.id}&select=id,row_index,column_index,width_units,depth_units,package_name,quantity,note`);
+  const overlappingPackages = shelfPackages.filter(item => (
     item.id !== excludeId &&
-    overlaps(candidate, packageRect(item)) &&
-    !canOverlap(candidate, item)
+    overlaps(candidate, packageRect(item))
   ));
+  const candidateZone = zoneKind({ package_name: candidate.packageName, note: candidate.note });
+  const collision = overlappingPackages.find(item => {
+    if (shelf.location_type === 'floor' && !candidateZone && !isZoneItem(item)) return false;
+    return !canOverlap(candidate, item);
+  });
   if (collision) {
     const error = new Error(`This area is already occupied by ${collision.package_name}.`);
     error.status = 409;
     throw error;
   }
 
-  if (!zoneKind({ package_name: candidate.packageName, note: candidate.note })) {
+  if (!candidateZone) {
     const totalHeight = stackCount(candidate.quantity) * itemHeightCm(candidate);
     const maxHeight = maxStackHeightForShelf(shelf, candidate);
-    if (totalHeight > maxHeight) {
-      const error = new Error(`Stack is too high: ${totalHeight} cm, max ${maxHeight} cm here.`);
+    const overlapHeight = shelf.location_type === 'floor'
+      ? overlappingPackages
+        .filter(item => !isZoneItem(item))
+        .reduce((sum, item) => sum + stackTotalHeightCm(item), 0)
+      : 0;
+    const combinedHeight = totalHeight + overlapHeight;
+    if (combinedHeight > maxHeight) {
+      const error = new Error(`Stack is too high: ${combinedHeight} cm, max ${maxHeight} cm here.`);
       error.status = 400;
       throw error;
     }

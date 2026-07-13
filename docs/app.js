@@ -63,8 +63,6 @@ let appState = {
   measurement: null,
   model3d: {
     active: false,
-    rotX: 58,
-    rotZ: -34,
     zoom: 1,
     views: {}
   }
@@ -676,6 +674,14 @@ function rectsOverlap(a, b) {
 function touchesForbiddenArea(shelf, draft) {
   const rect = draftRect(draft);
   return shelf.packages.some(item => isBlockedItem(item) && rectsOverlap(rect, packageRect(item)));
+}
+
+function floorStackOverlapHeight(shelf, candidate, excludeId = '') {
+  if (!shelf || placeKind(shelf) !== 'floor') return 0;
+  const rect = draftRect(candidate);
+  return shelf.packages
+    .filter(item => item.id !== excludeId && !isZoneItem(item) && rectsOverlap(rect, packageRect(item)))
+    .reduce((sum, item) => sum + stackTotalHeightCm(item), 0);
 }
 
 function selectedDraft() {
@@ -1448,7 +1454,11 @@ function renderPlaceCanvas(shelf, kind, role = planRole(shelf)) {
     canvas.append(marker);
   }
 
+  const floorStackGroups = kind === 'floor' ? findFloorStackGroups(shelf) : [];
+  floorStackGroups.forEach(group => renderFloorStackGroup(canvas, shelf, group));
+
   shelf.packages.forEach(item => {
+    if (shouldSkipFloorStackItem(floorStackGroups, item)) return;
     const rectangle = document.createElement('button');
     const selectedPackage = els.packageId.value === item.id;
     const editDraft = selectedPackage ? selectedPackageDraft(item) : null;
@@ -1495,6 +1505,69 @@ function renderPlaceCanvas(shelf, kind, role = planRole(shelf)) {
   }
 
   return canvas;
+}
+
+function findFloorStackGroups(shelf) {
+  const packages = (shelf.packages || []).filter(item => !isZoneItem(item));
+  const groups = [];
+  const seen = new Set();
+
+  packages.forEach(item => {
+    if (seen.has(item.id)) return;
+    const group = [item];
+    seen.add(item.id);
+    let expanded = true;
+    while (expanded) {
+      expanded = false;
+      packages.forEach(candidate => {
+        if (seen.has(candidate.id)) return;
+        if (group.some(groupItem => rectsOverlap(packageRect(groupItem), packageRect(candidate)))) {
+          group.push(candidate);
+          seen.add(candidate.id);
+          expanded = true;
+        }
+      });
+    }
+    if (group.length > 1) groups.push(group);
+  });
+
+  return groups;
+}
+
+function floorStackGroupRect(group) {
+  const left = Math.min(...group.map(item => item.column_index || 1));
+  const top = Math.min(...group.map(item => item.row_index || 1));
+  const right = Math.max(...group.map(item => (item.column_index || 1) + (item.width_units || 1)));
+  const bottom = Math.max(...group.map(item => (item.row_index || 1) + (item.depth_units || 1)));
+  return { column: left, row: top, width: right - left, depth: bottom - top };
+}
+
+function renderFloorStackGroup(canvas, shelf, group) {
+  const rect = floorStackGroupRect(group);
+  const button = document.createElement('button');
+  button.className = 'package-rect floor-stack-group';
+  button.type = 'button';
+  button.style.left = `${((rect.column - 1) / shelf.columns) * 100}%`;
+  button.style.top = `${((rect.row - 1) / shelf.rows) * 100}%`;
+  button.style.width = `${(rect.width / shelf.columns) * 100}%`;
+  button.style.height = `${(rect.depth / shelf.rows) * 100}%`;
+  button.dataset.tooltip = group.map(packageTooltip).join(' | ');
+  button.setAttribute('aria-label', group.map(item => item.package_name).join(', '));
+  const totalHeight = group.reduce((sum, item) => sum + stackTotalHeightCm(item), 0);
+  button.innerHTML = `
+    <span class="measure">${formatSizeCm(rect.width, rect.depth)} · h ${formatCm(totalHeight)} cm</span>
+    <span class="pkg">${group.map(item => escapeHtml(item.package_name)).join('<br>')}</span>
+    <span class="note">${group.map(item => `${escapeHtml(stackCount(item))}x ${formatCm(stackTotalHeightCm(item))} cm`).join(' · ')}</span>
+  `;
+  button.addEventListener('click', () => {
+    const first = group[0];
+    selectCell(shelf, first.row_index, first.column_index, first);
+  });
+  canvas.append(button);
+}
+
+function shouldSkipFloorStackItem(groups, item) {
+  return groups.some(group => group.some(groupItem => groupItem.id === item.id));
 }
 
 function updateDragMarker(shelf, marker, draft) {
@@ -1841,6 +1914,7 @@ function renderModel3d(shelves) {
   grid.className = 'model3d-grid';
 
   shelves.forEach(shelf => {
+    const view = modelViewState(shelf.id);
     const card = document.createElement('section');
     card.className = 'model3d-card';
     card.innerHTML = `
@@ -1855,36 +1929,20 @@ function renderModel3d(shelves) {
       </div>
     `;
 
-    const scale = clamp(520 / Math.max(shelf.columns || 1, effectiveRowsForShelf(shelf) || shelf.rows || 1), 0.12, 0.24);
-    const zScale = 0.62;
     const viewport = document.createElement('div');
     viewport.className = 'model3d-viewport';
-    const stage = document.createElement('div');
-    stage.className = 'model3d-stage';
-    const scene = document.createElement('div');
-    scene.className = 'model3d-scene';
-    stage.append(scene);
-    viewport.append(stage);
-
-    const width = (shelf.columns || 1) * scale;
-    const depth = (effectiveRowsForShelf(shelf) || shelf.rows || 1) * scale;
-    const area = document.createElement('div');
-    area.className = `model3d-area ${placeKind(shelf) === 'floor' ? 'floor-model' : 'rack-model'}`;
-    area.style.width = `${width}px`;
-    area.style.height = `${depth}px`;
-    area.style.transform = 'translate3d(0, 0, 0)';
-    area.innerHTML = `<span>${escapeHtml(shelf.label || shelf.name)}</span>`;
-    scene.append(area);
-
-    shelf.packages.forEach(item => {
-      renderModel3dItem(scene, shelf, item, 0, scale, zScale);
-    });
+    if (!window.THREE) {
+      const missing = document.createElement('div');
+      missing.className = 'model3d-missing';
+      missing.textContent = '3D library could not be loaded.';
+      viewport.append(missing);
+    } else {
+      createThreeAreaScene(viewport, shelf, view);
+    }
 
     card.append(viewport);
     grid.append(card);
-    applyModel3dTransform(scene);
-    attachModel3dZoomButtons(card, scene);
-    attachModel3dControls(viewport, scene);
+    attachModel3dZoomButtons(card, view);
   });
 
   els.model3d.innerHTML = '';
@@ -1896,59 +1954,201 @@ function modelHeightSummary(shelf) {
   return 'max height 65 cm / small 16 cm';
 }
 
-function renderModel3dItem(scene, shelf, item, xOffset, scale, zScale) {
+function modelViewState(id) {
+  if (!appState.model3d.views[id]) {
+    appState.model3d.views[id] = {
+      azimuth: -38,
+      elevation: 48,
+      zoom: 1.25,
+      targetX: 0,
+      targetY: 0.25,
+      targetZ: 0,
+      update: null
+    };
+  }
+  return appState.model3d.views[id];
+}
+
+function createThreeAreaScene(viewport, shelf, view) {
+  const widthCm = Math.max(1, shelf.columns || 1);
+  const depthCm = Math.max(1, effectiveRowsForShelf(shelf) || shelf.rows || 1);
+  const maxDim = Math.max(widthCm, depthCm, 100);
+  const scale = 8 / maxDim;
+  const heightScale = scale * 1.2;
+  const areaWidth = widthCm * scale;
+  const areaDepth = depthCm * scale;
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0xf6f8f8);
+
+  const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 1000);
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  viewport.append(renderer.domElement);
+
+  const root = new THREE.Group();
+  scene.add(root);
+
+  const floorMaterial = new THREE.MeshStandardMaterial({
+    color: placeKind(shelf) === 'floor' ? 0xf4efe6 : 0xe9f4f4,
+    roughness: 0.82,
+    metalness: 0.02
+  });
+  const floorMesh = new THREE.Mesh(new THREE.BoxGeometry(areaWidth, 0.08, areaDepth), floorMaterial);
+  floorMesh.position.y = -0.04;
+  floorMesh.receiveShadow = true;
+  root.add(floorMesh);
+
+  const edge = new THREE.LineSegments(
+    new THREE.EdgesGeometry(floorMesh.geometry),
+    new THREE.LineBasicMaterial({ color: 0x6f7d80, transparent: true, opacity: 0.55 })
+  );
+  edge.position.copy(floorMesh.position);
+  root.add(edge);
+
+  const grid = new THREE.GridHelper(Math.max(areaWidth, areaDepth), 12, 0xa8b6b8, 0xd2dddd);
+  grid.scale.x = areaWidth / Math.max(areaWidth, areaDepth);
+  grid.scale.z = areaDepth / Math.max(areaWidth, areaDepth);
+  grid.position.y = 0.02;
+  root.add(grid);
+
+  (shelf.packages || []).forEach(item => renderThreeItem(root, item, scale, heightScale, widthCm, depthCm));
+
+  const ambient = new THREE.HemisphereLight(0xffffff, 0xa8a09a, 2.1);
+  scene.add(ambient);
+  const key = new THREE.DirectionalLight(0xffffff, 2.2);
+  key.position.set(7, 10, 8);
+  key.castShadow = true;
+  key.shadow.mapSize.width = 1024;
+  key.shadow.mapSize.height = 1024;
+  scene.add(key);
+  const fill = new THREE.DirectionalLight(0xffffff, 0.75);
+  fill.position.set(-5, 4, -4);
+  scene.add(fill);
+
+  const labels = buildModel3dLabels(shelf);
+  viewport.append(labels);
+
+  const update = () => {
+    const distance = clamp(12 / view.zoom, 2.2, 34);
+    const azimuth = (view.azimuth * Math.PI) / 180;
+    const elevation = (view.elevation * Math.PI) / 180;
+    const target = new THREE.Vector3(view.targetX, view.targetY, view.targetZ);
+    camera.position.set(
+      target.x + (distance * Math.cos(elevation) * Math.sin(azimuth)),
+      target.y + (distance * Math.sin(elevation)),
+      target.z + (distance * Math.cos(elevation) * Math.cos(azimuth))
+    );
+    camera.lookAt(target);
+    renderer.render(scene, camera);
+  };
+  view.update = update;
+
+  const resize = () => {
+    const rect = viewport.getBoundingClientRect();
+    const width = Math.max(1, Math.floor(rect.width));
+    const height = Math.max(1, Math.floor(rect.height));
+    renderer.setSize(width, height, false);
+    camera.aspect = width / height;
+    camera.updateProjectionMatrix();
+    update();
+  };
+  resize();
+  requestAnimationFrame(resize);
+  if (window.ResizeObserver) {
+    const observer = new ResizeObserver(resize);
+    observer.observe(viewport);
+  } else {
+    window.addEventListener('resize', resize);
+  }
+  attachModel3dControls(viewport, view, camera);
+}
+
+function renderThreeItem(root, item, scale, heightScale, widthCm, depthCm) {
   const zone = zoneKind(item);
   const count = zone ? 1 : Math.min(stackCount(item), 12);
   const height = zone ? 3 : itemHeightCm(item);
-  const width = Math.max(5, (item.width_units || 1) * scale);
-  const depth = Math.max(5, (item.depth_units || 1) * scale);
-  const left = xOffset + ((item.column_index || 1) - 1) * scale;
-  const top = ((item.row_index || 1) - 1) * scale;
+  const boxWidth = Math.max(0.06, (item.width_units || 1) * scale);
+  const boxDepth = Math.max(0.06, (item.depth_units || 1) * scale);
+  const layerHeight = Math.max(0.06, height * heightScale);
+  const x = (((item.column_index || 1) - 1) + ((item.width_units || 1) / 2) - (widthCm / 2)) * scale;
+  const z = (((item.row_index || 1) - 1) + ((item.depth_units || 1) / 2) - (depthCm / 2)) * scale;
+  const color = zone === 'red' ? 0xea8a96 : zone === 'yellow' ? 0xf2d16d : 0xe6a447;
+  const material = new THREE.MeshStandardMaterial({
+    color,
+    roughness: 0.64,
+    metalness: 0.04,
+    transparent: Boolean(zone),
+    opacity: zone ? 0.46 : 0.96
+  });
+  const edgeMaterial = new THREE.LineBasicMaterial({ color: zone === 'red' ? 0x9f2331 : 0x5f4327, transparent: true, opacity: 0.55 });
 
   for (let index = 0; index < count; index += 1) {
-    const layer = document.createElement('div');
-    layer.className = `model3d-box ${index === count - 1 ? 'top-stack-layer' : ''} ${zone ? `${zone}-model-zone` : ''}`;
-    layer.style.width = `${width}px`;
-    layer.style.height = `${depth}px`;
-    layer.style.transform = `translate3d(${left}px, ${top}px, ${index * height * zScale}px)`;
-    layer.style.setProperty('--box-rise', `${Math.max(8, height * zScale)}px`);
-    layer.title = packageTooltip(item);
-    if (!zone && index === count - 1) {
-      layer.innerHTML = `<span class="model3d-box-label">h ${formatCm(height)} cm${count > 1 ? ` x${count}` : ''}</span>`;
-    }
-    scene.append(layer);
-  }
-
-  if (!zone) {
-    const label = document.createElement('span');
-    label.className = 'model3d-height-label';
-    label.textContent = `${formatCm(count * height)} cm`;
-    label.style.transform = `translate3d(${left}px, ${top}px, ${Math.max(1, count * height * zScale)}px)`;
-    scene.append(label);
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(boxWidth, layerHeight, boxDepth), material);
+    mesh.position.set(x, (layerHeight / 2) + (index * layerHeight), z);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    root.add(mesh);
+    const outline = new THREE.LineSegments(new THREE.EdgesGeometry(mesh.geometry), edgeMaterial);
+    outline.position.copy(mesh.position);
+    root.add(outline);
   }
 }
 
-function applyModel3dTransform(scene) {
-  scene.style.transform = `translate(-50%, -50%) rotateX(${appState.model3d.rotX}deg) rotateZ(${appState.model3d.rotZ}deg) scale(${appState.model3d.zoom})`;
+function buildModel3dLabels(shelf) {
+  const labels = document.createElement('div');
+  labels.className = 'model3d-labels';
+  labels.innerHTML = `
+    <span class="model3d-area-label">${escapeHtml(shelf.label || shelf.name)}</span>
+    ${(shelf.packages || []).slice(0, 10).map(item => `
+      <span class="${zoneKind(item) ? 'zone-label' : ''}">
+        ${escapeHtml(item.package_name)}
+        ${zoneKind(item) ? escapeHtml(zoneKind(item)) : `${formatCm(stackTotalHeightCm(item))} cm`}
+      </span>
+    `).join('')}
+  `;
+  return labels;
 }
 
-function attachModel3dControls(viewport, scene) {
+function attachModel3dControls(viewport, view, camera) {
   let pointer = null;
+  viewport.addEventListener('contextmenu', event => event.preventDefault());
   viewport.addEventListener('pointerdown', event => {
+    event.preventDefault();
+    const panMode = event.button === 2 || event.ctrlKey || event.metaKey;
     pointer = {
       id: event.pointerId,
       x: event.clientX,
       y: event.clientY,
-      rotX: appState.model3d.rotX,
-      rotZ: appState.model3d.rotZ
+      azimuth: view.azimuth,
+      elevation: view.elevation,
+      targetX: view.targetX,
+      targetY: view.targetY,
+      targetZ: view.targetZ,
+      panMode
     };
     viewport.setPointerCapture(event.pointerId);
   });
   viewport.addEventListener('pointermove', event => {
     if (!pointer || pointer.id !== event.pointerId) return;
-    appState.model3d.rotZ = pointer.rotZ + ((event.clientX - pointer.x) * 0.28);
-    appState.model3d.rotX = clamp(pointer.rotX - ((event.clientY - pointer.y) * 0.22), 35, 76);
-    applyModel3dTransform(scene);
+    event.preventDefault();
+    const dx = event.clientX - pointer.x;
+    const dy = event.clientY - pointer.y;
+    if (pointer.panMode) {
+      const panScale = 0.018 / Math.max(0.5, view.zoom);
+      const right = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0).multiplyScalar(-dx * panScale);
+      const up = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 1).multiplyScalar(dy * panScale);
+      const move = right.add(up);
+      view.targetX = pointer.targetX + move.x;
+      view.targetY = pointer.targetY + move.y;
+      view.targetZ = pointer.targetZ + move.z;
+    } else {
+      view.azimuth = pointer.azimuth - (dx * 0.32);
+      view.elevation = clamp(pointer.elevation + (dy * 0.24), 12, 78);
+    }
+    view.update?.();
   });
   const clear = event => {
     if (!pointer || pointer.id !== event.pointerId) return;
@@ -1958,23 +2158,26 @@ function attachModel3dControls(viewport, scene) {
   viewport.addEventListener('pointercancel', clear);
   viewport.addEventListener('wheel', event => {
     event.preventDefault();
-    appState.model3d.zoom = clamp(appState.model3d.zoom - (event.deltaY * 0.002), 0.45, 4.5);
-    applyModel3dTransform(scene);
+    view.zoom = clamp(view.zoom - (event.deltaY * 0.003), 0.35, 7);
+    view.update?.();
   }, { passive: false });
 }
 
-function attachModel3dZoomButtons(card, scene) {
+function attachModel3dZoomButtons(card, view) {
   card.querySelectorAll('[data-model-zoom]').forEach(button => {
     button.addEventListener('click', () => {
       const action = button.dataset.modelZoom;
-      if (action === 'in') appState.model3d.zoom = clamp(appState.model3d.zoom + 0.35, 0.45, 4.5);
-      if (action === 'out') appState.model3d.zoom = clamp(appState.model3d.zoom - 0.35, 0.45, 4.5);
+      if (action === 'in') view.zoom = clamp(view.zoom + 0.45, 0.35, 7);
+      if (action === 'out') view.zoom = clamp(view.zoom - 0.45, 0.35, 7);
       if (action === 'reset') {
-        appState.model3d.zoom = 1;
-        appState.model3d.rotX = 58;
-        appState.model3d.rotZ = -34;
+        view.zoom = 1.25;
+        view.azimuth = -38;
+        view.elevation = 48;
+        view.targetX = 0;
+        view.targetY = 0.25;
+        view.targetZ = 0;
       }
-      applyModel3dTransform(scene);
+      view.update?.();
     });
   });
 }
@@ -2144,22 +2347,30 @@ async function submitPackage(event) {
   const height = cmInputToCm(payload.heightUnits, 45);
   const quantity = stackCount(payload.quantity);
   const totalHeight = height * quantity;
-  if (selectedShelf && payloadZone !== 'red' && touchesForbiddenArea(selectedShelf, {
+  const candidateRect = {
     row: cmInputToCm(payload.rowIndex, 1),
     column: cmInputToCm(payload.columnIndex, 1),
     width: cmInputToCm(payload.widthUnits, 100),
     depth: cmInputToCm(payload.depthUnits, 100)
+  };
+  if (selectedShelf && payloadZone !== 'red' && touchesForbiddenArea(selectedShelf, {
+    row: candidateRect.row,
+    column: candidateRect.column,
+    width: candidateRect.width,
+    depth: candidateRect.depth
   })) {
     showMessage('This red zone is blocked. Do not place items there.', 'error');
     return;
   }
   if (selectedShelf && !payloadZone) {
     const maxHeight = maxStackHeightForShelf(selectedShelf, {
-      row: cmInputToCm(payload.rowIndex, 1),
-      column: cmInputToCm(payload.columnIndex, 1)
+      row: candidateRect.row,
+      column: candidateRect.column
     });
-    if (totalHeight > maxHeight) {
-      showMessage(`Stack is too high: ${formatCm(totalHeight)} cm, max ${formatCm(maxHeight)} cm here.`, 'error');
+    const existingOverlapHeight = floorStackOverlapHeight(selectedShelf, candidateRect, payload.packageId);
+    const combinedHeight = totalHeight + existingOverlapHeight;
+    if (combinedHeight > maxHeight) {
+      showMessage(`Stack is too high: ${formatCm(combinedHeight)} cm total, max ${formatCm(maxHeight)} cm here.`, 'error');
       return;
     }
   }
