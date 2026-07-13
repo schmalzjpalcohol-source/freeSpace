@@ -18,6 +18,13 @@ function metersToCm(value, fallbackMeters, maxMeters = 1000) {
   return Math.max(1, Number((meters * 100).toFixed(1)));
 }
 
+function zoneKind(item) {
+  const text = `${item.package_name || ''} ${item.note || ''}`.toLowerCase();
+  if (text.includes('zone:red') || text.includes('red no-place') || text.includes('blocked') || text.includes('rot') || text.includes('verbot') || text.includes('nicht abstellen')) return 'red';
+  if (text.includes('zone:yellow') || text.includes('yellow reserve') || text.includes('gelb') || text.includes('reserve')) return 'yellow';
+  return '';
+}
+
 function placePayload(body) {
   const name = String(body.name || '').trim();
   if (!name) {
@@ -70,16 +77,19 @@ module.exports = async function handler(req, res) {
   try {
     if (req.method === 'GET') {
       const places = await supabaseFetch('shelves?select=*&order=location_type.asc,name.asc');
-      const packages = await supabaseFetch('packages?select=shelf_id,width_units,depth_units');
+      const packages = await supabaseFetch('packages?select=shelf_id,width_units,depth_units,package_name,note');
       const enriched = places.map(place => {
         const placePackages = packages.filter(item => item.shelf_id === place.id);
-        const usedPlaces = placePackages.reduce((sum, item) => sum + (item.width_units || 1) * (item.depth_units || 1), 0);
+        const usedPlaces = placePackages
+          .filter(item => !zoneKind(item))
+          .reduce((sum, item) => sum + (item.width_units || 1) * (item.depth_units || 1), 0);
+        const unavailablePlaces = placePackages.reduce((sum, item) => sum + (item.width_units || 1) * (item.depth_units || 1), 0);
         const totalPlaces = place.rows * place.columns;
         return {
           ...place,
           packageCount: placePackages.length,
           usedPlaces,
-          freePlaces: Math.max(0, totalPlaces - usedPlaces),
+          freePlaces: Math.max(0, totalPlaces - unavailablePlaces),
           totalPlaces
         };
       });

@@ -28,6 +28,28 @@ function packageArea(item) {
   return Math.max(1, item.width_units || 1) * Math.max(1, item.depth_units || 1);
 }
 
+function zoneKind(item) {
+  const text = `${item.package_name || ''} ${item.note || ''}`.toLowerCase();
+  if (text.includes('zone:red') || text.includes('red no-place') || text.includes('blocked') || text.includes('rot') || text.includes('verbot') || text.includes('nicht abstellen')) return 'red';
+  if (text.includes('zone:yellow') || text.includes('yellow reserve') || text.includes('gelb') || text.includes('reserve')) return 'yellow';
+  return '';
+}
+
+function isZoneItem(item) {
+  return Boolean(zoneKind(item));
+}
+
+function canOverlap(candidate, item) {
+  const candidateZone = zoneKind({
+    package_name: candidate.packageName || '',
+    note: candidate.note || ''
+  });
+  const itemZone = zoneKind(item);
+  if (candidateZone === 'red') return false;
+  if (candidateZone === 'yellow') return itemZone !== 'red';
+  return itemZone === 'yellow';
+}
+
 function overlaps(a, b) {
   return (
     a.columnIndex < b.columnIndex + b.widthUnits &&
@@ -100,12 +122,15 @@ function buildOverview(shelves, packages) {
   return shelves.map(shelf => {
     const shelfPackages = packages.filter(item => item.shelf_id === shelf.id);
     const totalPlaces = shelf.rows * shelf.columns;
-    const usedPlaces = shelfPackages.reduce((sum, item) => sum + packageArea(item), 0);
+    const usedPlaces = shelfPackages
+      .filter(item => !isZoneItem(item))
+      .reduce((sum, item) => sum + packageArea(item), 0);
+    const unavailablePlaces = shelfPackages.reduce((sum, item) => sum + packageArea(item), 0);
     return {
       ...shelf,
       totalPlaces,
       usedPlaces,
-      freePlaces: Math.max(0, totalPlaces - usedPlaces),
+      freePlaces: Math.max(0, totalPlaces - unavailablePlaces),
       packages: shelfPackages
     };
   });
@@ -118,8 +143,12 @@ async function assertPlaceFree(shelf, candidate, excludeId) {
     throw error;
   }
 
-  const shelfPackages = await supabaseFetch(`packages?shelf_id=eq.${shelf.id}&select=id,row_index,column_index,width_units,depth_units,package_name`);
-  const collision = shelfPackages.find(item => item.id !== excludeId && overlaps(candidate, packageRect(item)));
+  const shelfPackages = await supabaseFetch(`packages?shelf_id=eq.${shelf.id}&select=id,row_index,column_index,width_units,depth_units,package_name,note`);
+  const collision = shelfPackages.find(item => (
+    item.id !== excludeId &&
+    overlaps(candidate, packageRect(item)) &&
+    !canOverlap(candidate, item)
+  ));
   if (collision) {
     const error = new Error(`This area is already occupied by ${collision.package_name}.`);
     error.status = 409;
@@ -164,7 +193,7 @@ module.exports = async function handler(req, res) {
         return;
       }
 
-      await assertPlaceFree(shelf, { rowIndex, columnIndex, widthUnits, depthUnits });
+      await assertPlaceFree(shelf, { rowIndex, columnIndex, widthUnits, depthUnits, packageName, note: body.note });
 
       const inserted = await supabaseFetch('packages', {
         method: 'POST',
@@ -206,7 +235,7 @@ module.exports = async function handler(req, res) {
         return;
       }
 
-      await assertPlaceFree(shelf, { rowIndex, columnIndex, widthUnits, depthUnits }, id);
+      await assertPlaceFree(shelf, { rowIndex, columnIndex, widthUnits, depthUnits, packageName, note: body.note }, id);
 
       const updated = await supabaseFetch(`packages?id=eq.${encodeURIComponent(id)}`, {
         method: 'PATCH',

@@ -669,7 +669,7 @@ select:hover {
   min-height: 240px;
   border: 2px solid var(--line-strong);
   border-radius: 8px;
-  overflow: hidden;
+  overflow: visible;
   padding: 0;
   background-color: #ffffff;
   background-image:
@@ -710,6 +710,18 @@ select:hover {
   background: var(--primary);
   transform-origin: left center;
   box-shadow: 0 1px 5px rgba(20, 32, 34, 0.18);
+}
+
+.measure-box {
+  position: absolute;
+  min-width: 2px;
+  min-height: 2px;
+  border: 2px solid var(--primary);
+  border-radius: 6px;
+  background: rgba(15, 118, 110, 0.12);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.58),
+    0 8px 18px rgba(20, 32, 34, 0.12);
 }
 
 .measure-label {
@@ -775,6 +787,14 @@ select:hover {
   color: #721424;
 }
 
+.package-rect.reserve-zone {
+  border-color: rgba(201, 133, 40, 0.9);
+  background:
+    repeating-linear-gradient(135deg, rgba(201, 133, 40, 0.22) 0 8px, rgba(255, 255, 255, 0.58) 8px 15px),
+    #fff2bf;
+  color: #5b3a08;
+}
+
 .package-rect.stacked-zone {
   box-shadow:
     7px 7px 0 rgba(201, 133, 40, 0.28),
@@ -815,6 +835,7 @@ select:hover {
 .package-rect:hover {
   transform: none;
   border-color: var(--accent);
+  z-index: 30;
   box-shadow:
     inset 0 0 0 1px rgba(255, 255, 255, 0.54),
     0 14px 30px rgba(20, 32, 34, 0.2);
@@ -1156,6 +1177,20 @@ select:hover {
   background:
     repeating-linear-gradient(135deg, rgba(180, 35, 53, 0.2) 0 5px, rgba(255, 255, 255, 0.54) 5px 10px),
     #ffe2e5;
+}
+
+.red-preset .preset-preview i {
+  border-color: rgba(180, 35, 53, 0.72);
+  background:
+    repeating-linear-gradient(135deg, rgba(180, 35, 53, 0.2) 0 5px, rgba(255, 255, 255, 0.54) 5px 10px),
+    #ffe2e5;
+}
+
+.yellow-preset .preset-preview i {
+  border-color: rgba(201, 133, 40, 0.76);
+  background:
+    repeating-linear-gradient(135deg, rgba(201, 133, 40, 0.2) 0 5px, rgba(255, 255, 255, 0.58) 5px 10px),
+    #fff2bf;
 }
 
 .preset-label {

@@ -65,19 +65,19 @@ const planPlaces = {
     title: 'Floor area 1 - 880 x 380',
     rows: 380,
     columns: 880,
-    notes: 'Blocked area top right 100 x 80 cm'
+    notes: 'Floor max height 100 cm'
   },
   rack: {
     title: 'Rack 600 x 450',
     rows: 450,
     columns: 600,
-    notes: '4 rack levels 600 x 90 cm, small rack 150 x 90 cm, height 16 cm'
+    notes: 'Rack levels max height 65 cm, small rack max height 16 cm'
   },
   'floor-long': {
     title: 'Floor area 2 - 380 x 740',
     rows: 740,
     columns: 380,
-    notes: 'Blocked area top left 70 x 380 cm'
+    notes: 'Floor max height 100 cm'
   }
 };
 
@@ -143,10 +143,11 @@ function placeLabel(kind) {
 }
 
 function packageTooltip(item) {
+  const zone = zoneKind(item);
   const parts = [
     item.package_name,
     formatSizeCm(item.width_units || 1, item.depth_units || 1),
-    `${item.quantity || 1}x`
+    zone ? `${zone} zone` : `${item.quantity || 1}x`
   ];
   if (isStackedItem(item)) parts.push('stacked');
   if (item.note) parts.push(item.note);
@@ -176,6 +177,23 @@ function formatSizeCm(width, depth) {
 
 function formatMeasureCm(cm) {
   return `${formatDecimal(cm)} cm`;
+}
+
+function formatAreaCm2(area) {
+  return `${formatDecimal(Math.max(0, Number(area) || 0))} cm2`;
+}
+
+function rectArea(rect) {
+  return Math.max(0, rect.width || 0) * Math.max(0, rect.depth || 0);
+}
+
+function rectIntersection(a, b) {
+  const left = Math.max(a.column, b.column);
+  const top = Math.max(a.row, b.row);
+  const right = Math.min(a.column + a.width, b.column + b.width);
+  const bottom = Math.min(a.row + a.depth, b.row + b.depth);
+  if (right <= left || bottom <= top) return null;
+  return { column: left, row: top, width: right - left, depth: bottom - top };
 }
 
 function inputCm(cm) {
@@ -216,8 +234,7 @@ function maxFreeRunCm(shelf) {
 }
 
 function lengthSummary(shelf) {
-  const freeRun = maxFreeRunCm(shelf);
-  return `${formatCm(freeRun)} cm available length`;
+  return `${formatAreaCm2(freeAreaCm2(shelf))} free`;
 }
 
 function rackLevelSpecs(shelf) {
@@ -231,10 +248,10 @@ function rackLevelSpecs(shelf) {
   };
   const small = levelRange(5);
   return [
-    { level: 1, label: 'Rack level 1', ...levelRange(1), xStart: 1, xEnd: width, short: false },
-    { level: 2, label: 'Rack level 2', ...levelRange(2), xStart: 1, xEnd: width, short: false },
-    { level: 3, label: 'Rack level 3', ...levelRange(3), xStart: 1, xEnd: width, short: false },
-    { level: 4, label: 'Rack level 4', ...levelRange(4), xStart: 1, xEnd: width, short: false },
+    { level: 1, label: 'Rack level 1', ...levelRange(1), xStart: 1, xEnd: width, short: false, heightLabel: 'max height 65 cm' },
+    { level: 2, label: 'Rack level 2', ...levelRange(2), xStart: 1, xEnd: width, short: false, heightLabel: 'max height 65 cm' },
+    { level: 3, label: 'Rack level 3', ...levelRange(3), xStart: 1, xEnd: width, short: false, heightLabel: 'max height 65 cm' },
+    { level: 4, label: 'Rack level 4', ...levelRange(4), xStart: 1, xEnd: width, short: false, heightLabel: 'max height 65 cm' },
     { level: 5, label: 'Small rack', ...small, xStart: Math.max(1, width - 149), xEnd: width, short: true, heightLabel: '150 x 90 cm, height 16 cm' }
   ];
 }
@@ -295,6 +312,30 @@ function rackLevelFreeRunCm(shelf, level) {
   });
 }
 
+function rackLevelFreeAreaCm2(shelf, level) {
+  const range = rackLevelRange(shelf, level);
+  return freeAreaCm2({
+    ...shelf,
+    rows: range.height,
+    columns: range.width,
+    packages: shelf.packages
+      .filter(item => packageInRackLevel(item, range))
+      .map(item => {
+        const clippedTop = Math.max(item.row_index, range.start);
+        const clippedBottom = Math.min(item.row_index + (item.depth_units || 1) - 1, range.end);
+        const clippedLeft = Math.max(item.column_index, range.xStart);
+        const clippedRight = Math.min(item.column_index + (item.width_units || 1) - 1, range.xEnd);
+        return {
+          ...item,
+          row_index: clippedTop - range.start + 1,
+          column_index: clippedLeft - range.xStart + 1,
+          width_units: Math.max(1, clippedRight - clippedLeft + 1),
+          depth_units: Math.max(1, clippedBottom - clippedTop + 1)
+        };
+      })
+  });
+}
+
 function draftInRackRange(shelf, range, cell, size) {
   const savingShelf = shelfForSaving(shelf);
   const width = Math.min(size.width, range.width);
@@ -326,24 +367,24 @@ function rackGlobalDraft(shelf, range, localDraft) {
   );
 }
 
-function activeRackMeasurement(shelf, level) {
+function activeMeasurement(shelf, level = null) {
   const measurement = appState.measurement;
   if (!measurement || measurement.shelfId !== shelf.id || measurement.level !== level) return null;
   return measurement;
 }
 
-function isRackMeasuring(shelf, level) {
-  const measurement = activeRackMeasurement(shelf, level);
+function isMeasuring(shelf, level = null) {
+  const measurement = activeMeasurement(shelf, level);
   return Boolean(measurement && measurement.active);
 }
 
-function clearRackMeasurement() {
+function clearMeasurement() {
   appState.measurement = null;
 }
 
-function toggleRackMeasurement(shelf, level) {
-  if (isRackMeasuring(shelf, level)) {
-    clearRackMeasurement();
+function toggleMeasurement(shelf, level = null) {
+  if (isMeasuring(shelf, level)) {
+    clearMeasurement();
     return;
   }
   appState.measurement = {
@@ -351,33 +392,53 @@ function toggleRackMeasurement(shelf, level) {
     shelfId: shelf.id,
     level,
     start: null,
+    current: null,
     end: null
   };
 }
 
-function setRackMeasurePoint(shelf, level, point) {
-  const measurement = activeRackMeasurement(shelf, level) || {
+function startMeasurement(shelf, level, point) {
+  const measurement = activeMeasurement(shelf, level) || {
     active: true,
     shelfId: shelf.id,
     level,
     start: null,
+    current: null,
     end: null
   };
-  if (!measurement.start || measurement.end) {
-    measurement.start = point;
-    measurement.end = null;
-  } else {
-    measurement.end = point;
-  }
+  measurement.start = point;
+  measurement.current = point;
+  measurement.end = null;
   appState.measurement = measurement;
   return measurement;
 }
 
-function measureDistanceCm(measurement) {
-  if (!measurement?.start || !measurement?.end) return 0;
-  const dx = measurement.end.column - measurement.start.column;
-  const dy = measurement.end.row - measurement.start.row;
-  return Math.hypot(dx, dy);
+function updateMeasurement(shelf, level, point, done = false) {
+  const measurement = activeMeasurement(shelf, level);
+  if (!measurement?.start) return null;
+  measurement.current = point;
+  measurement.end = done ? point : null;
+  appState.measurement = measurement;
+  return measurement;
+}
+
+function measurementRect(measurement) {
+  if (!measurement?.start) return null;
+  const end = measurement.end || measurement.current || measurement.start;
+  const width = Math.abs(end.column - measurement.start.column);
+  const depth = Math.abs(end.row - measurement.start.row);
+  return {
+    column: Math.min(measurement.start.column, end.column),
+    row: Math.min(measurement.start.row, end.row),
+    width,
+    depth
+  };
+}
+
+function measureSummary(measurement) {
+  const rect = measurementRect(measurement);
+  if (!rect) return '';
+  return `${formatCm(rect.width)} x ${formatCm(rect.depth)} cm = ${formatAreaCm2(rectArea(rect))}`;
 }
 
 function findFreeRackDraft(shelf, range, size) {
@@ -388,22 +449,87 @@ function findFreeRackDraft(shelf, range, size) {
   for (let row = range.start; row <= range.end - depth + 1; row += step) {
     for (let column = range.xStart; column <= range.xEnd - width + 1; column += step) {
       const draft = { row, column, width, depth };
-      const collision = shelf.packages.some(item => rectsOverlap(draftRect(draft), packageRect(item)));
+      const collision = shelf.packages.some(item => !isYellowZone(item) && rectsOverlap(draftRect(draft), packageRect(item)));
       if (!collision) return draft;
     }
   }
 
   const fallback = { row: range.start, column: range.xStart, width, depth };
-  return shelf.packages.some(item => rectsOverlap(draftRect(fallback), packageRect(item))) ? null : fallback;
+  return shelf.packages.some(item => !isYellowZone(item) && rectsOverlap(draftRect(fallback), packageRect(item))) ? null : fallback;
+}
+
+function findFreeDraft(shelf, size) {
+  const width = Math.min(size.width, shelf.columns);
+  const depth = Math.min(size.depth, shelf.rows);
+  const step = Math.max(1, Math.min(10, Math.round(Math.min(width, depth) / 4)));
+
+  for (let row = 1; row <= shelf.rows - depth + 1; row += step) {
+    for (let column = 1; column <= shelf.columns - width + 1; column += step) {
+      const draft = { row, column, width, depth };
+      const collision = shelf.packages.some(item => !isYellowZone(item) && rectsOverlap(draftRect(draft), packageRect(item)));
+      if (!collision) return draft;
+    }
+  }
+
+  const fallback = { row: 1, column: 1, width, depth };
+  return shelf.packages.some(item => !isYellowZone(item) && rectsOverlap(draftRect(fallback), packageRect(item))) ? null : fallback;
 }
 
 function totalFreeRun(shelves) {
   return shelves.reduce((sum, shelf) => sum + maxFreeRunCm(shelf), 0);
 }
 
+function totalFreeArea(shelves) {
+  return shelves.reduce((sum, shelf) => sum + freeAreaCm2(shelf), 0);
+}
+
 function isBlockedItem(item) {
+  return zoneKind(item) === 'red';
+}
+
+function zoneKind(item) {
   const text = `${item.package_name || ''} ${item.note || ''}`.toLowerCase();
-  return text.includes('sperr') || text.includes('rot') || text.includes('verbot') || text.includes('nicht abstellen');
+  if (text.includes('zone:red') || text.includes('red no-place') || text.includes('blocked') || text.includes('rot') || text.includes('verbot') || text.includes('nicht abstellen')) return 'red';
+  if (text.includes('zone:yellow') || text.includes('yellow reserve') || text.includes('gelb') || text.includes('reserve')) return 'yellow';
+  return '';
+}
+
+function isZoneItem(item) {
+  return Boolean(zoneKind(item));
+}
+
+function isYellowZone(item) {
+  return zoneKind(item) === 'yellow';
+}
+
+function occupiedAreaCm2(shelf, predicate = () => true) {
+  const bounds = { column: 1, row: 1, width: shelf.columns || 1, depth: effectiveRowsForShelf(shelf) || shelf.rows || 1 };
+  const rects = shelf.packages
+    .filter(predicate)
+    .map(item => rectIntersection(bounds, packageRect(item)))
+    .filter(Boolean);
+
+  return rects.reduce((sum, rect, index) => {
+    let visible = rectArea(rect);
+    for (let previous = 0; previous < index; previous += 1) {
+      const overlap = rectIntersection(rect, rects[previous]);
+      if (overlap) visible -= rectArea(overlap);
+    }
+    return sum + Math.max(0, visible);
+  }, 0);
+}
+
+function freeAreaCm2(shelf) {
+  const total = (shelf.columns || 0) * (effectiveRowsForShelf(shelf) || shelf.rows || 0);
+  return Math.max(0, total - occupiedAreaCm2(shelf));
+}
+
+function itemAreaCm2(shelf) {
+  return occupiedAreaCm2(shelf, item => !isZoneItem(item));
+}
+
+function zoneAreaCm2(shelf) {
+  return occupiedAreaCm2(shelf, isZoneItem);
 }
 
 function isStackedItem(item) {
@@ -463,27 +589,6 @@ function draftFromCorners(start, end, shelf) {
   return draftAtCell({ column, row }, shelf, { width, depth });
 }
 
-function forbiddenRect(shelf) {
-  const role = planRole(shelf);
-  if (role === 'floor-main') {
-    return {
-      column: Math.max(1, shelf.columns - 100 + 1),
-      row: 1,
-      width: Math.min(100, shelf.columns),
-      depth: Math.min(80, shelf.rows)
-    };
-  }
-  if (role === 'floor-long') {
-    return {
-      column: 1,
-      row: 1,
-      width: Math.min(70, shelf.columns),
-      depth: Math.min(380, shelf.rows)
-    };
-  }
-  return null;
-}
-
 function draftRect(draft) {
   return {
     column: draft.column ?? draft.columnIndex ?? 1,
@@ -503,8 +608,8 @@ function rectsOverlap(a, b) {
 }
 
 function touchesForbiddenArea(shelf, draft) {
-  const blocked = forbiddenRect(shelf);
-  return Boolean(blocked && rectsOverlap(draftRect(draft), blocked));
+  const rect = draftRect(draft);
+  return shelf.packages.some(item => isBlockedItem(item) && rectsOverlap(rect, packageRect(item)));
 }
 
 function selectedDraft() {
@@ -566,7 +671,7 @@ function applyDraftSelection(shelf, draft) {
     return false;
   }
   if (touchesForbiddenArea(shelf, draft)) {
-    showMessage('This corner is blocked. Do not place items there.', 'error');
+    showMessage('This red zone is blocked. Do not place items there.', 'error');
     return false;
   }
   appState.selected = { shelf, row: draft.row, column: draft.column };
@@ -660,8 +765,8 @@ function setActiveView(view) {
   appState.activeView = view;
   els.packageView.classList.toggle('hidden', view !== 'packages');
   els.placeView.classList.toggle('hidden', view !== 'places');
-  els.packagesTab.classList.toggle('active', view === 'packages');
-  els.placesTab.classList.toggle('active', view === 'places');
+  els.packagesTab?.classList.toggle('active', view === 'packages');
+  els.placesTab?.classList.toggle('active', view === 'places');
   render();
 }
 
@@ -705,9 +810,9 @@ function render() {
   const shelfPlaces = appState.shelves.filter(shelf => placeKind(shelf) === 'shelf');
   const planShelves = selectedPlanShelves(shelfPlaces, floorPlaces);
   const oldPlaces = appState.shelves.filter(shelf => !planPlaceRole(shelf));
-  const freeLength = totalFreeRun(planShelves);
+  const freeArea = totalFreeArea(planShelves);
   els.summaryText.textContent = planShelves.length
-    ? `${formatCm(freeLength)} cm usable available length across the 3 layout areas.${oldPlaces.length ? ` ${oldPlaces.length} old area hidden.` : ''}`
+    ? `${formatAreaCm2(freeArea)} free area across the 3 layout areas.${oldPlaces.length ? ` ${oldPlaces.length} old area hidden.` : ''}`
     : `The 3 layout areas have not been created yet.${oldPlaces.length ? ` ${oldPlaces.length} old area is listed under Manage areas.` : ''}`;
 
   renderOverview(
@@ -856,13 +961,18 @@ function renderPlanSlot(role, shelf) {
     <div class="stats">
       <span class="stat">${formatSizeCm(displayShelf.columns, displayShelf.rows)}</span>
       <span class="stat">${shelf ? lengthSummary(displayShelf) : 'not created yet'}</span>
-      ${role === 'rack' ? '<span class="stat">4 rack levels 600 x 90 cm + small rack</span>' : ''}
+      ${role === 'rack' ? '<span class="stat">rack height 65 cm / small 16 cm</span>' : '<span class="stat">max height 100 cm</span>'}
     </div>
   `;
   slot.append(meta);
 
   if (shelf) {
-    slot.append(role === 'rack' ? renderRackDisplay(displayShelf) : renderPlaceCanvas(displayShelf, kind, role));
+    if (role === 'rack') {
+      slot.append(renderRackDisplay(displayShelf));
+    } else {
+      slot.append(renderPlaceTools(displayShelf));
+      slot.append(renderPlaceCanvas(displayShelf, kind, role));
+    }
   } else {
     slot.append(renderPlanPlaceholder(role, displayShelf));
   }
@@ -904,7 +1014,7 @@ function renderRackDisplay(shelf) {
     button.className = `rack-level ${range.short ? 'short-level' : ''} ${appState.activeRackLevel === level ? 'active' : ''}`;
     button.innerHTML = `
       <span>${escapeHtml(range.label)}</span>
-      <strong>${formatCm(rackLevelFreeRunCm(shelf, level))} cm free</strong>
+      <strong>${formatAreaCm2(rackLevelFreeAreaCm2(shelf, level))} free</strong>
       <small>${range.heightLabel || `${packages.length} positions`}</small>
       ${range.short ? '<i class="short-shelf-mark" aria-hidden="true"></i>' : ''}
     `;
@@ -925,13 +1035,24 @@ function renderRackDisplay(shelf) {
 function renderRackTools(shelf, level) {
   const tools = document.createElement('div');
   tools.className = 'rack-tools';
-  const measurement = activeRackMeasurement(shelf, level);
+  const range = rackLevelRange(shelf, level);
+  const nextButton = document.createElement('button');
+  nextButton.type = 'button';
+  nextButton.className = 'ghost next-free-button';
+  nextButton.textContent = 'Next free place';
+  nextButton.addEventListener('click', () => {
+    applyDraftSelection(shelf, findFreeRackDraft(shelf, range, currentPackageSize()));
+    render();
+  });
+  tools.append(nextButton);
+
+  const measurement = activeMeasurement(shelf, level);
   const button = document.createElement('button');
   button.type = 'button';
   button.className = `measure-toggle ${measurement?.active ? 'active' : ''}`;
-  button.innerHTML = '<span class="measure-icon" aria-hidden="true"></span><span>Measure</span>';
+  button.innerHTML = '<span class="measure-icon" aria-hidden="true"></span><span>Measure cm2</span>';
   button.addEventListener('click', () => {
-    toggleRackMeasurement(shelf, level);
+    toggleMeasurement(shelf, level);
     render();
   });
   tools.append(button);
@@ -939,14 +1060,47 @@ function renderRackTools(shelf, level) {
   const label = document.createElement('span');
   label.className = 'measure-status';
   if (!measurement?.active) {
-    label.textContent = 'Pick point 1, then point 2';
+    label.textContent = 'Drag to measure width, depth, and area';
   } else if (!measurement.start) {
-    label.textContent = 'Pick point 1';
-  } else if (!measurement.end) {
-    label.textContent = 'Pick point 2';
+    label.textContent = 'Click and drag on the drawing';
   } else {
-    label.textContent = `Measured: ${formatMeasureCm(measureDistanceCm(measurement))}`;
+    label.textContent = `Measured: ${measureSummary(measurement)}`;
   }
+  tools.append(label);
+  return tools;
+}
+
+function renderPlaceTools(shelf) {
+  const tools = document.createElement('div');
+  tools.className = 'rack-tools';
+  const nextButton = document.createElement('button');
+  nextButton.type = 'button';
+  nextButton.className = 'ghost next-free-button';
+  nextButton.textContent = 'Next free place';
+  nextButton.addEventListener('click', () => {
+    applyDraftSelection(shelf, findFreeDraft(shelf, currentPackageSize()));
+    render();
+  });
+  tools.append(nextButton);
+
+  const measurement = activeMeasurement(shelf);
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = `measure-toggle ${measurement?.active ? 'active' : ''}`;
+  button.innerHTML = '<span class="measure-icon" aria-hidden="true"></span><span>Measure cm2</span>';
+  button.addEventListener('click', () => {
+    toggleMeasurement(shelf);
+    render();
+  });
+  tools.append(button);
+
+  const label = document.createElement('span');
+  label.className = 'measure-status';
+  label.textContent = !measurement?.active
+    ? 'Drag to measure width, depth, and area'
+    : measurement.start
+      ? `Measured: ${measureSummary(measurement)}`
+      : 'Click and drag on the drawing';
   tools.append(label);
   return tools;
 }
@@ -954,7 +1108,8 @@ function renderRackTools(shelf, level) {
 function renderRackLevelDetail(shelf, level) {
   const range = rackLevelRange(shelf, level);
   const canvas = document.createElement('div');
-  const measurement = activeRackMeasurement(shelf, level);
+  const measurement = activeMeasurement(shelf, level);
+  let measuringPointer = null;
   canvas.className = `rack-level-detail place-canvas ${range.short ? 'short-rack-detail' : ''}`;
   canvas.style.setProperty('--cols', 1);
   canvas.style.setProperty('--rows', 1);
@@ -984,6 +1139,7 @@ function renderRackLevelDetail(shelf, level) {
     const visibleWidth = Math.max(1, clippedRight - clippedLeft + 1);
     rectangle.className = `package-rect rack-package ${selectedPackage ? 'selected' : ''}`;
     rectangle.classList.toggle('blocked-zone', isBlockedItem(displayItem));
+    rectangle.classList.toggle('reserve-zone', isYellowZone(displayItem));
     rectangle.classList.toggle('stacked-zone', isStackedItem(displayItem));
     rectangle.type = 'button';
     rectangle.style.left = `${((clippedLeft - range.xStart) / range.width) * 100}%`;
@@ -1032,11 +1188,14 @@ function renderRackLevelDetail(shelf, level) {
   }
 
   canvas.addEventListener('pointerdown', event => {
-    if (isRackMeasuring(shelf, level)) {
+    if (isMeasuring(shelf, level)) {
       event.preventDefault();
+      event.stopPropagation();
       const point = canvasMeasurePointFromEvent(event, canvas, { ...shelf, columns: range.width, rows: range.height });
-      setRackMeasurePoint(shelf, level, point);
-      render();
+      measuringPointer = event.pointerId;
+      startMeasurement(shelf, level, point);
+      canvas.setPointerCapture(event.pointerId);
+      canvas.querySelector('.measure-overlay')?.replaceWith(renderMeasureOverlay(activeMeasurement(shelf, level), range));
       return;
     }
     if (event.target.closest('.package-rect, .draft-marker')) return;
@@ -1045,6 +1204,30 @@ function renderRackLevelDetail(shelf, level) {
     applyDraftSelection(shelf, draftInRackRange(shelf, range, cell, currentPackageSize()));
     render();
     els.packageName.focus();
+  }, true);
+
+  canvas.addEventListener('pointermove', event => {
+    if (measuringPointer !== event.pointerId || !isMeasuring(shelf, level)) return;
+    event.preventDefault();
+    updateMeasurement(
+      shelf,
+      level,
+      canvasMeasurePointFromEvent(event, canvas, { ...shelf, columns: range.width, rows: range.height })
+    );
+    canvas.querySelector('.measure-overlay')?.replaceWith(renderMeasureOverlay(activeMeasurement(shelf, level), range));
+  });
+
+  canvas.addEventListener('pointerup', event => {
+    if (measuringPointer !== event.pointerId || !isMeasuring(shelf, level)) return;
+    event.preventDefault();
+    updateMeasurement(
+      shelf,
+      level,
+      canvasMeasurePointFromEvent(event, canvas, { ...shelf, columns: range.width, rows: range.height }),
+      true
+    );
+    measuringPointer = null;
+    render();
   });
 
   return canvas;
@@ -1056,15 +1239,15 @@ function renderMeasureOverlay(measurement, range) {
   if (!measurement?.active || !measurement.start) return overlay;
 
   const start = measurement.start;
-  const end = measurement.end || measurement.start;
+  const end = measurement.end || measurement.current || measurement.start;
   const x1 = (start.column / range.width) * 100;
   const y1 = (start.row / range.height) * 100;
   const x2 = (end.column / range.width) * 100;
   const y2 = (end.row / range.height) * 100;
-  const dx = x2 - x1;
-  const dy = y2 - y1;
-  const length = Math.hypot(dx, dy);
-  const angle = Math.atan2(dy, dx) * (180 / Math.PI);
+  const left = Math.min(x1, x2);
+  const top = Math.min(y1, y2);
+  const width = Math.abs(x2 - x1);
+  const height = Math.abs(y2 - y1);
 
   const firstPoint = document.createElement('span');
   firstPoint.className = 'measure-point';
@@ -1072,26 +1255,26 @@ function renderMeasureOverlay(measurement, range) {
   firstPoint.style.top = `${y1}%`;
   overlay.append(firstPoint);
 
-  if (measurement.end) {
+  if (measurement.current || measurement.end) {
     const secondPoint = document.createElement('span');
     secondPoint.className = 'measure-point end';
     secondPoint.style.left = `${x2}%`;
     secondPoint.style.top = `${y2}%`;
     overlay.append(secondPoint);
 
-    const line = document.createElement('span');
-    line.className = 'measure-line';
-    line.style.left = `${x1}%`;
-    line.style.top = `${y1}%`;
-    line.style.width = `${length}%`;
-    line.style.transform = `rotate(${angle}deg)`;
-    overlay.append(line);
+    const box = document.createElement('span');
+    box.className = 'measure-box';
+    box.style.left = `${left}%`;
+    box.style.top = `${top}%`;
+    box.style.width = `${width}%`;
+    box.style.height = `${height}%`;
+    overlay.append(box);
 
     const label = document.createElement('span');
     label.className = 'measure-label';
-    label.style.left = `${(x1 + x2) / 2}%`;
-    label.style.top = `${(y1 + y2) / 2}%`;
-    label.textContent = formatMeasureCm(measureDistanceCm(measurement));
+    label.style.left = `${clamp((x1 + x2) / 2, 10, 90)}%`;
+    label.style.top = `${clamp((y1 + y2) / 2, 8, 92)}%`;
+    label.textContent = measureSummary(measurement);
     overlay.append(label);
   }
 
@@ -1103,13 +1286,24 @@ function renderPlaceCanvas(shelf, kind, role = planRole(shelf)) {
   let dragStart = null;
   let dragDraft = null;
   let dragMarker = null;
+  let measuringPointer = null;
+  const measurement = activeMeasurement(shelf);
   canvas.className = `place-canvas ${kind === 'floor' ? 'floor-canvas' : ''}`;
   canvas.style.setProperty('--cols', Math.max(1, Math.round(shelf.columns / (kind === 'shelf' ? 150 : 100))));
   canvas.style.setProperty('--rows', Math.max(1, Math.ceil(shelf.rows / 100)));
   canvas.style.aspectRatio = `${shelf.columns} / ${Math.max(1, shelf.rows)}`;
   canvas.append(renderDimensionLabels(shelf, kind, role));
-  canvas.append(renderForbiddenArea(shelf, role));
+  canvas.append(renderMeasureOverlay(measurement, { width: shelf.columns, height: shelf.rows }));
   canvas.addEventListener('pointerdown', event => {
+    if (isMeasuring(shelf)) {
+      event.preventDefault();
+      event.stopPropagation();
+      measuringPointer = event.pointerId;
+      startMeasurement(shelf, null, canvasMeasurePointFromEvent(event, canvas, shelf));
+      canvas.setPointerCapture(event.pointerId);
+      canvas.querySelector('.measure-overlay')?.replaceWith(renderMeasureOverlay(activeMeasurement(shelf), { width: shelf.columns, height: shelf.rows }));
+      return;
+    }
     if (event.target !== canvas) return;
     event.preventDefault();
     dragStart = canvasCellFromEvent(event, canvas, shelf);
@@ -1119,15 +1313,28 @@ function renderPlaceCanvas(shelf, kind, role = planRole(shelf)) {
     canvas.append(dragMarker);
     canvas.setPointerCapture(event.pointerId);
     updateDragMarker(shelf, dragMarker, dragDraft);
-  });
+  }, true);
 
   canvas.addEventListener('pointermove', event => {
+    if (measuringPointer === event.pointerId && isMeasuring(shelf)) {
+      event.preventDefault();
+      updateMeasurement(shelf, null, canvasMeasurePointFromEvent(event, canvas, shelf));
+      canvas.querySelector('.measure-overlay')?.replaceWith(renderMeasureOverlay(activeMeasurement(shelf), { width: shelf.columns, height: shelf.rows }));
+      return;
+    }
     if (!dragDraft || !dragMarker) return;
     dragDraft = draftFromCorners(dragStart, canvasCellFromEvent(event, canvas, shelf), shelf);
     updateDragMarker(shelf, dragMarker, dragDraft);
   });
 
   canvas.addEventListener('pointerup', event => {
+    if (measuringPointer === event.pointerId && isMeasuring(shelf)) {
+      event.preventDefault();
+      updateMeasurement(shelf, null, canvasMeasurePointFromEvent(event, canvas, shelf), true);
+      measuringPointer = null;
+      render();
+      return;
+    }
     if (!dragDraft || !dragMarker) return;
     const draft = dragDraft;
     dragMarker.remove();
@@ -1140,6 +1347,7 @@ function renderPlaceCanvas(shelf, kind, role = planRole(shelf)) {
   });
 
   canvas.addEventListener('pointercancel', () => {
+    measuringPointer = null;
     if (dragMarker) dragMarker.remove();
     dragStart = null;
     dragDraft = null;
@@ -1175,6 +1383,7 @@ function renderPlaceCanvas(shelf, kind, role = planRole(shelf)) {
       : item;
     rectangle.className = `package-rect ${selectedPackage ? 'selected' : ''}`;
     rectangle.classList.toggle('blocked-zone', isBlockedItem(displayItem));
+    rectangle.classList.toggle('reserve-zone', isYellowZone(displayItem));
     rectangle.classList.toggle('stacked-zone', isStackedItem(displayItem));
     rectangle.type = 'button';
     rectangle.style.left = `${((displayItem.column_index - 1) / shelf.columns) * 100}%`;
@@ -1208,26 +1417,6 @@ function renderPlaceCanvas(shelf, kind, role = planRole(shelf)) {
   return canvas;
 }
 
-function renderForbiddenArea(shelf, role) {
-  const area = document.createElement('div');
-  area.className = 'forbidden-area hidden';
-  if (role === 'floor-main') {
-    area.classList.remove('hidden');
-    area.style.left = `${((shelf.columns - 100) / shelf.columns) * 100}%`;
-    area.style.top = '0';
-    area.style.width = `${(100 / shelf.columns) * 100}%`;
-    area.style.height = `${(80 / shelf.rows) * 100}%`;
-  }
-  if (role === 'floor-long') {
-    area.classList.remove('hidden');
-    area.style.left = '0';
-    area.style.top = '0';
-    area.style.width = `${(70 / shelf.columns) * 100}%`;
-    area.style.height = `${(380 / shelf.rows) * 100}%`;
-  }
-  return area;
-}
-
 function updateDragMarker(shelf, marker, draft) {
   marker.style.left = `${((draft.column - 1) / shelf.columns) * 100}%`;
   marker.style.top = `${((draft.row - 1) / shelf.rows) * 100}%`;
@@ -1242,8 +1431,6 @@ function renderDimensionLabels(shelf, kind, role = planRole(shelf)) {
     <span class="dim dim-top">${formatCm(shelf.columns)} cm</span>
     <span class="dim dim-left">${formatCm(shelf.rows)} cm</span>
     ${kind === 'shelf' ? '<span class="dim dim-bays">600 cm length</span>' : ''}
-    ${role === 'floor-main' ? '<span class="dim dim-blocked">100 x 80 cm blocked</span>' : ''}
-    ${role === 'floor-long' ? '<span class="dim dim-blocked">70 x 380 cm blocked</span>' : ''}
   `;
   return labels;
 }
@@ -1613,13 +1800,14 @@ function selectPlace(place) {
 }
 
 function renderOverview(shelves, shelfPlaces, floorPlaces) {
-  const freeLength = totalFreeRun(shelves);
-  const blockedCount = shelves.reduce((sum, shelf) => sum + shelf.packages.filter(isBlockedItem).length, 0);
+  const freeArea = totalFreeArea(shelves);
+  const usedArea = shelves.reduce((sum, shelf) => sum + itemAreaCm2(shelf), 0);
+  const zoneArea = shelves.reduce((sum, shelf) => sum + zoneAreaCm2(shelf), 0);
   const stackedCount = shelves.reduce((sum, shelf) => sum + shelf.packages.filter(isStackedItem).length, 0);
   const cards = [
-    ['Available length', `${formatCm(freeLength)} cm`, 'longest open runs added together'],
-    ['Blocked areas', blockedCount, 'marked red, do not place items there'],
-    ['Rack', shelfPlaces.length, '4 rack levels 600 x 90 cm + small rack'],
+    ['Free area', formatAreaCm2(freeArea), 'available floor/rack footprint'],
+    ['Item area', formatAreaCm2(usedArea), 'normal items only'],
+    ['Zone area', formatAreaCm2(zoneArea), 'red and yellow subtracted from free area'],
     ['Floor areas', floorPlaces.length, 'regular floor storage areas']
   ];
 
@@ -1649,12 +1837,12 @@ function renderWarehouseMap(shelfPlaces, floorPlaces) {
     const zone = document.createElement('button');
     zone.className = `map-zone ${places.length ? '' : 'empty-zone'}`;
     zone.type = 'button';
-    const free = totalFreeRun(places);
-    const total = places.reduce((sum, shelf) => sum + (shelf.columns || 0), 0);
+    const free = totalFreeArea(places);
+    const total = places.reduce((sum, shelf) => sum + ((shelf.columns || 0) * (effectiveRowsForShelf(shelf) || shelf.rows || 0)), 0);
     const usedPercent = total ? Math.round(((total - free) / total) * 100) : 0;
     zone.innerHTML = `
       <span>${escapeHtml(label)}</span>
-      <strong>${places.length ? `${formatCm(free)} cm available length` : 'available for planning'}</strong>
+      <strong>${places.length ? `${formatAreaCm2(free)} free` : 'available for planning'}</strong>
       <i class="zone-meter" aria-hidden="true"><b style="width: ${usedPercent}%"></b></i>
     `;
     els.warehouseMap.append(zone);
@@ -1679,10 +1867,11 @@ function setupPresetButton(button) {
 }
 
 function packageHtml(item, selected = false) {
+  const zone = zoneKind(item);
   return `
     <span class="measure">${formatSizeCm(item.width_units || 1, item.depth_units || 1)}</span>
     <span class="pkg">${escapeHtml(item.package_name)}</span>
-    <span class="note">${escapeHtml(item.quantity)}x ${isStackedItem(item) ? 'stacked ' : ''}${escapeHtml(item.note || '')}</span>
+    <span class="note">${zone ? `${zone} zone, no item area` : `${escapeHtml(item.quantity)}x ${isStackedItem(item) ? 'stacked ' : ''}${escapeHtml(item.note || '')}`}</span>
     ${selected ? draftMarkerHtml({
       width: item.width_units || 1,
       depth: item.depth_units || 1
@@ -1716,13 +1905,14 @@ async function submitPackage(event) {
   updateDraftFromSizeInputs();
   const payload = Object.fromEntries(new FormData(els.packageForm).entries());
   const selectedShelf = appState.selected?.shelf;
-  if (selectedShelf && touchesForbiddenArea(selectedShelf, {
+  const payloadZone = zoneKind({ package_name: payload.packageName, note: payload.note });
+  if (selectedShelf && payloadZone !== 'red' && touchesForbiddenArea(selectedShelf, {
     row: cmInputToCm(payload.rowIndex, 1),
     column: cmInputToCm(payload.columnIndex, 1),
     width: cmInputToCm(payload.widthUnits, 100),
     depth: cmInputToCm(payload.depthUnits, 100)
   })) {
-    showMessage('This corner is blocked. Do not place items there.', 'error');
+    showMessage('This red zone is blocked. Do not place items there.', 'error');
     return;
   }
   payload.shelfRows = cmInputToMeters(payload.shelfRows, planPlaces.rack.rows);
@@ -1847,8 +2037,8 @@ if (els.defaultPlanButton) {
   });
 }
 
-els.packagesTab.addEventListener('click', () => setActiveView('packages'));
-els.placesTab.addEventListener('click', () => setActiveView('places'));
+els.packagesTab?.addEventListener('click', () => setActiveView('packages'));
+els.placesTab?.addEventListener('click', () => setActiveView('places'));
 
 els.packageForm.addEventListener('submit', event => {
   submitPackage(event).catch(error => showMessage(error.message, 'error'));
@@ -1890,6 +2080,21 @@ document.querySelectorAll('[data-preset]').forEach(button => {
     els.note.value = height && height !== '0'
       ? `${note ? `${note}, ` : ''}height ${height} cm`
       : note;
+    updateDraftFromSizeInputs();
+  });
+});
+
+document.querySelectorAll('[data-zone-kind]').forEach(button => {
+  button.classList.add('preset-button', `${button.dataset.zoneKind}-preset`);
+  button.innerHTML = `
+    <span class="preset-preview" aria-hidden="true"><i></i></span>
+    <span class="preset-label">${escapeHtml(button.textContent.trim())}</span>
+  `;
+  button.addEventListener('click', () => {
+    const kind = button.dataset.zoneKind === 'yellow' ? 'yellow' : 'red';
+    els.packageName.value = kind === 'red' ? 'Red no-place zone' : 'Yellow reserve zone';
+    els.quantity.value = 1;
+    els.note.value = `zone:${kind}`;
     updateDraftFromSizeInputs();
   });
 });
