@@ -615,11 +615,14 @@ select:hover {
 }
 
 .rack-level-detail {
+  width: calc(100% - 34px);
   min-height: 260px;
+  margin-top: 32px;
+  margin-left: 34px;
 }
 
 .rack-level-detail.short-rack-detail {
-  width: 100%;
+  width: calc(100% - 34px);
   min-height: 86px;
 }
 
@@ -671,7 +674,7 @@ select:hover {
 }
 
 .floor-main .place-canvas {
-  min-height: 360px;
+  min-height: 460px;
 }
 
 .floor-long .place-canvas {
@@ -1175,12 +1178,14 @@ select:hover {
   text-align: center;
 }
 
-.floor-canvas .dimension-labels {
+.floor-canvas .dimension-labels,
+.rack-level-detail .dimension-labels {
   z-index: 6;
   overflow: visible;
 }
 
-.floor-canvas .dim {
+.floor-canvas .dim,
+.rack-level-detail .dim {
   z-index: 6;
   padding: 5px 8px;
   background: rgba(255, 255, 255, 0.96);
@@ -1188,12 +1193,14 @@ select:hover {
   box-shadow: 0 6px 18px rgba(20, 32, 34, 0.08);
 }
 
-.floor-canvas .dim-top {
+.floor-canvas .dim-top,
+.rack-level-detail .dim-top {
   top: -34px;
   max-width: min(70%, calc(100% - 18px));
 }
 
-.floor-canvas .dim-left {
+.floor-canvas .dim-left,
+.rack-level-detail .dim-left {
   left: -34px;
   top: 50%;
   bottom: auto;
@@ -1421,6 +1428,10 @@ select:hover {
     min-height: 320px;
   }
 
+  .floor-main .place-canvas {
+    min-height: 420px;
+  }
+
   .floor-long .place-canvas {
     width: min(100%, 420px);
     min-height: 620px;
@@ -1473,7 +1484,8 @@ select:hover {
     max-width: none;
   }
 
-  .floor-canvas .dim-left {
+  .floor-canvas .dim-left,
+  .rack-level-detail .dim-left {
     left: -30px;
     top: 50%;
     bottom: auto;
