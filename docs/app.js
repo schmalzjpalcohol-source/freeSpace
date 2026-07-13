@@ -65,7 +65,8 @@ let appState = {
     active: false,
     rotX: 58,
     rotZ: -34,
-    zoom: 1
+    zoom: 1,
+    views: {}
   }
 };
 
@@ -246,6 +247,10 @@ function stackCount(itemOrValue) {
   const value = typeof itemOrValue === 'object' ? itemOrValue.quantity : itemOrValue;
   const parsed = Number.parseInt(value, 10);
   return Number.isFinite(parsed) ? Math.max(1, parsed) : 1;
+}
+
+function stackTotalHeightCm(item) {
+  return stackCount(item) * itemHeightCm(item);
 }
 
 function maxStackHeightForShelf(shelf, draft = null) {
