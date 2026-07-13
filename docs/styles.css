@@ -636,7 +636,7 @@ select:hover {
 }
 
 .floor-long .place-canvas {
-  width: min(100%, 520px);
+  width: min(calc(100% - 34px), 520px);
   min-height: 720px;
   justify-self: center;
 }
@@ -665,8 +665,10 @@ select:hover {
 
 .place-canvas {
   position: relative;
-  width: 100%;
+  width: calc(100% - 34px);
   min-height: 240px;
+  margin-top: 32px;
+  margin-left: 34px;
   border: 2px solid var(--line-strong);
   border-radius: 8px;
   overflow: visible;
@@ -710,18 +712,6 @@ select:hover {
   background: var(--primary);
   transform-origin: left center;
   box-shadow: 0 1px 5px rgba(20, 32, 34, 0.18);
-}
-
-.measure-box {
-  position: absolute;
-  min-width: 2px;
-  min-height: 2px;
-  border: 2px solid var(--primary);
-  border-radius: 6px;
-  background: rgba(15, 118, 110, 0.12);
-  box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.58),
-    0 8px 18px rgba(20, 32, 34, 0.12);
 }
 
 .measure-label {
@@ -1057,73 +1047,57 @@ select:hover {
   font-weight: 900;
 }
 
-.forbidden-area {
-  position: absolute;
-  z-index: 2;
-  border: 2px solid rgba(180, 35, 53, 0.95);
-  background:
-    repeating-linear-gradient(135deg, rgba(180, 35, 53, 0.2) 0 7px, rgba(255, 255, 255, 0.5) 7px 13px),
-    rgba(255, 226, 229, 0.9);
-  pointer-events: none;
-}
-
 .dimension-labels {
   position: absolute;
   inset: 0;
-  z-index: 1;
+  z-index: 6;
   pointer-events: none;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .dim {
   position: absolute;
-  z-index: 2;
+  z-index: 6;
   max-width: calc(100% - 16px);
   border: 1px solid rgba(20, 32, 34, 0.18);
   border-radius: 6px;
-  padding: 3px 6px;
-  background: rgba(255, 255, 255, 0.88);
+  padding: 5px 8px;
+  background: rgba(255, 255, 255, 0.96);
   color: var(--ink);
-  font-size: 0.72rem;
+  font-size: 0.74rem;
   font-weight: 950;
   line-height: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  box-shadow: 0 6px 18px rgba(20, 32, 34, 0.08);
 }
 
 .dim-top {
   left: 50%;
-  top: 8px;
-  max-width: min(52%, calc(100% - 18px));
+  top: -34px;
+  max-width: min(70%, calc(100% - 18px));
   transform: translateX(-50%);
 }
 
 .dim-left {
-  left: 6px;
-  top: 36px;
-  bottom: 8px;
-  width: 28px;
+  left: -34px;
+  top: 50%;
+  bottom: auto;
+  width: auto;
   max-width: none;
-  padding: 6px 3px;
+  max-height: calc(100% - 16px);
+  padding: 8px 5px;
   writing-mode: vertical-rl;
   text-orientation: mixed;
   text-align: center;
+  transform: translateY(-50%);
 }
 
 .dim-bays {
   right: 8px;
   bottom: 36px;
   max-width: min(44%, calc(100% - 16px));
-  text-align: right;
-}
-
-.dim-blocked {
-  right: 8px;
-  bottom: 8px;
-  max-width: min(44%, calc(100% - 16px));
-  color: var(--danger);
-  border-color: rgba(180, 35, 53, 0.25);
   text-align: right;
 }
 
@@ -1332,7 +1306,7 @@ select:hover {
   }
 
   .floor-long .place-canvas {
-    width: min(100%, 420px);
+    width: min(calc(100% - 34px), 420px);
     min-height: 620px;
   }
 
@@ -1372,15 +1346,15 @@ select:hover {
   }
 
   .dim-left {
-    left: 5px;
-    top: 34px;
-    bottom: 8px;
-    width: 24px;
+    left: -30px;
+    top: 50%;
+    bottom: auto;
+    width: auto;
     max-width: none;
+    transform: translateY(-50%);
   }
 
-  .dim-bays,
-  .dim-blocked {
+  .dim-bays {
     right: 6px;
     max-width: calc(100% - 12px);
   }

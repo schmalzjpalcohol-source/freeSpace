@@ -422,23 +422,12 @@ function updateMeasurement(shelf, level, point, done = false) {
   return measurement;
 }
 
-function measurementRect(measurement) {
-  if (!measurement?.start) return null;
-  const end = measurement.end || measurement.current || measurement.start;
-  const width = Math.abs(end.column - measurement.start.column);
-  const depth = Math.abs(end.row - measurement.start.row);
-  return {
-    column: Math.min(measurement.start.column, end.column),
-    row: Math.min(measurement.start.row, end.row),
-    width,
-    depth
-  };
-}
-
 function measureSummary(measurement) {
-  const rect = measurementRect(measurement);
-  if (!rect) return '';
-  return `${formatCm(rect.width)} x ${formatCm(rect.depth)} cm = ${formatAreaCm2(rectArea(rect))}`;
+  if (!measurement?.start) return '';
+  const end = measurement.end || measurement.current || measurement.start;
+  const width = end.column - measurement.start.column;
+  const depth = end.row - measurement.start.row;
+  return formatMeasureCm(Math.hypot(width, depth));
 }
 
 function findFreeRackDraft(shelf, range, size) {
@@ -1035,22 +1024,11 @@ function renderRackDisplay(shelf) {
 function renderRackTools(shelf, level) {
   const tools = document.createElement('div');
   tools.className = 'rack-tools';
-  const range = rackLevelRange(shelf, level);
-  const nextButton = document.createElement('button');
-  nextButton.type = 'button';
-  nextButton.className = 'ghost next-free-button';
-  nextButton.textContent = 'Next free place';
-  nextButton.addEventListener('click', () => {
-    applyDraftSelection(shelf, findFreeRackDraft(shelf, range, currentPackageSize()));
-    render();
-  });
-  tools.append(nextButton);
-
   const measurement = activeMeasurement(shelf, level);
   const button = document.createElement('button');
   button.type = 'button';
   button.className = `measure-toggle ${measurement?.active ? 'active' : ''}`;
-  button.innerHTML = '<span class="measure-icon" aria-hidden="true"></span><span>Measure cm2</span>';
+  button.innerHTML = '<span class="measure-icon" aria-hidden="true"></span><span>Measure</span>';
   button.addEventListener('click', () => {
     toggleMeasurement(shelf, level);
     render();
@@ -1060,7 +1038,7 @@ function renderRackTools(shelf, level) {
   const label = document.createElement('span');
   label.className = 'measure-status';
   if (!measurement?.active) {
-    label.textContent = 'Drag to measure width, depth, and area';
+    label.textContent = 'Drag a line to measure length';
   } else if (!measurement.start) {
     label.textContent = 'Click and drag on the drawing';
   } else {
@@ -1073,21 +1051,11 @@ function renderRackTools(shelf, level) {
 function renderPlaceTools(shelf) {
   const tools = document.createElement('div');
   tools.className = 'rack-tools';
-  const nextButton = document.createElement('button');
-  nextButton.type = 'button';
-  nextButton.className = 'ghost next-free-button';
-  nextButton.textContent = 'Next free place';
-  nextButton.addEventListener('click', () => {
-    applyDraftSelection(shelf, findFreeDraft(shelf, currentPackageSize()));
-    render();
-  });
-  tools.append(nextButton);
-
   const measurement = activeMeasurement(shelf);
   const button = document.createElement('button');
   button.type = 'button';
   button.className = `measure-toggle ${measurement?.active ? 'active' : ''}`;
-  button.innerHTML = '<span class="measure-icon" aria-hidden="true"></span><span>Measure cm2</span>';
+  button.innerHTML = '<span class="measure-icon" aria-hidden="true"></span><span>Measure</span>';
   button.addEventListener('click', () => {
     toggleMeasurement(shelf);
     render();
@@ -1097,7 +1065,7 @@ function renderPlaceTools(shelf) {
   const label = document.createElement('span');
   label.className = 'measure-status';
   label.textContent = !measurement?.active
-    ? 'Drag to measure width, depth, and area'
+    ? 'Drag a line to measure length'
     : measurement.start
       ? `Measured: ${measureSummary(measurement)}`
       : 'Click and drag on the drawing';
@@ -1244,10 +1212,10 @@ function renderMeasureOverlay(measurement, range) {
   const y1 = (start.row / range.height) * 100;
   const x2 = (end.column / range.width) * 100;
   const y2 = (end.row / range.height) * 100;
-  const left = Math.min(x1, x2);
-  const top = Math.min(y1, y2);
-  const width = Math.abs(x2 - x1);
-  const height = Math.abs(y2 - y1);
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const length = Math.hypot(dx, dy);
+  const angle = Math.atan2(dy, dx) * (180 / Math.PI);
 
   const firstPoint = document.createElement('span');
   firstPoint.className = 'measure-point';
@@ -1262,13 +1230,13 @@ function renderMeasureOverlay(measurement, range) {
     secondPoint.style.top = `${y2}%`;
     overlay.append(secondPoint);
 
-    const box = document.createElement('span');
-    box.className = 'measure-box';
-    box.style.left = `${left}%`;
-    box.style.top = `${top}%`;
-    box.style.width = `${width}%`;
-    box.style.height = `${height}%`;
-    overlay.append(box);
+    const line = document.createElement('span');
+    line.className = 'measure-line';
+    line.style.left = `${x1}%`;
+    line.style.top = `${y1}%`;
+    line.style.width = `${length}%`;
+    line.style.transform = `rotate(${angle}deg)`;
+    overlay.append(line);
 
     const label = document.createElement('span');
     label.className = 'measure-label';
