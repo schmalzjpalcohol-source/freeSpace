@@ -415,11 +415,20 @@ function startMeasurement(shelf, level, point) {
   return measurement;
 }
 
-function updateMeasurement(shelf, level, point, done = false) {
+function canvasMeasureSize(canvas) {
+  const rect = canvas.getBoundingClientRect();
+  return {
+    width: Math.max(1, rect.width),
+    height: Math.max(1, rect.height)
+  };
+}
+
+function updateMeasurement(shelf, level, point, done = false, pixelSize = null) {
   const measurement = activeMeasurement(shelf, level);
   if (!measurement?.start) return null;
   measurement.current = point;
   measurement.end = done ? point : null;
+  if (pixelSize) measurement.pixelSize = pixelSize;
   appState.measurement = measurement;
   return measurement;
 }
@@ -1165,6 +1174,7 @@ function renderRackLevelDetail(shelf, level) {
       const point = canvasMeasurePointFromEvent(event, canvas, { ...shelf, columns: range.width, rows: range.height });
       measuringPointer = event.pointerId;
       startMeasurement(shelf, level, point);
+      updateMeasurement(shelf, level, point, false, canvasMeasureSize(canvas));
       canvas.setPointerCapture(event.pointerId);
       canvas.querySelector('.measure-overlay')?.replaceWith(renderMeasureOverlay(activeMeasurement(shelf, level), range));
       return;
@@ -1183,7 +1193,9 @@ function renderRackLevelDetail(shelf, level) {
     updateMeasurement(
       shelf,
       level,
-      canvasMeasurePointFromEvent(event, canvas, { ...shelf, columns: range.width, rows: range.height })
+      canvasMeasurePointFromEvent(event, canvas, { ...shelf, columns: range.width, rows: range.height }),
+      false,
+      canvasMeasureSize(canvas)
     );
     canvas.querySelector('.measure-overlay')?.replaceWith(renderMeasureOverlay(activeMeasurement(shelf, level), range));
   });
@@ -1195,7 +1207,8 @@ function renderRackLevelDetail(shelf, level) {
       shelf,
       level,
       canvasMeasurePointFromEvent(event, canvas, { ...shelf, columns: range.width, rows: range.height }),
-      true
+      true,
+      canvasMeasureSize(canvas)
     );
     measuringPointer = null;
     render();
@@ -1217,8 +1230,12 @@ function renderMeasureOverlay(measurement, range) {
   const y2 = (end.row / range.height) * 100;
   const dx = x2 - x1;
   const dy = y2 - y1;
-  const length = Math.hypot(dx, dy);
-  const angle = Math.atan2(dy, dx) * (180 / Math.PI);
+  const pixelWidth = measurement.pixelSize?.width || 100;
+  const pixelHeight = measurement.pixelSize?.height || 100;
+  const pixelDx = (dx / 100) * pixelWidth;
+  const pixelDy = (dy / 100) * pixelHeight;
+  const length = Math.hypot(pixelDx, pixelDy);
+  const angle = Math.atan2(pixelDy, pixelDx) * (180 / Math.PI);
   const left = Math.min(x1, x2);
   const top = Math.min(y1, y2);
   const boxWidth = Math.abs(dx);
@@ -1250,7 +1267,7 @@ function renderMeasureOverlay(measurement, range) {
       line.className = 'measure-line';
       line.style.left = `${x1}%`;
       line.style.top = `${y1}%`;
-      line.style.width = `${length}%`;
+      line.style.width = `${length}px`;
       line.style.transform = `rotate(${angle}deg)`;
       overlay.append(line);
     }
@@ -1294,7 +1311,9 @@ function renderPlaceCanvas(shelf, kind, role = planRole(shelf)) {
       event.preventDefault();
       event.stopPropagation();
       measuringPointer = event.pointerId;
-      startMeasurement(shelf, null, canvasMeasurePointFromEvent(event, canvas, shelf));
+      const point = canvasMeasurePointFromEvent(event, canvas, shelf);
+      startMeasurement(shelf, null, point);
+      updateMeasurement(shelf, null, point, false, canvasMeasureSize(canvas));
       canvas.setPointerCapture(event.pointerId);
       canvas.querySelector('.measure-overlay')?.replaceWith(renderMeasureOverlay(activeMeasurement(shelf), { width: shelf.columns, height: shelf.rows }));
       return;
@@ -1313,7 +1332,7 @@ function renderPlaceCanvas(shelf, kind, role = planRole(shelf)) {
   canvas.addEventListener('pointermove', event => {
     if (measuringPointer === event.pointerId && isMeasuring(shelf)) {
       event.preventDefault();
-      updateMeasurement(shelf, null, canvasMeasurePointFromEvent(event, canvas, shelf));
+      updateMeasurement(shelf, null, canvasMeasurePointFromEvent(event, canvas, shelf), false, canvasMeasureSize(canvas));
       canvas.querySelector('.measure-overlay')?.replaceWith(renderMeasureOverlay(activeMeasurement(shelf), { width: shelf.columns, height: shelf.rows }));
       return;
     }
@@ -1325,7 +1344,7 @@ function renderPlaceCanvas(shelf, kind, role = planRole(shelf)) {
   canvas.addEventListener('pointerup', event => {
     if (measuringPointer === event.pointerId && isMeasuring(shelf)) {
       event.preventDefault();
-      updateMeasurement(shelf, null, canvasMeasurePointFromEvent(event, canvas, shelf), true);
+      updateMeasurement(shelf, null, canvasMeasurePointFromEvent(event, canvas, shelf), true, canvasMeasureSize(canvas));
       measuringPointer = null;
       render();
       return;
