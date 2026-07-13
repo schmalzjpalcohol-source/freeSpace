@@ -1842,6 +1842,11 @@ function renderModel3d(shelves) {
       <div class="model3d-head">
         <strong>${escapeHtml(shelf.label || shelf.name)}</strong>
         <span>${escapeHtml(modelHeightSummary(shelf))}</span>
+        <div class="model3d-controls" aria-label="3D zoom controls">
+          <button type="button" data-model-zoom="in">+</button>
+          <button type="button" data-model-zoom="out">-</button>
+          <button type="button" data-model-zoom="reset">Reset</button>
+        </div>
       </div>
     `;
 
@@ -1873,6 +1878,7 @@ function renderModel3d(shelves) {
     card.append(viewport);
     grid.append(card);
     applyModel3dTransform(scene);
+    attachModel3dZoomButtons(card, scene);
     attachModel3dControls(viewport, scene);
   });
 
@@ -1896,12 +1902,15 @@ function renderModel3dItem(scene, shelf, item, xOffset, scale, zScale) {
 
   for (let index = 0; index < count; index += 1) {
     const layer = document.createElement('div');
-    layer.className = `model3d-box ${zone ? `${zone}-model-zone` : ''}`;
+    layer.className = `model3d-box ${index === count - 1 ? 'top-stack-layer' : ''} ${zone ? `${zone}-model-zone` : ''}`;
     layer.style.width = `${width}px`;
     layer.style.height = `${depth}px`;
     layer.style.transform = `translate3d(${left}px, ${top}px, ${index * height * zScale}px)`;
     layer.style.setProperty('--box-rise', `${Math.max(8, height * zScale)}px`);
     layer.title = packageTooltip(item);
+    if (!zone && index === count - 1) {
+      layer.innerHTML = `<span class="model3d-box-label">h ${formatCm(height)} cm${count > 1 ? ` x${count}` : ''}</span>`;
+    }
     scene.append(layer);
   }
 
@@ -1944,9 +1953,25 @@ function attachModel3dControls(viewport, scene) {
   viewport.addEventListener('pointercancel', clear);
   viewport.addEventListener('wheel', event => {
     event.preventDefault();
-    appState.model3d.zoom = clamp(appState.model3d.zoom - (event.deltaY * 0.001), 0.55, 1.8);
+    appState.model3d.zoom = clamp(appState.model3d.zoom - (event.deltaY * 0.002), 0.45, 4.5);
     applyModel3dTransform(scene);
   }, { passive: false });
+}
+
+function attachModel3dZoomButtons(card, scene) {
+  card.querySelectorAll('[data-model-zoom]').forEach(button => {
+    button.addEventListener('click', () => {
+      const action = button.dataset.modelZoom;
+      if (action === 'in') appState.model3d.zoom = clamp(appState.model3d.zoom + 0.35, 0.45, 4.5);
+      if (action === 'out') appState.model3d.zoom = clamp(appState.model3d.zoom - 0.35, 0.45, 4.5);
+      if (action === 'reset') {
+        appState.model3d.zoom = 1;
+        appState.model3d.rotX = 58;
+        appState.model3d.rotZ = -34;
+      }
+      applyModel3dTransform(scene);
+    });
+  });
 }
 
 function renderPlaces() {

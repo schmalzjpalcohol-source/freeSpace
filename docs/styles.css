@@ -423,6 +423,23 @@ select:hover {
   text-align: right;
 }
 
+.model3d-controls {
+  display: flex;
+  gap: 5px;
+  flex: 0 0 auto;
+}
+
+.model3d-controls button {
+  min-height: 28px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0 8px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 0.76rem;
+  font-weight: 950;
+}
+
 .model3d-viewport {
   position: relative;
   height: min(46vh, 430px);
@@ -496,21 +513,92 @@ select:hover {
   border: 1px solid rgba(98, 65, 22, 0.66);
   border-radius: 4px;
   background: #f4c56f;
+  overflow: visible;
   box-shadow:
-    0 calc(-1 * var(--box-rise, 16px)) 0 rgba(125, 82, 28, 0.34),
     8px 10px 18px rgba(20, 32, 34, 0.18);
+}
+
+.model3d-box::before,
+.model3d-box::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+}
+
+.model3d-box::before {
+  left: 0;
+  right: 0;
+  top: calc(-1 * var(--box-rise, 16px));
+  height: var(--box-rise, 16px);
+  border: 1px solid rgba(98, 65, 22, 0.5);
+  border-bottom: 0;
+  border-radius: 4px 4px 0 0;
+  background: linear-gradient(180deg, rgba(255, 230, 171, 0.96), rgba(196, 126, 40, 0.58));
+  transform: skewX(-18deg);
+  transform-origin: bottom left;
+}
+
+.model3d-box::after {
+  right: calc(-0.42 * var(--box-rise, 16px));
+  top: calc(-1 * var(--box-rise, 16px));
+  width: calc(0.42 * var(--box-rise, 16px));
+  height: 100%;
+  border: 1px solid rgba(98, 65, 22, 0.48);
+  border-left: 0;
+  border-radius: 0 4px 4px 0;
+  background: linear-gradient(90deg, rgba(171, 104, 30, 0.68), rgba(114, 71, 28, 0.46));
+  transform: skewY(-28deg);
+  transform-origin: top left;
+}
+
+.model3d-box-label {
+  position: absolute;
+  left: 50%;
+  top: calc(-1 * var(--box-rise, 16px) - 8px);
+  z-index: 3;
+  max-width: 120px;
+  padding: 4px 6px;
+  border: 1px solid rgba(98, 65, 22, 0.22);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #4c3219;
+  font-size: 0.68rem;
+  font-weight: 950;
+  line-height: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transform: translate(-50%, -100%);
 }
 
 .model3d-box.red-model-zone {
   border-color: rgba(180, 35, 53, 0.72);
   background: rgba(255, 226, 229, 0.9);
-  box-shadow: 0 calc(-1 * var(--box-rise, 6px)) 0 rgba(180, 35, 53, 0.2);
+}
+
+.model3d-box.red-model-zone::before {
+  border-color: rgba(180, 35, 53, 0.42);
+  background: linear-gradient(180deg, rgba(255, 236, 238, 0.96), rgba(180, 35, 53, 0.3));
+}
+
+.model3d-box.red-model-zone::after {
+  border-color: rgba(180, 35, 53, 0.42);
+  background: linear-gradient(90deg, rgba(180, 35, 53, 0.34), rgba(116, 24, 37, 0.24));
 }
 
 .model3d-box.yellow-model-zone {
   border-color: rgba(201, 133, 40, 0.76);
   background: rgba(255, 242, 191, 0.92);
-  box-shadow: 0 calc(-1 * var(--box-rise, 6px)) 0 rgba(201, 133, 40, 0.22);
+}
+
+.model3d-box.yellow-model-zone::before {
+  border-color: rgba(201, 133, 40, 0.44);
+  background: linear-gradient(180deg, rgba(255, 248, 219, 0.98), rgba(201, 133, 40, 0.32));
+}
+
+.model3d-box.yellow-model-zone::after {
+  border-color: rgba(201, 133, 40, 0.44);
+  background: linear-gradient(90deg, rgba(201, 133, 40, 0.36), rgba(134, 86, 27, 0.24));
 }
 
 .model3d-height-label {
