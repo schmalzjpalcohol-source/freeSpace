@@ -495,16 +495,44 @@ select:hover {
   padding: 18px 20px 22px;
 }
 
+.plan-slot.rack {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  padding-bottom: 18px;
+}
+
 .plan-meta {
   min-height: 0;
   margin-bottom: 8px;
+}
+
+.plan-slot.rack .plan-meta {
+  width: max(980px, 100%);
+  min-width: 980px;
 }
 
 .rack-display {
   display: grid;
   grid-template-columns: 1fr;
   gap: 10px;
-  overflow: hidden;
+  width: max(980px, 100%);
+  min-width: 980px;
+  overflow: visible;
+}
+
+.plan-slot.rack::-webkit-scrollbar {
+  height: 10px;
+}
+
+.plan-slot.rack::-webkit-scrollbar-track {
+  border-radius: 999px;
+  background: var(--surface-strong);
+}
+
+.plan-slot.rack::-webkit-scrollbar-thumb {
+  border: 2px solid var(--surface-strong);
+  border-radius: 999px;
+  background: var(--line-strong);
 }
 
 .rack-levels {
@@ -1376,6 +1404,13 @@ select:hover {
 
   .rack-display {
     grid-template-columns: 1fr;
+    width: max(760px, 100%);
+    min-width: 760px;
+  }
+
+  .plan-slot.rack .plan-meta {
+    width: max(760px, 100%);
+    min-width: 760px;
   }
 
   .content {
