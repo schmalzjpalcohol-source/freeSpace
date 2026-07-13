@@ -1256,14 +1256,24 @@ function renderMeasureOverlay(measurement, range) {
     }
 
     const label = document.createElement('span');
-    label.className = 'measure-label';
-    label.style.left = `${(x1 + x2) / 2}%`;
-    label.style.top = `${(y1 + y2) / 2}%`;
+    const labelX = (x1 + x2) / 2;
+    const labelY = (y1 + y2) / 2;
+    label.className = `measure-label ${measureLabelPositionClass(labelX, labelY)}`;
+    label.style.left = `${labelX}%`;
+    label.style.top = `${labelY}%`;
     label.textContent = measureSummary(measurement);
     overlay.append(label);
   }
 
   return overlay;
+}
+
+function measureLabelPositionClass(x, y) {
+  return [
+    x < 18 ? 'near-left' : '',
+    x > 82 ? 'near-right' : '',
+    y < 14 ? 'near-top' : ''
+  ].filter(Boolean).join(' ');
 }
 
 function renderPlaceCanvas(shelf, kind, role = planRole(shelf)) {

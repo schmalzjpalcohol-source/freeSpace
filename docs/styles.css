@@ -482,11 +482,17 @@ select:hover {
 }
 
 .plan-slot {
-  padding: 12px;
+  padding: 16px;
   border: 1px solid var(--line);
   background: #fff;
   border-radius: 8px;
   box-shadow: none;
+  overflow: hidden;
+}
+
+.plan-slot.floor-main,
+.plan-slot.floor-long {
+  padding: 18px 20px 22px;
 }
 
 .plan-meta {
@@ -498,7 +504,7 @@ select:hover {
   display: grid;
   grid-template-columns: 1fr;
   gap: 10px;
-  overflow: visible;
+  overflow: hidden;
 }
 
 .rack-levels {
@@ -594,6 +600,7 @@ select:hover {
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+  min-width: 0;
 }
 
 .measure-toggle {
@@ -622,9 +629,13 @@ select:hover {
 }
 
 .measure-status {
+  min-width: min(100%, 170px);
+  max-width: 100%;
   color: var(--muted);
   font-size: 0.82rem;
   font-weight: 850;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
 }
 
 .rack-package {
@@ -737,6 +748,7 @@ select:hover {
 
 .measure-label {
   position: absolute;
+  max-width: min(220px, calc(100% - 16px));
   padding: 5px 7px;
   border: 1px solid rgba(15, 118, 110, 0.22);
   border-radius: 6px;
@@ -744,9 +756,31 @@ select:hover {
   color: var(--primary-dark);
   font-size: 0.76rem;
   font-weight: 950;
-  line-height: 1;
+  line-height: 1.15;
   transform: translate(-50%, calc(-100% - 8px));
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+
+.measure-label.near-left {
+  transform: translate(0, calc(-100% - 8px));
+}
+
+.measure-label.near-right {
+  transform: translate(-100%, calc(-100% - 8px));
+}
+
+.measure-label.near-top {
+  transform: translate(-50%, 8px);
+}
+
+.measure-label.near-left.near-top {
+  transform: translate(0, 8px);
+}
+
+.measure-label.near-right.near-top {
+  transform: translate(-100%, 8px);
 }
 
 .floor-canvas {
@@ -820,7 +854,7 @@ select:hover {
   left: 50%;
   bottom: calc(100% + 10px);
   z-index: 8;
-  max-width: min(260px, 92vw);
+  max-width: min(240px, calc(100vw - 40px));
   padding: 8px 10px;
   border-radius: 8px;
   background: rgba(20, 32, 34, 0.94);
@@ -834,6 +868,7 @@ select:hover {
   transform: translateX(-50%) translateY(4px) scale(0.96);
   transition: opacity 140ms ease, transform 140ms ease;
   white-space: normal;
+  overflow-wrap: anywhere;
   box-shadow: 0 10px 26px rgba(20, 32, 34, 0.28);
 }
 
