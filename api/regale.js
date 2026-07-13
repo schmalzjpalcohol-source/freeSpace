@@ -28,11 +28,35 @@ function packageArea(item) {
   return Math.max(1, item.width_units || 1) * Math.max(1, item.depth_units || 1);
 }
 
+function itemHeightCm(item, fallback = 45) {
+  const note = String(item?.note || '');
+  const match = note.match(/height\s*([0-9]+(?:[.,][0-9]+)?)\s*cm/i) || note.match(/höhe\s*([0-9]+(?:[.,][0-9]+)?)\s*cm/i);
+  return Math.max(1, numberValue(match?.[1], fallback));
+}
+
+function stackCount(value) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) ? Math.max(1, parsed) : 1;
+}
+
 function zoneKind(item) {
   const text = `${item.package_name || ''} ${item.note || ''}`.toLowerCase();
   if (text.includes('zone:red') || text.includes('red no-place') || text.includes('blocked') || text.includes('rot') || text.includes('verbot') || text.includes('nicht abstellen')) return 'red';
   if (text.includes('zone:yellow') || text.includes('yellow reserve') || text.includes('gelb') || text.includes('reserve')) return 'yellow';
   return '';
+}
+
+function maxStackHeightForShelf(shelf, candidate) {
+  if (shelf.location_type === 'floor') return 100;
+  const smallStart = 361;
+  const smallColumnStart = Math.max(1, (shelf.columns || 600) - 149);
+  if (
+    candidate.rowIndex >= smallStart &&
+    candidate.columnIndex >= smallColumnStart
+  ) {
+    return 16;
+  }
+  return 65;
 }
 
 function isZoneItem(item) {
@@ -154,6 +178,16 @@ async function assertPlaceFree(shelf, candidate, excludeId) {
     error.status = 409;
     throw error;
   }
+
+  if (!zoneKind({ package_name: candidate.packageName, note: candidate.note })) {
+    const totalHeight = stackCount(candidate.quantity) * itemHeightCm(candidate);
+    const maxHeight = maxStackHeightForShelf(shelf, candidate);
+    if (totalHeight > maxHeight) {
+      const error = new Error(`Stack is too high: ${totalHeight} cm, max ${maxHeight} cm here.`);
+      error.status = 400;
+      throw error;
+    }
+  }
 }
 
 module.exports = async function handler(req, res) {
@@ -187,13 +221,15 @@ module.exports = async function handler(req, res) {
       const rowIndex = cmBetween(body.rowIndex, 1, Math.max(1, shelf.rows - depthUnits + 1), 1);
       const columnIndex = cmBetween(body.columnIndex, 1, Math.max(1, shelf.columns - widthUnits + 1), 1);
       const packageName = String(body.packageName || '').trim();
+      const quantity = intBetween(body.quantity, 1, 9999, 1);
+      const note = String(body.note || '').trim();
 
       if (!packageName) {
         json(res, 400, { error: 'packageName is required' });
         return;
       }
 
-      await assertPlaceFree(shelf, { rowIndex, columnIndex, widthUnits, depthUnits, packageName, note: body.note });
+      await assertPlaceFree(shelf, { rowIndex, columnIndex, widthUnits, depthUnits, packageName, quantity, note });
 
       const inserted = await supabaseFetch('packages', {
         method: 'POST',
@@ -205,8 +241,8 @@ module.exports = async function handler(req, res) {
           width_units: widthUnits,
           depth_units: depthUnits,
           package_name: packageName,
-          quantity: intBetween(body.quantity, 1, 9999, 1),
-          note: String(body.note || '').trim(),
+          quantity,
+          note,
           created_by: user.sub,
           created_by_login: user.login
         })
@@ -229,13 +265,15 @@ module.exports = async function handler(req, res) {
       const rowIndex = cmBetween(body.rowIndex, 1, Math.max(1, shelf.rows - depthUnits + 1), 1);
       const columnIndex = cmBetween(body.columnIndex, 1, Math.max(1, shelf.columns - widthUnits + 1), 1);
       const packageName = String(body.packageName || '').trim();
+      const quantity = intBetween(body.quantity, 1, 9999, 1);
+      const note = String(body.note || '').trim();
 
       if (!packageName) {
         json(res, 400, { error: 'packageName is required' });
         return;
       }
 
-      await assertPlaceFree(shelf, { rowIndex, columnIndex, widthUnits, depthUnits, packageName, note: body.note }, id);
+      await assertPlaceFree(shelf, { rowIndex, columnIndex, widthUnits, depthUnits, packageName, quantity, note }, id);
 
       const updated = await supabaseFetch(`packages?id=eq.${encodeURIComponent(id)}`, {
         method: 'PATCH',
@@ -247,8 +285,8 @@ module.exports = async function handler(req, res) {
           width_units: widthUnits,
           depth_units: depthUnits,
           package_name: packageName,
-          quantity: intBetween(body.quantity, 1, 9999, 1),
-          note: String(body.note || '').trim(),
+          quantity,
+          note,
           updated_at: new Date().toISOString()
         })
       });

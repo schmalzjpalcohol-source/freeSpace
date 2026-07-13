@@ -3,6 +3,7 @@ const els = {
   loginForm: document.querySelector('#loginForm'),
   logoutButton: document.querySelector('#logoutButton'),
   refreshButton: document.querySelector('#refreshButton'),
+  view3dButton: document.querySelector('#view3dButton'),
   defaultPlanButton: document.querySelector('#defaultPlanButton'),
   packagesTab: document.querySelector('#packagesTab'),
   placesTab: document.querySelector('#placesTab'),
@@ -34,6 +35,7 @@ const els = {
   locationType: document.querySelector('#locationType'),
   overviewCards: document.querySelector('#overviewCards'),
   warehouseMap: document.querySelector('#warehouseMap'),
+  model3d: document.querySelector('#model3d'),
   shelfName: document.querySelector('#shelfName'),
   shelfRows: document.querySelector('#shelfRows'),
   shelfColumns: document.querySelector('#shelfColumns'),
@@ -41,6 +43,7 @@ const els = {
   columnIndex: document.querySelector('#columnIndex'),
   widthUnits: document.querySelector('#widthUnits'),
   depthUnits: document.querySelector('#depthUnits'),
+  heightUnits: document.querySelector('#heightUnits'),
   packageName: document.querySelector('#packageName'),
   quantity: document.querySelector('#quantity'),
   note: document.querySelector('#note'),
@@ -57,7 +60,13 @@ let appState = {
   activeView: 'packages',
   activePlanRole: 'floor-main',
   activeRackLevel: 1,
-  measurement: null
+  measurement: null,
+  model3d: {
+    active: false,
+    rotX: 58,
+    rotZ: -34,
+    zoom: 1
+  }
 };
 
 const planPlaces = {
@@ -144,13 +153,16 @@ function placeLabel(kind) {
 
 function packageTooltip(item) {
   const zone = zoneKind(item);
+  const height = itemHeightCm(item);
+  const count = stackCount(item);
   const parts = [
     item.package_name,
     formatSizeCm(item.width_units || 1, item.depth_units || 1),
-    zone ? `${zone} zone` : `${item.quantity || 1}x`
+    zone ? `${zone} zone` : `${count}x stacked, ${formatCm(height)} cm each, ${formatCm(count * height)} cm total`
   ];
   if (isStackedItem(item)) parts.push('stacked');
-  if (item.note) parts.push(item.note);
+  const note = cleanHeightFromNote(item.note || '');
+  if (note) parts.push(note);
   return parts.filter(Boolean).join(' | ');
 }
 
@@ -206,6 +218,52 @@ function cmInputToCm(value, fallbackCm = 100) {
 
 function cmInputToMeters(value, fallbackCm = 100) {
   return formatDecimal(cmInputToCm(value, fallbackCm) / 100);
+}
+
+function itemHeightCm(item, fallback = 45) {
+  const note = String(item?.note || '');
+  const match = note.match(/height\s*([0-9]+(?:[.,][0-9]+)?)\s*cm/i) || note.match(/höhe\s*([0-9]+(?:[.,][0-9]+)?)\s*cm/i);
+  return cmInputToCm(match?.[1], fallback);
+}
+
+function cleanHeightFromNote(note) {
+  return String(note || '')
+    .replace(/(?:,\s*)?height\s*[0-9]+(?:[.,][0-9]+)?\s*cm/gi, '')
+    .replace(/(?:,\s*)?höhe\s*[0-9]+(?:[.,][0-9]+)?\s*cm/gi, '')
+    .replace(/\s*,\s*,\s*/g, ', ')
+    .trim()
+    .replace(/^,\s*/, '')
+    .replace(/\s*,$/, '');
+}
+
+function noteWithHeight(note, height) {
+  const clean = cleanHeightFromNote(note);
+  const heightText = `height ${formatCm(height)} cm`;
+  return clean ? `${clean}, ${heightText}` : heightText;
+}
+
+function stackCount(itemOrValue) {
+  const value = typeof itemOrValue === 'object' ? itemOrValue.quantity : itemOrValue;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) ? Math.max(1, parsed) : 1;
+}
+
+function maxStackHeightForShelf(shelf, draft = null) {
+  if (!shelf) return 100;
+  if (placeKind(shelf) === 'floor') return 100;
+  const row = draft?.row ?? Number.parseInt(els.rowIndex.value, 10) ?? 1;
+  const column = draft?.column ?? Number.parseInt(els.columnIndex.value, 10) ?? 1;
+  const smallRack = rackLevelSpecs(shelf).find(level => level.short);
+  if (
+    smallRack &&
+    row >= smallRack.start &&
+    row <= smallRack.end &&
+    column >= smallRack.xStart &&
+    column <= smallRack.xEnd
+  ) {
+    return 16;
+  }
+  return 65;
 }
 
 function maxFreeRunCm(shelf) {
@@ -536,7 +594,7 @@ function zoneAreaCm2(shelf) {
 }
 
 function isStackedItem(item) {
-  return Number.parseInt(item.quantity, 10) > 1 || String(item.note || '').toLowerCase().includes('gestap');
+  return stackCount(item) > 1 || String(item.note || '').toLowerCase().includes('gestap');
 }
 
 function normalizeDecimalInput(input) {
@@ -706,9 +764,10 @@ function selectCell(shelf, row, column, item) {
   els.columnIndex.value = column;
   els.widthUnits.value = item ? inputCm(item.width_units || 120) : 120;
   els.depthUnits.value = item ? inputCm(item.depth_units || 80) : 80;
+  els.heightUnits.value = item ? inputCm(itemHeightCm(item)) : 45;
   els.packageName.value = item ? item.package_name : '';
   els.quantity.value = item ? item.quantity : 1;
-  els.note.value = item ? item.note || '' : '';
+  els.note.value = item ? cleanHeightFromNote(item.note || '') : '';
   els.formTitle.textContent = item ? 'Edit item' : 'Add item';
   els.saveButton.textContent = item ? 'Save changes' : 'Save item';
   els.deletePackageButton.classList.toggle('hidden', !item);
@@ -728,6 +787,7 @@ function clearPackageForm() {
   els.note.value = '';
   els.widthUnits.value = 120;
   els.depthUnits.value = 80;
+  els.heightUnits.value = 45;
   els.formTitle.textContent = 'Add item';
   els.saveButton.textContent = 'Save item';
   els.deletePackageButton.classList.add('hidden');
@@ -823,6 +883,7 @@ function render() {
     shelfPlaces.filter(shelf => planPlaceRole(shelf) === 'rack'),
     floorPlaces.filter(shelf => planPlaceRole(shelf))
   );
+  renderModel3d(planShelves);
   renderPlanDrawing(shelfPlaces, floorPlaces);
   renderPlaces();
 }
@@ -1749,9 +1810,10 @@ async function movePackage(shelf, item, draft) {
     columnIndex: draft.column,
     widthUnits: cmInputToMeters(item.width_units || 1, item.width_units || 1),
     depthUnits: cmInputToMeters(item.depth_units || 1, item.depth_units || 1),
+    heightUnits: itemHeightCm(item),
     packageName: item.package_name,
     quantity: item.quantity,
-    note: item.note || ''
+    note: noteWithHeight(cleanHeightFromNote(item.note || ''), itemHeightCm(item))
   };
   await apiFetch('/api/regale', {
     method: 'PATCH',
@@ -1759,6 +1821,107 @@ async function movePackage(shelf, item, draft) {
   });
   showMessage('Item moved.');
   await loadShelves();
+}
+
+function renderModel3d(shelves) {
+  if (!els.model3d) return;
+  els.model3d.classList.toggle('hidden', !appState.model3d.active);
+  els.view3dButton?.classList.toggle('active', appState.model3d.active);
+  if (!appState.model3d.active) {
+    els.model3d.innerHTML = '';
+    return;
+  }
+
+  const scale = 0.16;
+  const zScale = 0.62;
+  const viewport = document.createElement('div');
+  viewport.className = 'model3d-viewport';
+  const stage = document.createElement('div');
+  stage.className = 'model3d-stage';
+  const scene = document.createElement('div');
+  scene.className = 'model3d-scene';
+  stage.append(scene);
+  viewport.append(stage);
+
+  let xOffset = 0;
+  shelves.forEach(shelf => {
+    const width = (shelf.columns || 1) * scale;
+    const depth = (effectiveRowsForShelf(shelf) || shelf.rows || 1) * scale;
+    const area = document.createElement('div');
+    area.className = `model3d-area ${placeKind(shelf) === 'floor' ? 'floor-model' : 'rack-model'}`;
+    area.style.width = `${width}px`;
+    area.style.height = `${depth}px`;
+    area.style.transform = `translate3d(${xOffset}px, 0, 0)`;
+    area.innerHTML = `<span>${escapeHtml(shelf.label || shelf.name)}</span>`;
+    scene.append(area);
+
+    shelf.packages.forEach(item => {
+      renderModel3dItem(scene, shelf, item, xOffset, scale, zScale);
+    });
+
+    xOffset += width + 70;
+  });
+
+  els.model3d.innerHTML = '';
+  els.model3d.append(viewport);
+  applyModel3dTransform(scene);
+  attachModel3dControls(viewport, scene);
+}
+
+function renderModel3dItem(scene, shelf, item, xOffset, scale, zScale) {
+  const zone = zoneKind(item);
+  const count = zone ? 1 : Math.min(stackCount(item), 12);
+  const height = zone ? 3 : itemHeightCm(item);
+  const width = Math.max(5, (item.width_units || 1) * scale);
+  const depth = Math.max(5, (item.depth_units || 1) * scale);
+  const left = xOffset + ((item.column_index || 1) - 1) * scale;
+  const top = ((item.row_index || 1) - 1) * scale;
+
+  for (let index = 0; index < count; index += 1) {
+    const layer = document.createElement('div');
+    layer.className = `model3d-box ${zone ? `${zone}-model-zone` : ''}`;
+    layer.style.width = `${width}px`;
+    layer.style.height = `${depth}px`;
+    layer.style.transform = `translate3d(${left}px, ${top}px, ${index * height * zScale}px)`;
+    layer.style.setProperty('--box-rise', `${Math.max(8, height * zScale)}px`);
+    layer.title = packageTooltip(item);
+    scene.append(layer);
+  }
+}
+
+function applyModel3dTransform(scene) {
+  scene.style.transform = `translate(-50%, -50%) rotateX(${appState.model3d.rotX}deg) rotateZ(${appState.model3d.rotZ}deg) scale(${appState.model3d.zoom})`;
+}
+
+function attachModel3dControls(viewport, scene) {
+  let pointer = null;
+  viewport.addEventListener('pointerdown', event => {
+    pointer = {
+      id: event.pointerId,
+      x: event.clientX,
+      y: event.clientY,
+      rotX: appState.model3d.rotX,
+      rotZ: appState.model3d.rotZ
+    };
+    viewport.setPointerCapture(event.pointerId);
+  });
+  viewport.addEventListener('pointermove', event => {
+    if (!pointer || pointer.id !== event.pointerId) return;
+    appState.model3d.rotZ = pointer.rotZ + ((event.clientX - pointer.x) * 0.28);
+    appState.model3d.rotX = clamp(pointer.rotX - ((event.clientY - pointer.y) * 0.22), 35, 76);
+    applyModel3dTransform(scene);
+  });
+  const clear = event => {
+    if (!pointer || pointer.id !== event.pointerId) return;
+    pointer = null;
+  };
+  viewport.addEventListener('pointerup', clear);
+  viewport.addEventListener('pointercancel', clear);
+  viewport.addEventListener('wheel', event => {
+    event.preventDefault();
+    appState.model3d.zoom = clamp(appState.model3d.zoom - (event.deltaY * 0.001), 0.55, 1.8);
+    applyModel3dTransform(scene);
+  }, { passive: false });
 }
 
 function renderPlaces() {
@@ -1882,10 +2045,13 @@ function setupPresetButton(button) {
 
 function packageHtml(item, selected = false) {
   const zone = zoneKind(item);
+  const count = stackCount(item);
+  const height = itemHeightCm(item);
+  const note = cleanHeightFromNote(item.note || '');
   return `
-    <span class="measure">${formatSizeCm(item.width_units || 1, item.depth_units || 1)}</span>
+    <span class="measure">${formatSizeCm(item.width_units || 1, item.depth_units || 1)} · h ${formatCm(count * height)} cm</span>
     <span class="pkg">${escapeHtml(item.package_name)}</span>
-    <span class="note">${zone ? `${zone} zone, no item area` : `${escapeHtml(item.quantity)}x ${isStackedItem(item) ? 'stacked ' : ''}${escapeHtml(item.note || '')}`}</span>
+    <span class="note">${zone ? `${zone} zone, no item area` : `${escapeHtml(count)}x stacked${note ? ` · ${escapeHtml(note)}` : ''}`}</span>
     ${selected ? draftMarkerHtml({
       width: item.width_units || 1,
       depth: item.depth_units || 1
@@ -1915,11 +2081,14 @@ async function loadShelves() {
 
 async function submitPackage(event) {
   event.preventDefault();
-  normalizeDecimalFields(els.shelfRows, els.shelfColumns, els.widthUnits, els.depthUnits);
+  normalizeDecimalFields(els.shelfRows, els.shelfColumns, els.widthUnits, els.depthUnits, els.heightUnits);
   updateDraftFromSizeInputs();
   const payload = Object.fromEntries(new FormData(els.packageForm).entries());
   const selectedShelf = appState.selected?.shelf;
   const payloadZone = zoneKind({ package_name: payload.packageName, note: payload.note });
+  const height = cmInputToCm(payload.heightUnits, 45);
+  const quantity = stackCount(payload.quantity);
+  const totalHeight = height * quantity;
   if (selectedShelf && payloadZone !== 'red' && touchesForbiddenArea(selectedShelf, {
     row: cmInputToCm(payload.rowIndex, 1),
     column: cmInputToCm(payload.columnIndex, 1),
@@ -1929,6 +2098,18 @@ async function submitPackage(event) {
     showMessage('This red zone is blocked. Do not place items there.', 'error');
     return;
   }
+  if (selectedShelf && !payloadZone) {
+    const maxHeight = maxStackHeightForShelf(selectedShelf, {
+      row: cmInputToCm(payload.rowIndex, 1),
+      column: cmInputToCm(payload.columnIndex, 1)
+    });
+    if (totalHeight > maxHeight) {
+      showMessage(`Stack is too high: ${formatCm(totalHeight)} cm, max ${formatCm(maxHeight)} cm here.`, 'error');
+      return;
+    }
+  }
+  payload.quantity = quantity;
+  payload.note = payloadZone ? cleanHeightFromNote(payload.note) : noteWithHeight(payload.note, height);
   payload.shelfRows = cmInputToMeters(payload.shelfRows, planPlaces.rack.rows);
   payload.shelfColumns = cmInputToMeters(payload.shelfColumns, 600);
   payload.widthUnits = cmInputToMeters(payload.widthUnits, 100);
@@ -2045,6 +2226,11 @@ els.refreshButton.addEventListener('click', () => {
   loadShelves().catch(error => showMessage(error.message, 'error'));
 });
 
+els.view3dButton?.addEventListener('click', () => {
+  appState.model3d.active = !appState.model3d.active;
+  render();
+});
+
 if (els.defaultPlanButton) {
   els.defaultPlanButton.addEventListener('click', () => {
     createDefaultPlanPlaces().catch(error => showMessage(error.message, 'error'));
@@ -2089,11 +2275,10 @@ document.querySelectorAll('[data-preset]').forEach(button => {
     const [width, depth, height, name, quantity, note = ''] = button.dataset.preset.split('|');
     els.widthUnits.value = width;
     els.depthUnits.value = depth;
+    els.heightUnits.value = height && height !== '0' ? height : 1;
     els.packageName.value = name;
     els.quantity.value = quantity;
-    els.note.value = height && height !== '0'
-      ? `${note ? `${note}, ` : ''}height ${height} cm`
-      : note;
+    els.note.value = note;
     updateDraftFromSizeInputs();
   });
 });
@@ -2127,7 +2312,7 @@ document.querySelectorAll('[data-place-preset]').forEach(button => {
   });
 });
 
-[els.shelfRows, els.shelfColumns, els.widthUnits, els.depthUnits, els.placeRows, els.placeColumns].forEach(input => {
+[els.shelfRows, els.shelfColumns, els.widthUnits, els.depthUnits, els.heightUnits, els.placeRows, els.placeColumns].forEach(input => {
   input.addEventListener('input', () => normalizeDecimalInput(input));
 });
 els.widthUnits.addEventListener('input', updateDraftFromSizeInputs);
