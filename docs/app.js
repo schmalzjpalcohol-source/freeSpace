@@ -1832,40 +1832,57 @@ function renderModel3d(shelves) {
     return;
   }
 
-  const scale = 0.16;
-  const zScale = 0.62;
-  const viewport = document.createElement('div');
-  viewport.className = 'model3d-viewport';
-  const stage = document.createElement('div');
-  stage.className = 'model3d-stage';
-  const scene = document.createElement('div');
-  scene.className = 'model3d-scene';
-  stage.append(scene);
-  viewport.append(stage);
+  const grid = document.createElement('div');
+  grid.className = 'model3d-grid';
 
-  let xOffset = 0;
   shelves.forEach(shelf => {
+    const card = document.createElement('section');
+    card.className = 'model3d-card';
+    card.innerHTML = `
+      <div class="model3d-head">
+        <strong>${escapeHtml(shelf.label || shelf.name)}</strong>
+        <span>${escapeHtml(modelHeightSummary(shelf))}</span>
+      </div>
+    `;
+
+    const scale = clamp(520 / Math.max(shelf.columns || 1, effectiveRowsForShelf(shelf) || shelf.rows || 1), 0.12, 0.24);
+    const zScale = 0.62;
+    const viewport = document.createElement('div');
+    viewport.className = 'model3d-viewport';
+    const stage = document.createElement('div');
+    stage.className = 'model3d-stage';
+    const scene = document.createElement('div');
+    scene.className = 'model3d-scene';
+    stage.append(scene);
+    viewport.append(stage);
+
     const width = (shelf.columns || 1) * scale;
     const depth = (effectiveRowsForShelf(shelf) || shelf.rows || 1) * scale;
     const area = document.createElement('div');
     area.className = `model3d-area ${placeKind(shelf) === 'floor' ? 'floor-model' : 'rack-model'}`;
     area.style.width = `${width}px`;
     area.style.height = `${depth}px`;
-    area.style.transform = `translate3d(${xOffset}px, 0, 0)`;
+    area.style.transform = 'translate3d(0, 0, 0)';
     area.innerHTML = `<span>${escapeHtml(shelf.label || shelf.name)}</span>`;
     scene.append(area);
 
     shelf.packages.forEach(item => {
-      renderModel3dItem(scene, shelf, item, xOffset, scale, zScale);
+      renderModel3dItem(scene, shelf, item, 0, scale, zScale);
     });
 
-    xOffset += width + 70;
+    card.append(viewport);
+    grid.append(card);
+    applyModel3dTransform(scene);
+    attachModel3dControls(viewport, scene);
   });
 
   els.model3d.innerHTML = '';
-  els.model3d.append(viewport);
-  applyModel3dTransform(scene);
-  attachModel3dControls(viewport, scene);
+  els.model3d.append(grid);
+}
+
+function modelHeightSummary(shelf) {
+  if (placeKind(shelf) === 'floor') return 'max height 100 cm';
+  return 'max height 65 cm / small 16 cm';
 }
 
 function renderModel3dItem(scene, shelf, item, xOffset, scale, zScale) {
@@ -1886,6 +1903,14 @@ function renderModel3dItem(scene, shelf, item, xOffset, scale, zScale) {
     layer.style.setProperty('--box-rise', `${Math.max(8, height * zScale)}px`);
     layer.title = packageTooltip(item);
     scene.append(layer);
+  }
+
+  if (!zone) {
+    const label = document.createElement('span');
+    label.className = 'model3d-height-label';
+    label.textContent = `${formatCm(count * height)} cm`;
+    label.style.transform = `translate3d(${left}px, ${top}px, ${Math.max(1, count * height * zScale)}px)`;
+    scene.append(label);
   }
 }
 

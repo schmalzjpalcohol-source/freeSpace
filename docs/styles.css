@@ -381,16 +381,52 @@ select:hover {
 
 .model3d {
   margin-bottom: 16px;
+}
+
+.model3d-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.model3d-card {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: linear-gradient(180deg, #f9fbfb, #eef4f3);
   overflow: hidden;
 }
 
+.model3d-head {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.model3d-head strong,
+.model3d-head span {
+  min-width: 0;
+  line-height: 1.2;
+}
+
+.model3d-head strong {
+  font-size: 0.92rem;
+}
+
+.model3d-head span {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 900;
+  text-align: right;
+}
+
 .model3d-viewport {
   position: relative;
-  height: min(58vh, 520px);
-  min-height: 340px;
+  height: min(46vh, 430px);
+  min-height: 310px;
   overflow: hidden;
   perspective: 1050px;
   cursor: grab;
@@ -475,6 +511,22 @@ select:hover {
   border-color: rgba(201, 133, 40, 0.76);
   background: rgba(255, 242, 191, 0.92);
   box-shadow: 0 calc(-1 * var(--box-rise, 6px)) 0 rgba(201, 133, 40, 0.22);
+}
+
+.model3d-height-label {
+  position: absolute;
+  left: 0;
+  top: 0;
+  padding: 4px 6px;
+  border: 1px solid rgba(15, 118, 110, 0.22);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--primary-dark);
+  font-size: 0.7rem;
+  font-weight: 950;
+  line-height: 1;
+  white-space: nowrap;
+  transform-style: preserve-3d;
 }
 
 .warehouse-map {
