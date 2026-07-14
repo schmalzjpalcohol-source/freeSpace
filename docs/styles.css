@@ -1402,7 +1402,7 @@ select:hover {
   background: transparent;
 }
 
-@container (max-width: 72px) {
+@container (max-width: 54px) {
   .package-rect .measure,
   .package-rect .pkg,
   .package-rect .note {
@@ -1416,7 +1416,7 @@ select:hover {
   }
 }
 
-@container (max-width: 148px) {
+@container (max-width: 88px) {
   .package-rect .pkg {
     display: none;
   }
@@ -1434,7 +1434,7 @@ select:hover {
   }
 }
 
-@container (max-height: 38px) {
+@container (max-height: 26px) {
   .package-rect .measure,
   .package-rect .pkg {
     display: none;

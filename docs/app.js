@@ -451,7 +451,7 @@ function rackGlobalDraft(shelf, range, localDraft) {
 }
 
 function rackPackageLabelFits(width, depth) {
-  return width >= 72 && depth >= 28;
+  return width >= 48 && depth >= 18;
 }
 
 function activeMeasurement(shelf, level = null) {
