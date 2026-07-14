@@ -2246,6 +2246,9 @@ function createThreeAreaScene(viewport, shelf, view) {
   const heightScale = scale;
   const areaWidth = widthCm * scale;
   const areaDepth = depthCm * scale;
+  const smallRackWidth = shelf.modelShowsAllLevels ? Math.min(150, widthCm) * scale : areaWidth;
+  const baseWidth = shelf.modelShowsAllLevels ? smallRackWidth : areaWidth;
+  const baseOffsetX = shelf.modelShowsAllLevels ? (areaWidth - smallRackWidth) / 2 : 0;
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0xf6f8f8);
@@ -2265,8 +2268,8 @@ function createThreeAreaScene(viewport, shelf, view) {
     roughness: 0.82,
     metalness: 0.02
   });
-  const floorMesh = new THREE.Mesh(new THREE.BoxGeometry(areaWidth, 0.08, areaDepth), floorMaterial);
-  floorMesh.position.y = -0.04;
+  const floorMesh = new THREE.Mesh(new THREE.BoxGeometry(baseWidth, 0.08, areaDepth), floorMaterial);
+  floorMesh.position.set(baseOffsetX, -0.04, 0);
   floorMesh.receiveShadow = true;
   root.add(floorMesh);
 
@@ -2278,13 +2281,14 @@ function createThreeAreaScene(viewport, shelf, view) {
   root.add(edge);
 
   if (shelf.modelIsRackLevel) {
-    const rackHeight = Math.max(1, shelf.modelHeightCm || 65) * heightScale;
+    const rackBottomCm = shelf.modelShowsAllLevels ? 16 : 0;
+    const rackHeight = Math.max(1, (shelf.modelHeightCm || 65) - rackBottomCm) * heightScale;
     const rackBoundsGeometry = new THREE.BoxGeometry(areaWidth, rackHeight, areaDepth);
     const rackBounds = new THREE.LineSegments(
       new THREE.EdgesGeometry(rackBoundsGeometry),
       new THREE.LineBasicMaterial({ color: 0x6f7d80, transparent: true, opacity: 0.72 })
     );
-    rackBounds.position.y = rackHeight / 2;
+    rackBounds.position.y = (rackBottomCm * heightScale) + (rackHeight / 2);
     root.add(rackBounds);
 
     if (shelf.modelShowsAllLevels) {
@@ -2309,7 +2313,7 @@ function createThreeAreaScene(viewport, shelf, view) {
         post.castShadow = true;
         root.add(post);
       });
-      const smallWidth = 150 * scale;
+      const smallWidth = smallRackWidth;
       const smallTop = new THREE.Mesh(new THREE.BoxGeometry(smallWidth, 0.08, areaDepth), boardMaterial);
       smallTop.position.set((areaWidth - smallWidth) / 2, 16 * heightScale, 0);
       root.add(smallTop);
@@ -2325,10 +2329,11 @@ function createThreeAreaScene(viewport, shelf, view) {
     }
   }
 
-  const grid = new THREE.GridHelper(Math.max(areaWidth, areaDepth), 12, 0xa8b6b8, 0xd2dddd);
-  grid.scale.x = areaWidth / Math.max(areaWidth, areaDepth);
-  grid.scale.z = areaDepth / Math.max(areaWidth, areaDepth);
-  grid.position.y = 0.02;
+  const gridSize = Math.max(baseWidth, areaDepth);
+  const grid = new THREE.GridHelper(gridSize, 12, 0xa8b6b8, 0xd2dddd);
+  grid.scale.x = baseWidth / gridSize;
+  grid.scale.z = areaDepth / gridSize;
+  grid.position.set(baseOffsetX, 0.02, 0);
   root.add(grid);
 
   const renderedItems = [];
