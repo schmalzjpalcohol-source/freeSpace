@@ -208,6 +208,40 @@ select:focus-visible {
   border-color: #f0bdc4;
 }
 
+.stack-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(20, 32, 34, 0.42);
+  backdrop-filter: blur(3px);
+}
+
+.stack-dialog {
+  width: min(460px, 100%);
+  display: grid;
+  gap: 12px;
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: 0 26px 70px rgba(20, 32, 34, 0.3);
+}
+
+.stack-dialog p:not(.eyebrow) {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.stack-dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
 .layout {
   display: grid;
   grid-template-columns: 330px minmax(0, 1fr);

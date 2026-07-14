@@ -159,8 +159,7 @@ function packageTooltip(item) {
       item.package_name || (isRed ? 'Red no-place zone' : 'Yellow reserve zone'),
       `Size: ${formatSizeCm(item.width_units || 1, item.depth_units || 1)}`,
       isRed ? 'No items allowed' : 'Only for defined items',
-      purpose,
-      `Created by: ${item.created_by_login || item.created_by || 'Unknown'}`
+      purpose
     ].join('\n');
   }
   const height = itemHeightCm(item);
@@ -171,7 +170,7 @@ function packageTooltip(item) {
     zone ? `${zone} zone` : `${count}x stacked, ${formatCm(height)} cm each, ${formatCm(count * height)} cm total`
   ];
   if (isStackedItem(item)) parts.push('stacked');
-  const note = cleanHeightFromNote(item.note || '');
+  const note = displayItemNote(item.note || '');
   if (note) parts.push(note);
   return parts.filter(Boolean).join(' | ');
 }
@@ -258,6 +257,32 @@ function noteWithHeight(note, height) {
   const clean = cleanHeightFromNote(note);
   const heightText = `height ${formatCm(height)} cm`;
   return clean ? `${clean}, ${heightText}` : heightText;
+}
+
+function stackPlacement(itemOrNote) {
+  const note = typeof itemOrNote === 'object' ? itemOrNote?.note : itemOrNote;
+  return String(note || '').match(/stack-order\s*:\s*(below|above)/i)?.[1]?.toLowerCase() || '';
+}
+
+function noteWithStackPlacement(note, placement) {
+  const clean = String(note || '')
+    .replace(/(?:,\s*)?stack-order\s*:\s*(below|above)/gi, '')
+    .replace(/^,\s*|\s*,$/g, '')
+    .trim();
+  const marker = `stack-order:${placement}`;
+  return clean ? `${clean}, ${marker}` : marker;
+}
+
+function displayItemNote(note) {
+  return cleanHeightFromNote(note)
+    .replace(/(?:,\s*)?stack-order\s*:\s*(below|above)/gi, '')
+    .replace(/^,\s*|\s*,$/g, '')
+    .trim();
+}
+
+function orderedForStacking(items) {
+  const priority = item => stackPlacement(item) === 'below' ? -1 : stackPlacement(item) === 'above' ? 1 : 0;
+  return [...(items || [])].sort((a, b) => priority(a) - priority(b));
 }
 
 function stackCount(itemOrValue) {
@@ -710,8 +735,47 @@ function stackOverlapHeight(shelf, candidate, excludeId = '') {
   if (!shelf) return 0;
   const rect = draftRect(candidate);
   return shelf.packages
-    .filter(item => item.id !== excludeId && !isZoneItem(item) && rectsOverlap(rect, packageRect(item)))
+    .filter(item => String(item.id) !== String(excludeId || '') && !isZoneItem(item) && rectsOverlap(rect, packageRect(item)))
     .reduce((sum, item) => sum + stackTotalHeightCm(item), 0);
+}
+
+function overlappingNormalItems(shelf, candidate, excludeId = '') {
+  if (!shelf) return [];
+  const rect = draftRect(candidate);
+  return shelf.packages.filter(item => (
+    String(item.id) !== String(excludeId || '') &&
+    !isZoneItem(item) &&
+    rectsOverlap(rect, packageRect(item))
+  ));
+}
+
+function askStackPlacement(items) {
+  return new Promise(resolve => {
+    const overlay = document.createElement('div');
+    overlay.className = 'stack-dialog-backdrop';
+    const names = items.map(item => item.package_name).filter(Boolean).slice(0, 3).join(', ');
+    overlay.innerHTML = `
+      <section class="stack-dialog" role="dialog" aria-modal="true" aria-labelledby="stackDialogTitle">
+        <p class="eyebrow">Stack position</p>
+        <h2 id="stackDialogTitle">Where should the new item go?</h2>
+        <p>It overlaps ${escapeHtml(names || 'an existing item')}.</p>
+        <div class="stack-dialog-actions">
+          <button class="primary" type="button" data-stack-choice="above">Place on top</button>
+          <button class="ghost" type="button" data-stack-choice="below">Place underneath</button>
+          <button class="ghost" type="button" data-stack-choice="cancel">Cancel</button>
+        </div>
+      </section>
+    `;
+    const finish = choice => {
+      overlay.remove();
+      resolve(choice === 'cancel' ? '' : choice);
+    };
+    overlay.querySelectorAll('[data-stack-choice]').forEach(button => {
+      button.addEventListener('click', () => finish(button.dataset.stackChoice));
+    });
+    document.body.append(overlay);
+    overlay.querySelector('[data-stack-choice="above"]').focus();
+  });
 }
 
 function selectedDraft() {
@@ -1218,7 +1282,7 @@ function renderRackLevelDetail(shelf, level) {
   canvas.append(renderDimensionLabels({ ...shelf, columns: range.width, rows: range.height }, 'shelf', range.short ? 'rack-short-detail' : 'rack-detail'));
   canvas.append(renderMeasureOverlay(measurement, range));
 
-  const visiblePackages = shelf.packages.filter(item => packageInRackLevel(item, range));
+  const visiblePackages = orderedForStacking(shelf.packages.filter(item => packageInRackLevel(item, range)));
   const renderedPackages = [];
   visiblePackages.forEach(item => {
     const rectangle = document.createElement('button');
@@ -1510,7 +1574,7 @@ function renderPlaceCanvas(shelf, kind, role = planRole(shelf)) {
   }
 
   const renderedPackages = [];
-  shelf.packages.forEach(item => {
+  orderedForStacking(shelf.packages).forEach(item => {
     const rectangle = document.createElement('button');
     const selectedPackage = els.packageId.value === item.id;
     const editDraft = selectedPackage ? selectedPackageDraft(item) : null;
@@ -2145,7 +2209,7 @@ function createThreeAreaScene(viewport, shelf, view) {
   root.add(grid);
 
   const renderedItems = [];
-  (shelf.packages || []).forEach(item => {
+  orderedForStacking(shelf.packages).forEach(item => {
     const overlaps = renderedItems.filter(previous => rectsOverlap(packageRect(previous), packageRect(item)));
     const baseHeightCm = overlaps.reduce((sum, previous) => sum + stackTotalHeightCm(previous), 0);
     renderThreeItem(root, item, scale, heightScale, widthCm, depthCm, {
@@ -2483,7 +2547,7 @@ function packageHtml(item, selected = false) {
   const zone = zoneKind(item);
   const count = stackCount(item);
   const height = itemHeightCm(item);
-  const note = cleanHeightFromNote(item.note || '');
+  const note = displayItemNote(item.note || '');
   return `
     <span class="measure">${formatSizeCm(item.width_units || 1, item.depth_units || 1)} · h ${formatCm(count * height)} cm</span>
     <span class="pkg">${escapeHtml(item.package_name)}</span>
@@ -2550,6 +2614,12 @@ async function submitPackage(event) {
     if (combinedHeight > maxHeight) {
       showMessage(`Stack is too high: ${formatCm(combinedHeight)} cm total, max ${formatCm(maxHeight)} cm here.`, 'error');
       return;
+    }
+    const overlappingItems = overlappingNormalItems(selectedShelf, candidateRect, payload.packageId);
+    if (overlappingItems.length) {
+      const placement = await askStackPlacement(overlappingItems);
+      if (!placement) return;
+      payload.note = noteWithStackPlacement(payload.note, placement);
     }
   }
   payload.quantity = quantity;
