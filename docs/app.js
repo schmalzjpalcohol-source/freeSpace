@@ -152,6 +152,17 @@ function placeLabel(kind) {
 
 function packageTooltip(item) {
   const zone = zoneKind(item);
+  if (zone) {
+    const isRed = zone === 'red';
+    const purpose = zonePurposeNote(item.note) || (isRed ? 'Reserved restricted area' : 'Reserved area');
+    return [
+      item.package_name || (isRed ? 'Red no-place zone' : 'Yellow reserve zone'),
+      `Size: ${formatSizeCm(item.width_units || 1, item.depth_units || 1)}`,
+      isRed ? 'No items allowed' : 'Only for defined items',
+      purpose,
+      `Created by: ${item.created_by_login || item.created_by || 'Unknown'}`
+    ].join('\n');
+  }
   const height = itemHeightCm(item);
   const count = stackCount(item);
   const parts = [
@@ -163,6 +174,14 @@ function packageTooltip(item) {
   const note = cleanHeightFromNote(item.note || '');
   if (note) parts.push(note);
   return parts.filter(Boolean).join(' | ');
+}
+
+function zonePurposeNote(note) {
+  return String(note || '')
+    .replace(/zone\s*:\s*(red|yellow)/gi, '')
+    .replace(/height\s*[0-9]+(?:[.,][0-9]+)?\s*cm/gi, '')
+    .replace(/^[\s|·,;:-]+|[\s|·,;:-]+$/g, '')
+    .trim();
 }
 
 function clamp(value, min, max) {

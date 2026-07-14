@@ -317,7 +317,20 @@ select:hover {
 
 .content {
   min-height: 540px;
+  width: 100%;
+  min-width: 0;
   padding: 18px;
+}
+
+#packageView,
+.shelves,
+.plan-drawing,
+.plan-switcher,
+.plan-slot,
+.toolbar {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .toolbar {
@@ -509,6 +522,7 @@ select:hover {
   line-height: 1.2;
   pointer-events: none;
   transform: translate(12px, calc(-100% - 10px));
+  white-space: pre-line;
   overflow-wrap: break-word;
   box-shadow: 0 10px 26px rgba(20, 32, 34, 0.26);
 }
@@ -1235,7 +1249,7 @@ select:hover {
 
 .package-rect.blocked-zone,
 .package-rect.reserve-zone {
-  overflow: hidden;
+  overflow: visible;
 }
 
 .package-rect.stacked-zone {
@@ -1295,7 +1309,7 @@ select:hover {
   text-align: left;
   transform: translateX(-50%) translateY(4px) scale(0.96);
   transition: opacity 140ms ease, transform 140ms ease;
-  white-space: normal;
+  white-space: pre-line;
   overflow-wrap: break-word;
   box-shadow: 0 10px 26px rgba(20, 32, 34, 0.28);
 }
