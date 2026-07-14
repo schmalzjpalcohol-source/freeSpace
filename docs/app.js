@@ -2007,11 +2007,10 @@ function model3dDisplayShelf(shelf) {
   if (planPlaceRole(shelf) !== 'rack') return shelf;
   const range = rackLevelRange(shelf, appState.activeRackLevel);
   const regularLevel = range.level >= 1 && range.level <= 3;
-  const modelWidth = regularLevel ? 150 : range.width;
+  const modelWidth = regularLevel ? 600 : range.width;
   const modelDepth = regularLevel ? 90 : range.height;
   const modelHeight = regularLevel ? 65 : 220;
-  const modelPackages = rackLevelPackages(shelf, range)
-    .filter(item => !regularLevel || (item.column_index || 1) <= modelWidth);
+  const modelPackages = rackLevelPackages(shelf, range);
   return {
     ...shelf,
     id: shelf.id,
