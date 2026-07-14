@@ -76,7 +76,7 @@ const planPlaces = {
     notes: 'Max height 220 cm'
   },
   rack: {
-    title: 'Rack 600 x 450',
+    title: 'Rack 600 x 90',
     rows: 450,
     columns: 600,
     notes: 'Max height 220 cm'
@@ -432,8 +432,9 @@ function rackGlobalDraft(shelf, range, localDraft) {
   );
 }
 
-function rackPackageLabelFits(width, depth) {
-  return width >= 130 && depth >= 38;
+function rackPackageLabelFits(width, depth, name = '') {
+  const nameWidth = Math.max(70, Math.min(260, String(name).trim().length * 8));
+  return width >= nameWidth && depth >= 34;
 }
 
 function activeMeasurement(shelf, level = null) {
@@ -1039,10 +1040,10 @@ function renderPlanSlot(role, shelf) {
   meta.innerHTML = `
     <div>
       <span class="place-type">${placeLabel(kind)}</span>
-      <h2>${escapeHtml(displayShelf.label || displayShelf.name)}</h2>
+      <h2>${escapeHtml(role === 'rack' ? planTitle('rack') : (displayShelf.label || displayShelf.name))}</h2>
     </div>
     <div class="stats">
-      <span class="stat">${formatSizeCm(displayShelf.columns, displayShelf.rows)}</span>
+      <span class="stat">${role === 'rack' ? formatSizeCm(displayShelf.columns, 90) : formatSizeCm(displayShelf.columns, displayShelf.rows)}</span>
       <span class="stat">${shelf ? lengthSummary(displayShelf) : 'not created yet'}</span>
       <span class="stat">max height 220 cm</span>
     </div>
@@ -1197,8 +1198,9 @@ function renderRackLevelDetail(shelf, level) {
     const clippedRight = Math.min(displayItem.column_index + (displayItem.width_units || 1) - 1, range.xEnd);
     const visibleDepth = Math.max(1, clippedBottom - clippedTop + 1);
     const visibleWidth = Math.max(1, clippedRight - clippedLeft + 1);
+    const labelFits = rackPackageLabelFits(visibleWidth, visibleDepth, displayItem.package_name);
     rectangle.className = `package-rect rack-package ${selectedPackage ? 'selected' : ''}`;
-    rectangle.classList.toggle('compact-label', !rackPackageLabelFits(visibleWidth, visibleDepth));
+    rectangle.classList.toggle('compact-label', !labelFits);
     rectangle.classList.toggle('blocked-zone', isBlockedItem(displayItem));
     rectangle.classList.toggle('reserve-zone', isYellowZone(displayItem));
     rectangle.classList.toggle('stacked-zone', isStackedItem(displayItem));
@@ -1207,7 +1209,7 @@ function renderRackLevelDetail(shelf, level) {
     rectangle.style.top = `${((clippedTop - range.start) / range.height) * 100}%`;
     rectangle.style.width = `${(visibleWidth / range.width) * 100}%`;
     rectangle.style.height = `${(visibleDepth / range.height) * 100}%`;
-    rectangle.dataset.tooltip = packageTooltip(displayItem);
+    rectangle.dataset.tooltip = labelFits ? '' : packageTooltip(displayItem);
     rectangle.setAttribute('aria-label', item.package_name);
     rectangle.innerHTML = packageHtml(displayItem, selectedPackage);
     rectangle.addEventListener('pointerdown', event => {
@@ -1463,11 +1465,7 @@ function renderPlaceCanvas(shelf, kind, role = planRole(shelf)) {
     canvas.append(marker);
   }
 
-  const floorStackGroups = kind === 'floor' ? findFloorStackGroups(shelf) : [];
-  floorStackGroups.forEach(group => renderFloorStackGroup(canvas, shelf, group));
-
   shelf.packages.forEach(item => {
-    if (shouldSkipFloorStackItem(floorStackGroups, item)) return;
     const rectangle = document.createElement('button');
     const selectedPackage = els.packageId.value === item.id;
     const editDraft = selectedPackage ? selectedPackageDraft(item) : null;
@@ -1761,7 +1759,9 @@ function startRackPackageEdit(event, canvas, shelf, range, item, rectangle, disp
       depth: adjusted.depth
     }, range);
     updateDragMarker(localShelf, rectangle, adjustedLocal);
-    rectangle.classList.toggle('compact-label', !rackPackageLabelFits(adjustedLocal.width, adjustedLocal.depth));
+    const labelFits = rackPackageLabelFits(adjustedLocal.width, adjustedLocal.depth, displayItem.package_name);
+    rectangle.classList.toggle('compact-label', !labelFits);
+    rectangle.dataset.tooltip = labelFits ? '' : packageTooltip(displayItem);
     rectangle.querySelector('.measure').textContent = formatSizeCm(adjusted.width, adjusted.depth);
   };
 
@@ -2358,7 +2358,7 @@ function renderOverview(shelves, shelfPlaces, floorPlaces) {
 
 function renderWarehouseMap(shelfPlaces, floorPlaces) {
   const zones = [
-    ['Rack 600 x 450', shelfPlaces],
+    ['Rack 600 x 90', shelfPlaces],
     ['Floor area 1', floorPlaces.slice(0, 1)],
     ['Floor area 2', floorPlaces.slice(1)]
   ];

@@ -887,8 +887,8 @@ select:hover {
 }
 
 .rack-level {
-  grid-column: 1 / -1;
-  min-height: 58px;
+  grid-column: auto;
+  min-height: 72px;
   border: 1px solid var(--line);
   border-radius: 6px;
   padding: 8px;
@@ -956,7 +956,7 @@ select:hover {
 
 .rack-level-detail {
   width: calc(100% - 34px);
-  min-height: clamp(300px, 48vw, 460px);
+  min-height: clamp(360px, 52vh, 560px);
   margin-top: 32px;
   margin-left: 34px;
   background-size: 48px 48px;
@@ -1361,6 +1361,10 @@ select:hover {
 .rack-package.compact-label .pkg,
 .rack-package.compact-label .note {
   display: none;
+}
+
+.rack-package.compact-label .measure {
+  align-self: center;
 }
 
 .delete {
