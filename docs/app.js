@@ -2552,13 +2552,18 @@ function attachModel3dFullscreenButton(card) {
       if (document.fullscreenElement === card) {
         await document.exitFullscreen();
       } else {
+        const onFullscreenChange = () => {
+          updateLabel();
+          if (!document.fullscreenElement) document.removeEventListener('fullscreenchange', onFullscreenChange);
+        };
+        document.addEventListener('fullscreenchange', onFullscreenChange);
         await card.requestFullscreen();
       }
+      updateLabel();
     } catch (error) {
       showMessage('Fullscreen mode is not available in this browser.', 'error');
     }
   });
-  document.addEventListener('fullscreenchange', updateLabel);
   updateLabel();
 }
 
