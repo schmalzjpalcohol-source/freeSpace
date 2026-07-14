@@ -1220,6 +1220,11 @@ select:hover {
   color: #5b3a08;
 }
 
+.package-rect.blocked-zone,
+.package-rect.reserve-zone {
+  overflow: hidden;
+}
+
 .package-rect.stacked-zone {
   box-shadow:
     7px 7px 0 rgba(201, 133, 40, 0.28),
@@ -1347,9 +1352,29 @@ select:hover {
   overflow: hidden;
 }
 
+.package-rect .measure,
+.package-rect .pkg,
+.package-rect .note {
+  border: 0;
+  padding: 0;
+  background: transparent;
+}
+
 @container (max-width: 64px) {
   .package-rect .pkg,
   .package-rect .note {
+    display: none;
+  }
+}
+
+@container (max-height: 44px) {
+  .package-rect .note {
+    display: none;
+  }
+}
+
+@container (max-height: 28px) {
+  .package-rect .pkg {
     display: none;
   }
 }
