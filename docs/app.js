@@ -432,6 +432,10 @@ function rackGlobalDraft(shelf, range, localDraft) {
   );
 }
 
+function rackPackageLabelFits(width, depth) {
+  return width >= 130 && depth >= 38;
+}
+
 function activeMeasurement(shelf, level = null) {
   const measurement = appState.measurement;
   if (!measurement || measurement.shelfId !== shelf.id || measurement.level !== level) return null;
@@ -1194,6 +1198,7 @@ function renderRackLevelDetail(shelf, level) {
     const visibleDepth = Math.max(1, clippedBottom - clippedTop + 1);
     const visibleWidth = Math.max(1, clippedRight - clippedLeft + 1);
     rectangle.className = `package-rect rack-package ${selectedPackage ? 'selected' : ''}`;
+    rectangle.classList.toggle('compact-label', !rackPackageLabelFits(visibleWidth, visibleDepth));
     rectangle.classList.toggle('blocked-zone', isBlockedItem(displayItem));
     rectangle.classList.toggle('reserve-zone', isYellowZone(displayItem));
     rectangle.classList.toggle('stacked-zone', isStackedItem(displayItem));
@@ -1206,7 +1211,7 @@ function renderRackLevelDetail(shelf, level) {
     rectangle.setAttribute('aria-label', item.package_name);
     rectangle.innerHTML = packageHtml(displayItem, selectedPackage);
     rectangle.addEventListener('pointerdown', event => {
-      if (!selectedPackage) return;
+      if (isMeasuring(shelf, level)) return;
       startRackPackageEdit(event, canvas, shelf, range, item, rectangle, displayItem);
     });
     rectangle.addEventListener('click', () => {
@@ -1756,6 +1761,7 @@ function startRackPackageEdit(event, canvas, shelf, range, item, rectangle, disp
       depth: adjusted.depth
     }, range);
     updateDragMarker(localShelf, rectangle, adjustedLocal);
+    rectangle.classList.toggle('compact-label', !rackPackageLabelFits(adjustedLocal.width, adjustedLocal.depth));
     rectangle.querySelector('.measure').textContent = formatSizeCm(adjusted.width, adjusted.depth);
   };
 
