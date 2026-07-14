@@ -1044,8 +1044,27 @@ function renderPlanSlot(role, shelf) {
       <span class="stat">${formatSizeCm(displayShelf.columns, displayShelf.rows)}</span>
       <span class="stat">${shelf ? lengthSummary(displayShelf) : 'not created yet'}</span>
       <span class="stat">max height 220 cm</span>
+      ${shelf ? `
+        <span class="plan-meta-actions">
+          <button class="ghost edit-area" type="button">Edit</button>
+          <button class="danger delete-area" type="button">Delete</button>
+        </span>
+      ` : ''}
     </div>
   `;
+  if (shelf) {
+    meta.querySelector('.edit-area').addEventListener('click', () => {
+      selectPlace(shelf);
+      setActiveView('places');
+      els.placeForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    meta.querySelector('.delete-area').addEventListener('click', () => {
+      const itemCount = shelf.packages?.length || 0;
+      const detail = itemCount ? ` It contains ${itemCount} item(s).` : '';
+      if (!window.confirm(`Really delete "${shelf.label || shelf.name}"?${detail}`)) return;
+      deletePlace(shelf.id).catch(error => showMessage(error.message, 'error'));
+    });
+  }
   slot.append(meta);
 
   if (shelf) {
@@ -2517,6 +2536,7 @@ async function submitPlace(event) {
     body: JSON.stringify(payload)
   });
   clearPlaceForm();
+  appState.activeView = 'packages';
   showMessage(isEdit ? 'Area updated.' : 'Area created.');
   await loadShelves();
 }
@@ -2639,7 +2659,10 @@ els.deletePackageButton.addEventListener('click', async () => {
   els.selectedCell.textContent = 'No area selected';
 });
 
-els.cancelPlaceButton.addEventListener('click', clearPlaceForm);
+els.cancelPlaceButton.addEventListener('click', () => {
+  clearPlaceForm();
+  setActiveView('packages');
+});
 els.deleteAllPlacesButton.addEventListener('click', () => {
   deleteAllPlaces().catch(error => showMessage(error.message, 'error'));
 });

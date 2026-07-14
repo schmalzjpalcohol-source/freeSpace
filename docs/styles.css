@@ -1040,6 +1040,17 @@ select:hover {
   font-size: 0.84rem;
 }
 
+.plan-meta-actions {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.plan-meta-actions button {
+  min-height: 32px;
+  padding: 0 10px;
+  font-size: 0.78rem;
+}
+
 .stat {
   border: 1px solid var(--line);
   border-radius: 8px;
