@@ -2139,6 +2139,7 @@ function renderModel3d(shelves) {
           <button type="button" data-model-zoom="in" aria-label="Zoom in">+</button>
           <button type="button" data-model-zoom="out" aria-label="Zoom out">-</button>
           <button type="button" data-model-zoom="reset">Reset</button>
+          <button type="button" data-model-fullscreen aria-label="Open 3D view in fullscreen">Fullscreen</button>
         </div>
       </div>
     `;
@@ -2157,6 +2158,7 @@ function renderModel3d(shelves) {
     card.append(viewport);
     grid.append(card);
     attachModel3dZoomButtons(card, view);
+    attachModel3dFullscreenButton(card);
     attachModel3dRackLevelButtons(card);
   });
 
@@ -2253,7 +2255,9 @@ function createThreeAreaScene(viewport, shelf, view) {
   const floorMaterial = new THREE.MeshStandardMaterial({
     color: placeKind(shelf) === 'floor' ? 0xf4efe6 : 0xe9f4f4,
     roughness: 0.82,
-    metalness: 0.02
+    metalness: 0.02,
+    transparent: true,
+    opacity: 0.72
   });
   const floorMesh = new THREE.Mesh(new THREE.BoxGeometry(areaWidth, 0.08, areaDepth), floorMaterial);
   floorMesh.position.y = -0.04;
@@ -2278,8 +2282,8 @@ function createThreeAreaScene(viewport, shelf, view) {
     root.add(rackBounds);
 
     if (shelf.modelShowsAllLevels) {
-      const frameMaterial = new THREE.MeshStandardMaterial({ color: 0x728083, roughness: 0.58, metalness: 0.34 });
-      const boardMaterial = new THREE.MeshStandardMaterial({ color: 0xdce7e6, roughness: 0.72, metalness: 0.08 });
+      const frameMaterial = new THREE.MeshStandardMaterial({ color: 0x728083, roughness: 0.58, metalness: 0.34, transparent: true, opacity: 0.64 });
+      const boardMaterial = new THREE.MeshStandardMaterial({ color: 0xdce7e6, roughness: 0.72, metalness: 0.08, transparent: true, opacity: 0.68 });
       [65, 130, 195].forEach(heightCm => {
         const board = new THREE.Mesh(new THREE.BoxGeometry(areaWidth, 0.08, areaDepth), boardMaterial);
         board.position.y = heightCm * heightScale;
@@ -2404,7 +2408,7 @@ function renderThreeItem(root, item, scale, heightScale, widthCm, depthCm, optio
     roughness: 0.64,
     metalness: 0.04,
     transparent: Boolean(zone || options.translucent),
-    opacity: zone ? 0.46 : options.translucent ? 0.68 : 0.96
+    opacity: zone ? 0.42 : options.translucent ? 0.58 : 0.78
   });
   const edgeMaterial = new THREE.LineBasicMaterial({ color: zone === 'red' ? 0x9f2331 : 0x5f4327, transparent: true, opacity: 0.55 });
 
@@ -2533,6 +2537,29 @@ function attachModel3dZoomButtons(card, view) {
       view.update?.();
     });
   });
+}
+
+function attachModel3dFullscreenButton(card) {
+  const button = card.querySelector('[data-model-fullscreen]');
+  if (!button) return;
+  const updateLabel = () => {
+    const active = document.fullscreenElement === card;
+    button.textContent = active ? 'Exit fullscreen' : 'Fullscreen';
+    button.setAttribute('aria-label', active ? 'Exit fullscreen' : 'Open 3D view in fullscreen');
+  };
+  button.addEventListener('click', async () => {
+    try {
+      if (document.fullscreenElement === card) {
+        await document.exitFullscreen();
+      } else {
+        await card.requestFullscreen();
+      }
+    } catch (error) {
+      showMessage('Fullscreen mode is not available in this browser.', 'error');
+    }
+  });
+  document.addEventListener('fullscreenchange', updateLabel);
+  updateLabel();
 }
 
 function attachModel3dRackLevelButtons(card) {
