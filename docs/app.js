@@ -2454,14 +2454,8 @@ function attachModel3dRackLevelButtons(card) {
 }
 
 function renderPlaces() {
-  const planPlacesList = appState.shelves.filter(planPlaceRole);
-  const oldPlaces = appState.shelves.filter(place => !planPlaceRole(place));
-  if (planPlacesList.length) {
-    renderPlaceGroup('Current 3 areas', planPlacesList);
-  }
-  if (oldPlaces.length) {
-    renderPlaceGroup('Old/other areas', oldPlaces, true);
-  }
+  if (!appState.shelves.length) return;
+  renderPlaceGroup(`All areas (${appState.shelves.length})`, appState.shelves);
 }
 
 function renderPlaceGroup(title, places, muted = false) {
