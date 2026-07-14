@@ -298,7 +298,6 @@ function rackLevelSpecs(shelf) {
     { level: 1, label: 'Rack level 1', ...levelRange(1), xStart: 1, xEnd: width, short: false, heightLabel: 'max height 220 cm' },
     { level: 2, label: 'Rack level 2', ...levelRange(2), xStart: 1, xEnd: width, short: false, heightLabel: 'max height 220 cm' },
     { level: 3, label: 'Rack level 3', ...levelRange(3), xStart: 1, xEnd: width, short: false, heightLabel: 'max height 220 cm' },
-    { level: 4, label: 'Rack level 4', ...levelRange(4), xStart: 1, xEnd: width, short: false, heightLabel: 'max height 220 cm' },
     { level: 5, label: 'Small rack', ...small, xStart: Math.max(1, width - 149), xEnd: width, short: true, heightLabel: '150 x 90 cm, max height 220 cm' }
   ];
 }
