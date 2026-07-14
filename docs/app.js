@@ -1085,28 +1085,33 @@ function renderRackDisplay(shelf) {
   const wrapper = document.createElement('div');
   wrapper.className = 'rack-display';
 
+  const levels = document.createElement('div');
+  levels.className = 'rack-levels';
+
   rackLevelSpecs(shelf).forEach(spec => {
     const level = spec.level;
+    const button = document.createElement('button');
     const range = rackLevelRange(shelf, level);
     const packages = shelf.packages.filter(item => packageInRackLevel(item, range));
-
-    const section = document.createElement('section');
-    section.className = `rack-level-section ${range.short ? 'short-level-section' : ''} ${appState.activeRackLevel === level ? 'active' : ''}`;
-    section.innerHTML = `
-      <div class="rack-level-title">
-        <div>
-          <span>${escapeHtml(range.label)}</span>
-          <small>${escapeHtml(range.heightLabel || `${packages.length} positions`)}</small>
-        </div>
-        <strong>${formatAreaCm2(rackLevelFreeAreaCm2(shelf, level))} free</strong>
-      </div>
+    button.type = 'button';
+    button.className = `rack-level ${range.short ? 'short-level' : ''} ${appState.activeRackLevel === level ? 'active' : ''}`;
+    button.innerHTML = `
+      <span>${escapeHtml(range.label)}</span>
+      <strong>${formatAreaCm2(rackLevelFreeAreaCm2(shelf, level))} free</strong>
+      <small>${range.heightLabel || `${packages.length} positions`}</small>
       ${range.short ? '<i class="short-shelf-mark" aria-hidden="true"></i>' : ''}
     `;
-    section.append(renderRackTools(shelf, level));
-    section.append(renderRackLevelDetail(shelf, level));
-    wrapper.append(section);
+    button.addEventListener('click', () => {
+      appState.activeRackLevel = level;
+      applyDraftSelection(shelf, findFreeRackDraft(shelf, range, currentPackageSize()));
+      render();
+    });
+    levels.append(button);
   });
 
+  wrapper.append(levels);
+  wrapper.append(renderRackTools(shelf, appState.activeRackLevel));
+  wrapper.append(renderRackLevelDetail(shelf, appState.activeRackLevel));
   return wrapper;
 }
 
@@ -1207,7 +1212,6 @@ function renderRackLevelDetail(shelf, level) {
     rectangle.innerHTML = packageHtml(displayItem, selectedPackage);
     rectangle.addEventListener('pointerdown', event => {
       if (isMeasuring(shelf, level)) return;
-      appState.activeRackLevel = level;
       startRackPackageEdit(event, canvas, shelf, range, item, rectangle, displayItem);
     });
     rectangle.addEventListener('click', () => {
@@ -1215,7 +1219,6 @@ function renderRackLevelDetail(shelf, level) {
         rectangle.dataset.dragged = 'false';
         return;
       }
-      appState.activeRackLevel = level;
       selectCell(shelf, item.row_index, item.column_index, item);
     });
     canvas.append(rectangle);
@@ -1259,7 +1262,6 @@ function renderRackLevelDetail(shelf, level) {
     }
     if (event.target.closest('.package-rect, .draft-marker')) return;
     event.preventDefault();
-    appState.activeRackLevel = level;
     const cell = canvasCellFromEvent(event, canvas, { ...shelf, columns: range.width, rows: range.height });
     applyDraftSelection(shelf, draftInRackRange(shelf, range, cell, currentPackageSize()));
     render();
