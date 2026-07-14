@@ -63,6 +63,7 @@ let appState = {
   measurement: null,
   model3d: {
     active: false,
+    activeShelfId: '',
     zoom: 1,
     views: {}
   }
@@ -73,19 +74,19 @@ const planPlaces = {
     title: 'Floor area 1 - 880 x 380',
     rows: 380,
     columns: 880,
-    notes: 'Floor max height 100 cm'
+    notes: 'Max height 220 cm'
   },
   rack: {
     title: 'Rack 600 x 450',
     rows: 450,
     columns: 600,
-    notes: 'Rack levels max height 65 cm, small rack max height 16 cm'
+    notes: 'Max height 220 cm'
   },
   'floor-long': {
     title: 'Floor area 2 - 380 x 740',
     rows: 740,
     columns: 380,
-    notes: 'Floor max height 100 cm'
+    notes: 'Max height 220 cm'
   }
 };
 
@@ -251,22 +252,8 @@ function stackTotalHeightCm(item) {
   return stackCount(item) * itemHeightCm(item);
 }
 
-function maxStackHeightForShelf(shelf, draft = null) {
-  if (!shelf) return 100;
-  if (placeKind(shelf) === 'floor') return 100;
-  const row = draft?.row ?? Number.parseInt(els.rowIndex.value, 10) ?? 1;
-  const column = draft?.column ?? Number.parseInt(els.columnIndex.value, 10) ?? 1;
-  const smallRack = rackLevelSpecs(shelf).find(level => level.short);
-  if (
-    smallRack &&
-    row >= smallRack.start &&
-    row <= smallRack.end &&
-    column >= smallRack.xStart &&
-    column <= smallRack.xEnd
-  ) {
-    return 16;
-  }
-  return 65;
+function maxStackHeightForShelf() {
+  return 220;
 }
 
 function maxFreeRunCm(shelf) {
@@ -309,11 +296,11 @@ function rackLevelSpecs(shelf) {
   };
   const small = levelRange(5);
   return [
-    { level: 1, label: 'Rack level 1', ...levelRange(1), xStart: 1, xEnd: width, short: false, heightLabel: 'max height 65 cm' },
-    { level: 2, label: 'Rack level 2', ...levelRange(2), xStart: 1, xEnd: width, short: false, heightLabel: 'max height 65 cm' },
-    { level: 3, label: 'Rack level 3', ...levelRange(3), xStart: 1, xEnd: width, short: false, heightLabel: 'max height 65 cm' },
-    { level: 4, label: 'Rack level 4', ...levelRange(4), xStart: 1, xEnd: width, short: false, heightLabel: 'max height 65 cm' },
-    { level: 5, label: 'Small rack', ...small, xStart: Math.max(1, width - 149), xEnd: width, short: true, heightLabel: '150 x 90 cm, height 16 cm' }
+    { level: 1, label: 'Rack level 1', ...levelRange(1), xStart: 1, xEnd: width, short: false, heightLabel: 'max height 220 cm' },
+    { level: 2, label: 'Rack level 2', ...levelRange(2), xStart: 1, xEnd: width, short: false, heightLabel: 'max height 220 cm' },
+    { level: 3, label: 'Rack level 3', ...levelRange(3), xStart: 1, xEnd: width, short: false, heightLabel: 'max height 220 cm' },
+    { level: 4, label: 'Rack level 4', ...levelRange(4), xStart: 1, xEnd: width, short: false, heightLabel: 'max height 220 cm' },
+    { level: 5, label: 'Small rack', ...small, xStart: Math.max(1, width - 149), xEnd: width, short: true, heightLabel: '150 x 90 cm, max height 220 cm' }
   ];
 }
 
@@ -1036,7 +1023,7 @@ function renderPlanSlot(role, shelf) {
     <div class="stats">
       <span class="stat">${formatSizeCm(displayShelf.columns, displayShelf.rows)}</span>
       <span class="stat">${shelf ? lengthSummary(displayShelf) : 'not created yet'}</span>
-      ${role === 'rack' ? '<span class="stat">rack height 65 cm / small 16 cm</span>' : '<span class="stat">max height 100 cm</span>'}
+      <span class="stat">max height 220 cm</span>
     </div>
   `;
   slot.append(meta);
@@ -1910,48 +1897,57 @@ function renderModel3d(shelves) {
     return;
   }
 
+  if (!shelves.length) {
+    els.model3d.innerHTML = '';
+    return;
+  }
+  let activeIndex = shelves.findIndex(shelf => shelf.id === appState.model3d.activeShelfId);
+  if (activeIndex < 0) activeIndex = 0;
+  const shelf = shelves[activeIndex];
+  appState.model3d.activeShelfId = shelf.id;
+
   const grid = document.createElement('div');
   grid.className = 'model3d-grid';
-
-  shelves.forEach(shelf => {
-    const view = modelViewState(shelf.id);
-    const card = document.createElement('section');
-    card.className = 'model3d-card';
-    card.innerHTML = `
-      <div class="model3d-head">
+  const view = modelViewState(shelf.id);
+  const card = document.createElement('section');
+  card.className = 'model3d-card';
+  card.innerHTML = `
+    <div class="model3d-head">
+      <div class="model3d-title">
         <strong>${escapeHtml(shelf.label || shelf.name)}</strong>
-        <span>${escapeHtml(modelHeightSummary(shelf))}</span>
-        <div class="model3d-controls" aria-label="3D zoom controls">
-          <button type="button" data-model-zoom="in">+</button>
-          <button type="button" data-model-zoom="out">-</button>
-          <button type="button" data-model-zoom="reset">Reset</button>
-        </div>
+        <span>${escapeHtml(modelHeightSummary(shelf))} - ${activeIndex + 1}/${shelves.length}</span>
       </div>
-    `;
+      <div class="model3d-controls" aria-label="3D controls">
+        <button type="button" data-model-nav="prev" ${shelves.length < 2 ? 'disabled' : ''} aria-label="Previous area">&lt;</button>
+        <button type="button" data-model-nav="next" ${shelves.length < 2 ? 'disabled' : ''} aria-label="Next area">&gt;</button>
+        <button type="button" data-model-zoom="in" aria-label="Zoom in">+</button>
+        <button type="button" data-model-zoom="out" aria-label="Zoom out">-</button>
+        <button type="button" data-model-zoom="reset">Reset</button>
+      </div>
+    </div>
+  `;
 
-    const viewport = document.createElement('div');
-    viewport.className = 'model3d-viewport';
-    if (!window.THREE) {
-      const missing = document.createElement('div');
-      missing.className = 'model3d-missing';
-      missing.textContent = '3D library could not be loaded.';
-      viewport.append(missing);
-    } else {
-      createThreeAreaScene(viewport, shelf, view);
-    }
+  const viewport = document.createElement('div');
+  viewport.className = 'model3d-viewport';
+  if (!window.THREE) {
+    const missing = document.createElement('div');
+    missing.className = 'model3d-missing';
+    missing.textContent = '3D library could not be loaded.';
+    viewport.append(missing);
+  } else {
+    createThreeAreaScene(viewport, shelf, view);
+  }
 
-    card.append(viewport);
-    grid.append(card);
-    attachModel3dZoomButtons(card, view);
-  });
-
+  card.append(viewport);
+  grid.append(card);
+  attachModel3dZoomButtons(card, view);
+  attachModel3dNavButtons(card, shelves, activeIndex);
   els.model3d.innerHTML = '';
   els.model3d.append(grid);
 }
 
 function modelHeightSummary(shelf) {
-  if (placeKind(shelf) === 'floor') return 'max height 100 cm';
-  return 'max height 65 cm / small 16 cm';
+  return 'max height 220 cm';
 }
 
 function modelViewState(id) {
@@ -2014,7 +2010,18 @@ function createThreeAreaScene(viewport, shelf, view) {
   grid.position.y = 0.02;
   root.add(grid);
 
-  (shelf.packages || []).forEach(item => renderThreeItem(root, item, scale, heightScale, widthCm, depthCm));
+  const renderedItems = [];
+  (shelf.packages || []).forEach(item => {
+    const overlaps = renderedItems.filter(previous => rectsOverlap(packageRect(previous), packageRect(item)));
+    const baseHeightCm = placeKind(shelf) === 'floor'
+      ? overlaps.reduce((sum, previous) => sum + stackTotalHeightCm(previous), 0)
+      : 0;
+    renderThreeItem(root, item, scale, heightScale, widthCm, depthCm, {
+      baseHeightCm,
+      translucent: overlaps.length > 0
+    });
+    renderedItems.push(item);
+  });
 
   const ambient = new THREE.HemisphereLight(0xffffff, 0xa8a09a, 2.1);
   scene.add(ambient);
@@ -2030,6 +2037,9 @@ function createThreeAreaScene(viewport, shelf, view) {
 
   const labels = buildModel3dLabels(shelf);
   viewport.append(labels);
+  const tooltip = document.createElement('div');
+  tooltip.className = 'model3d-tooltip hidden';
+  viewport.append(tooltip);
 
   const update = () => {
     const distance = clamp(12 / view.zoom, 2.2, 34);
@@ -2064,12 +2074,14 @@ function createThreeAreaScene(viewport, shelf, view) {
     window.addEventListener('resize', resize);
   }
   attachModel3dControls(viewport, view, camera);
+  attachModel3dTooltip(viewport, renderer, camera, scene, tooltip);
 }
 
-function renderThreeItem(root, item, scale, heightScale, widthCm, depthCm) {
+function renderThreeItem(root, item, scale, heightScale, widthCm, depthCm, options = {}) {
   const zone = zoneKind(item);
   const count = zone ? 1 : Math.min(stackCount(item), 12);
   const height = zone ? 3 : itemHeightCm(item);
+  const baseHeight = Math.max(0, options.baseHeightCm || 0) * heightScale;
   const boxWidth = Math.max(0.06, (item.width_units || 1) * scale);
   const boxDepth = Math.max(0.06, (item.depth_units || 1) * scale);
   const layerHeight = Math.max(0.06, height * heightScale);
@@ -2080,16 +2092,17 @@ function renderThreeItem(root, item, scale, heightScale, widthCm, depthCm) {
     color,
     roughness: 0.64,
     metalness: 0.04,
-    transparent: Boolean(zone),
-    opacity: zone ? 0.46 : 0.96
+    transparent: Boolean(zone || options.translucent),
+    opacity: zone ? 0.46 : options.translucent ? 0.68 : 0.96
   });
   const edgeMaterial = new THREE.LineBasicMaterial({ color: zone === 'red' ? 0x9f2331 : 0x5f4327, transparent: true, opacity: 0.55 });
 
   for (let index = 0; index < count; index += 1) {
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(boxWidth, layerHeight, boxDepth), material);
-    mesh.position.set(x, (layerHeight / 2) + (index * layerHeight), z);
+    mesh.position.set(x, baseHeight + (layerHeight / 2) + (index * layerHeight), z);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
+    mesh.userData.tooltip = packageTooltip(item);
     root.add(mesh);
     const outline = new THREE.LineSegments(new THREE.EdgesGeometry(mesh.geometry), edgeMaterial);
     outline.position.copy(mesh.position);
@@ -2163,6 +2176,29 @@ function attachModel3dControls(viewport, view, camera) {
   }, { passive: false });
 }
 
+function attachModel3dTooltip(viewport, renderer, camera, scene, tooltip) {
+  const raycaster = new THREE.Raycaster();
+  const pointer = new THREE.Vector2();
+  const updateTooltip = event => {
+    const rect = renderer.domElement.getBoundingClientRect();
+    pointer.x = ((event.clientX - rect.left) / Math.max(1, rect.width)) * 2 - 1;
+    pointer.y = -(((event.clientY - rect.top) / Math.max(1, rect.height)) * 2 - 1);
+    raycaster.setFromCamera(pointer, camera);
+    const hit = raycaster.intersectObjects(scene.children, true).find(item => item.object.userData?.tooltip);
+    if (!hit) {
+      tooltip.classList.add('hidden');
+      return;
+    }
+    tooltip.textContent = hit.object.userData.tooltip;
+    tooltip.style.left = `${event.clientX - rect.left}px`;
+    tooltip.style.top = `${event.clientY - rect.top}px`;
+    tooltip.classList.remove('hidden');
+  };
+  viewport.addEventListener('pointermove', updateTooltip);
+  viewport.addEventListener('pointerleave', () => tooltip.classList.add('hidden'));
+  viewport.addEventListener('pointerdown', () => tooltip.classList.add('hidden'));
+}
+
 function attachModel3dZoomButtons(card, view) {
   card.querySelectorAll('[data-model-zoom]').forEach(button => {
     button.addEventListener('click', () => {
@@ -2178,6 +2214,17 @@ function attachModel3dZoomButtons(card, view) {
         view.targetZ = 0;
       }
       view.update?.();
+    });
+  });
+}
+
+function attachModel3dNavButtons(card, shelves, activeIndex) {
+  card.querySelectorAll('[data-model-nav]').forEach(button => {
+    button.addEventListener('click', () => {
+      const direction = button.dataset.modelNav === 'next' ? 1 : -1;
+      const nextIndex = (activeIndex + direction + shelves.length) % shelves.length;
+      appState.model3d.activeShelfId = shelves[nextIndex].id;
+      render();
     });
   });
 }
