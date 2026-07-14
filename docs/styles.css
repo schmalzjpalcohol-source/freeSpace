@@ -858,7 +858,7 @@ select:hover {
   background: #fff;
   border-radius: 8px;
   box-shadow: none;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .plan-slot.floor-main,
@@ -893,7 +893,7 @@ select:hover {
 .rack-levels {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
+  gap: 8px;
   min-width: 0;
   padding: 0;
   border: 0;
@@ -902,11 +902,11 @@ select:hover {
 }
 
 .rack-level {
-  grid-column: 1 / -1;
-  min-height: 72px;
+  grid-column: auto;
+  min-height: 62px;
   border: 1px solid var(--line);
   border-radius: 6px;
-  padding: 11px 14px;
+  padding: 8px 10px;
   background: #f8faf9;
   color: var(--ink);
   display: grid;
@@ -917,12 +917,12 @@ select:hover {
 }
 
 .rack-level.short-level {
-  grid-column: 4;
-  min-height: 42px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
+  grid-column: auto;
+  min-height: 62px;
+  display: grid;
+  align-content: center;
+  justify-content: stretch;
+  gap: 2px;
   background: #fff9ec;
   border-color: #ead6ad;
 }
@@ -942,8 +942,8 @@ select:hover {
 }
 
 .rack-level.short-level::before {
-  width: 40px;
-  margin: 0;
+  width: 32px;
+  margin: 0 0 4px;
   background: var(--accent);
 }
 
@@ -971,15 +971,15 @@ select:hover {
 
 .rack-level-detail {
   width: calc(100% - 34px);
-  min-height: 0;
-  margin-top: 32px;
+  min-height: clamp(240px, 34vw, 380px);
+  margin-top: 24px;
   margin-left: 34px;
   background-size: 48px 48px;
 }
 
 .rack-level-detail.short-rack-detail {
   width: calc(100% - 34px);
-  min-height: 0;
+  min-height: clamp(220px, 30vw, 340px);
 }
 
 .rack-tools {
@@ -1377,9 +1377,13 @@ select:hover {
   width: 100%;
   min-width: 0;
   max-width: 100%;
-  white-space: nowrap;
+  white-space: normal;
   text-overflow: clip;
   overflow: hidden;
+  overflow-wrap: break-word;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .package-rect .measure,
@@ -1398,7 +1402,7 @@ select:hover {
   background: transparent;
 }
 
-@container (max-width: 64px) {
+@container (max-width: 72px) {
   .package-rect .measure,
   .package-rect .pkg,
   .package-rect .note {
@@ -1406,19 +1410,31 @@ select:hover {
   }
 }
 
-@container (max-width: 104px) {
+@container (max-width: 124px) {
   .package-rect .measure {
     display: none;
   }
 }
 
-@container (max-height: 44px) {
+@container (max-width: 148px) {
+  .package-rect .pkg {
+    display: none;
+  }
+}
+
+@container (max-width: 190px) {
   .package-rect .note {
     display: none;
   }
 }
 
-@container (max-height: 28px) {
+@container (max-height: 52px) {
+  .package-rect .note {
+    display: none;
+  }
+}
+
+@container (max-height: 38px) {
   .package-rect .measure,
   .package-rect .pkg {
     display: none;
@@ -1913,6 +1929,15 @@ select:hover {
     grid-template-columns: 1fr;
     width: 100%;
     min-width: 0;
+  }
+
+  .rack-levels {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .rack-level-detail.place-canvas,
+  .rack-level-detail.short-rack-detail {
+    min-height: 220px;
   }
 
   .plan-slot.rack .plan-meta {

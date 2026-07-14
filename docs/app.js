@@ -314,10 +314,10 @@ function rackLevelSpecs(shelf) {
   };
   const small = levelRange(5);
   return [
-    { level: 1, label: 'Rack level 1', ...levelRange(1), xStart: 1, xEnd: width, short: false, heightLabel: 'max height 220 cm' },
-    { level: 2, label: 'Rack level 2', ...levelRange(2), xStart: 1, xEnd: width, short: false, heightLabel: 'max height 220 cm' },
-    { level: 3, label: 'Rack level 3', ...levelRange(3), xStart: 1, xEnd: width, short: false, heightLabel: 'max height 220 cm' },
-    { level: 5, label: 'Small rack', ...small, xStart: Math.max(1, width - 149), xEnd: width, short: true, heightLabel: '150 x 90 cm, max height 220 cm' }
+    { level: 1, label: 'Rack level 1', ...levelRange(1), xStart: 1, xEnd: width, short: false, heightLabel: '90 x 600 x 65 cm' },
+    { level: 2, label: 'Rack level 2', ...levelRange(2), xStart: 1, xEnd: width, short: false, heightLabel: '90 x 600 x 65 cm' },
+    { level: 3, label: 'Rack level 3', ...levelRange(3), xStart: 1, xEnd: width, short: false, heightLabel: '90 x 600 x 65 cm' },
+    { level: 5, label: 'Small rack', ...small, xStart: Math.max(1, width - 149), xEnd: width, short: true, heightLabel: '16 x 150 x 90 cm' }
   ];
 }
 
@@ -451,7 +451,7 @@ function rackGlobalDraft(shelf, range, localDraft) {
 }
 
 function rackPackageLabelFits(width, depth) {
-  return width >= 130 && depth >= 38;
+  return width >= 72 && depth >= 28;
 }
 
 function activeMeasurement(shelf, level = null) {
@@ -1140,7 +1140,7 @@ function renderRackDisplay(shelf) {
     `;
     button.addEventListener('click', () => {
       appState.activeRackLevel = level;
-      applyDraftSelection(shelf, findFreeRackDraft(shelf, range, currentPackageSize()));
+      clearPackageForm();
       render();
     });
     levels.append(button);
@@ -2028,7 +2028,10 @@ function model3dDisplayShelf(shelf) {
   const regularLevel = range.level >= 1 && range.level <= 3;
   const modelWidth = regularLevel ? 600 : range.width;
   const modelDepth = regularLevel ? 90 : range.height;
-  const modelHeight = regularLevel ? 65 : 220;
+  const modelHeight = regularLevel ? 65 : 16;
+  const modelDimensionLabel = regularLevel
+    ? `90 x 600 x 65 cm`
+    : `16 x 150 x 90 cm`;
   const modelPackages = rackLevelPackages(shelf, range);
   return {
     ...shelf,
@@ -2040,6 +2043,7 @@ function model3dDisplayShelf(shelf) {
     columns: modelWidth,
     packages: modelPackages,
     modelHeightCm: modelHeight,
+    modelDimensionLabel,
     modelIsRackLevel: true,
     notes: `${formatSizeCm(modelWidth, modelDepth)} x ${formatCm(modelHeight)} cm high`
   };
@@ -2059,7 +2063,7 @@ function model3dRackLevelButtons(shelf) {
 
 function modelHeightSummary(shelf) {
   if (shelf.modelIsRackLevel) {
-    return `${formatCm(shelf.rows)} x ${formatCm(shelf.columns)} x ${formatCm(shelf.modelHeightCm)} cm`;
+    return shelf.modelDimensionLabel;
   }
   return 'max height 220 cm';
 }
@@ -2348,6 +2352,7 @@ function attachModel3dRackLevelButtons(card) {
   card.querySelectorAll('[data-model-rack-level]').forEach(button => {
     button.addEventListener('click', () => {
       appState.activeRackLevel = Number.parseInt(button.dataset.modelRackLevel, 10) || 1;
+      clearPackageForm();
       render();
     });
   });
