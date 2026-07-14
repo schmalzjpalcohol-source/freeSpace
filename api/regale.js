@@ -103,7 +103,22 @@ async function findShelf(name) {
   return shelves[0] || null;
 }
 
+async function findShelfById(id) {
+  const shelves = await supabaseFetch(`shelves?id=eq.${encodeURIComponent(id)}&select=*`);
+  return shelves[0] || null;
+}
+
 async function ensureShelf(body) {
+  const shelfId = String(body.shelfId || '').trim();
+  if (shelfId) {
+    const shelf = await findShelfById(shelfId);
+    if (!shelf) {
+      const error = new Error('The selected area no longer exists. Reload the page.');
+      error.status = 404;
+      throw error;
+    }
+    return shelf;
+  }
   const shelfName = String(body.shelfName || '').trim();
   if (!shelfName) {
     const error = new Error('shelfName is required');

@@ -17,6 +17,7 @@ const els = {
   backToOverviewButton: document.querySelector('#backToOverviewButton'),
   placeForm: document.querySelector('#placeForm'),
   placeId: document.querySelector('#placeId'),
+  placeParentId: document.querySelector('#placeParentId'),
   placeLocationType: document.querySelector('#placeLocationType'),
   placeName: document.querySelector('#placeName'),
   placeRows: document.querySelector('#placeRows'),
@@ -949,6 +950,7 @@ function setActivePlanRole(role) {
 
 function clearPlaceForm() {
   els.placeId.value = '';
+  els.placeParentId.value = '';
   els.placeLocationType.value = 'shelf';
   els.placeName.value = '';
   els.placeRows.value = planPlaces.rack.rows;
@@ -956,6 +958,24 @@ function clearPlaceForm() {
   els.placeNotes.value = '';
   els.savePlaceButton.textContent = 'Save area';
   els.cancelPlaceButton.classList.add('hidden');
+}
+
+function parentRackId(placeOrNotes) {
+  const notes = typeof placeOrNotes === 'object' ? placeOrNotes?.notes : placeOrNotes;
+  return String(notes || '').match(/parent-rack\s*:\s*([^;,\s]+)/i)?.[1] || '';
+}
+
+function visiblePlaceNotes(notes) {
+  return String(notes || '')
+    .replace(/(?:[;,]\s*)?parent-rack\s*:\s*([^;,\s]+)/gi, '')
+    .replace(/^[\s;,]+|[\s;,]+$/g, '')
+    .trim();
+}
+
+function areaHeightLabel(shelf) {
+  if (placeKind(shelf) === 'floor') return 'max height 100 cm';
+  if (parentRackId(shelf)) return 'max height 65 cm';
+  return planPlaceRole(shelf) === 'rack' ? 'levels 65 cm · small 16 cm' : 'max height 65 cm';
 }
 
 async function deletePackage(id) {
@@ -1092,13 +1112,14 @@ function renderAreaSwitcher(places, selected) {
   const nav = document.createElement('div');
   nav.className = 'plan-switcher area-switcher';
   nav.setAttribute('aria-label', 'All storage areas');
-  places.forEach(place => {
+  orderAreasWithChildren(places).forEach(place => {
+    const parentId = parentRackId(place);
     const button = document.createElement('button');
     button.type = 'button';
-    button.className = `plan-switch ${String(place.id) === String(selected.id) ? 'active' : ''}`;
+    button.className = `plan-switch ${parentId ? 'sub-rack-switch' : ''} ${String(place.id) === String(selected.id) ? 'active' : ''}`;
     button.innerHTML = `
-      <span>${escapeHtml(place.label || place.name)}</span>
-      <small>${escapeHtml(placeLabel(placeKind(place)))}</small>
+      <span>${parentId ? '↳ ' : ''}${escapeHtml(place.label || place.name)}</span>
+      <small>${parentId ? 'Sub-rack' : escapeHtml(placeLabel(placeKind(place)))}</small>
     `;
     button.addEventListener('click', () => {
       appState.activeAreaId = place.id;
@@ -1110,6 +1131,27 @@ function renderAreaSwitcher(places, selected) {
     nav.append(button);
   });
   return nav;
+}
+
+function orderAreasWithChildren(places) {
+  const children = new Map();
+  places.forEach(place => {
+    const parentId = parentRackId(place);
+    if (!parentId) return;
+    if (!children.has(parentId)) children.set(parentId, []);
+    children.get(parentId).push(place);
+  });
+  const ordered = [];
+  const visited = new Set();
+  const append = place => {
+    if (visited.has(String(place.id))) return;
+    visited.add(String(place.id));
+    ordered.push(place);
+    (children.get(String(place.id)) || []).forEach(append);
+  };
+  places.filter(place => !parentRackId(place)).forEach(append);
+  places.forEach(append);
+  return ordered;
 }
 
 function renderPlanSwitcher() {
@@ -1159,9 +1201,10 @@ function renderPlanSlot(role, shelf) {
     <div class="stats">
       <span class="stat">${formatSizeCm(displayShelf.columns, displayShelf.rows)}</span>
       <span class="stat">${shelf ? lengthSummary(displayShelf) : 'not created yet'}</span>
-      <span class="stat">max height 220 cm</span>
+      <span class="stat">${escapeHtml(areaHeightLabel(displayShelf))}</span>
       ${shelf ? `
         <span class="plan-meta-actions">
+          ${kind === 'shelf' ? '<button class="ghost add-sub-rack" type="button">Add sub-rack</button>' : ''}
           <button class="ghost edit-area" type="button">Edit</button>
           <button class="danger delete-area" type="button">Delete</button>
         </span>
@@ -1169,6 +1212,7 @@ function renderPlanSlot(role, shelf) {
     </div>
   `;
   if (shelf) {
+    meta.querySelector('.add-sub-rack')?.addEventListener('click', () => startSubRackCreation(shelf));
     meta.querySelector('.edit-area').addEventListener('click', () => {
       selectPlace(shelf);
       setActiveView('places');
@@ -1184,7 +1228,7 @@ function renderPlanSlot(role, shelf) {
   slot.append(meta);
 
   if (shelf) {
-    if (role === 'rack' || kind === 'shelf') {
+    if (role === 'rack') {
       slot.append(renderRackDisplay(displayShelf));
     } else {
       slot.append(renderPlaceTools(displayShelf));
@@ -2040,6 +2084,7 @@ function startPackageMove(event, canvas, shelf, item, rectangle) {
 async function movePackage(shelf, item, draft) {
   const savingShelf = shelfForSaving(shelf);
   const payload = {
+    shelfId: shelf.id,
     packageId: item.id,
     locationType: placeKind(shelf),
     shelfName: shelf.name,
@@ -2490,13 +2535,30 @@ function renderPlaceGroup(title, places, muted = false) {
 
 function selectPlace(place) {
   els.placeId.value = place.id;
+  els.placeParentId.value = parentRackId(place);
   els.placeLocationType.value = placeKind(place);
   els.placeName.value = place.name;
   els.placeRows.value = inputCm(place.rows);
   els.placeColumns.value = inputCm(place.columns);
-  els.placeNotes.value = place.notes || '';
+  els.placeNotes.value = visiblePlaceNotes(place.notes);
   els.savePlaceButton.textContent = 'Update area';
   els.cancelPlaceButton.classList.remove('hidden');
+}
+
+function startSubRackCreation(parent) {
+  clearPlaceForm();
+  const existingCount = appState.shelves.filter(place => parentRackId(place) === String(parent.id)).length;
+  els.placeParentId.value = parent.id;
+  els.placeLocationType.value = 'shelf';
+  els.placeName.value = `${parent.label || parent.name} - Sub-rack ${existingCount + 1}`;
+  els.placeRows.value = 90;
+  els.placeColumns.value = 150;
+  els.placeNotes.value = '';
+  els.savePlaceButton.textContent = 'Create sub-rack';
+  els.cancelPlaceButton.classList.remove('hidden');
+  setActiveView('places');
+  els.placeForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  els.placeName.focus();
 }
 
 function renderOverview(shelves, shelfPlaces, floorPlaces) {
@@ -2608,6 +2670,7 @@ async function submitPackage(event) {
   updateDraftFromSizeInputs();
   const payload = Object.fromEntries(new FormData(els.packageForm).entries());
   const selectedShelf = appState.selected?.shelf;
+  if (selectedShelf?.id) payload.shelfId = selectedShelf.id;
   const payloadZone = zoneKind({ package_name: payload.packageName, note: payload.note });
   const height = cmInputToCm(payload.heightUnits, 45);
   const quantity = stackCount(payload.quantity);
@@ -2670,6 +2733,11 @@ async function submitPlace(event) {
   const payload = Object.fromEntries(new FormData(els.placeForm).entries());
   payload.rows = cmInputToMeters(payload.rows, planPlaces.rack.rows);
   payload.columns = cmInputToMeters(payload.columns, 600);
+  if (payload.parentId) {
+    payload.notes = payload.notes
+      ? `${payload.notes}; parent-rack:${payload.parentId}`
+      : `parent-rack:${payload.parentId}`;
+  }
   const isEdit = Boolean(payload.id);
   await apiFetch('/api/places', {
     method: isEdit ? 'PATCH' : 'POST',

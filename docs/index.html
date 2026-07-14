@@ -5,7 +5,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>freeSpace Storage Layout</title>
-    <link rel="stylesheet" href="./styles.css?v=20260714-area-switcher">
+    <link rel="stylesheet" href="./styles.css?v=20260714-sub-racks">
 </head>
 
 <body>
@@ -167,8 +167,9 @@
             </div>
             <button id="backToOverviewButton" class="ghost" type="button">← Back to overview</button>
           </div>
-          <form id="placeForm" class="place-form">
-            <input id="placeId" name="id" type="hidden">
+            <form id="placeForm" class="place-form">
+              <input id="placeId" name="id" type="hidden">
+              <input id="placeParentId" name="parentId" type="hidden">
             <label>
               Type
               <select id="placeLocationType" name="locationType">
@@ -219,7 +220,7 @@
 
   <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
   <script src="./config.js"></script>
-    <script src="./app.js?v=20260714-area-count"></script>
+    <script src="./app.js?v=20260714-sub-racks"></script>
 </body>
 
 </html>

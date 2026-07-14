@@ -921,6 +921,16 @@ select:hover {
   font-weight: 850;
 }
 
+.area-switcher .sub-rack-switch {
+  margin-left: 14px;
+  border-style: dashed;
+  background: #fbfcfc;
+}
+
+.area-switcher .sub-rack-switch.active {
+  background: #edf7f5;
+}
+
 .plan-switch {
   min-height: 42px;
   border: 1px solid var(--line);
