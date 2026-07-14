@@ -2263,9 +2263,7 @@ function createThreeAreaScene(viewport, shelf, view) {
   const floorMaterial = new THREE.MeshStandardMaterial({
     color: placeKind(shelf) === 'floor' ? 0xf4efe6 : 0xe9f4f4,
     roughness: 0.82,
-    metalness: 0.02,
-    transparent: true,
-    opacity: 0.72
+    metalness: 0.02
   });
   const floorMesh = new THREE.Mesh(new THREE.BoxGeometry(areaWidth, 0.08, areaDepth), floorMaterial);
   floorMesh.position.y = -0.04;
@@ -2290,8 +2288,8 @@ function createThreeAreaScene(viewport, shelf, view) {
     root.add(rackBounds);
 
     if (shelf.modelShowsAllLevels) {
-      const frameMaterial = new THREE.MeshStandardMaterial({ color: 0x728083, roughness: 0.58, metalness: 0.34, transparent: true, opacity: 0.64 });
-      const boardMaterial = new THREE.MeshStandardMaterial({ color: 0xdce7e6, roughness: 0.72, metalness: 0.08, transparent: true, opacity: 0.68 });
+      const frameMaterial = new THREE.MeshStandardMaterial({ color: 0x728083, roughness: 0.58, metalness: 0.34 });
+      const boardMaterial = new THREE.MeshStandardMaterial({ color: 0xdce7e6, roughness: 0.72, metalness: 0.08 });
       [65, 130, 195].forEach(heightCm => {
         const board = new THREE.Mesh(new THREE.BoxGeometry(areaWidth, 0.08, areaDepth), boardMaterial);
         board.position.y = heightCm * heightScale;
@@ -2341,7 +2339,8 @@ function createThreeAreaScene(viewport, shelf, view) {
     const baseHeightCm = (item.modelBaseHeightCm || 0) + overlaps.reduce((sum, previous) => sum + stackTotalHeightCm(previous), 0);
     renderThreeItem(root, item, scale, heightScale, widthCm, depthCm, {
       baseHeightCm,
-      translucent: overlaps.length > 0
+      translucent: overlaps.length > 0,
+      rackItem: Boolean(shelf.modelIsRackLevel)
     });
     renderedItems.push(item);
   });
@@ -2411,12 +2410,13 @@ function renderThreeItem(root, item, scale, heightScale, widthCm, depthCm, optio
   const x = (((item.column_index || 1) - 1) + ((item.width_units || 1) / 2) - (widthCm / 2)) * scale;
   const z = (((item.row_index || 1) - 1) + ((item.depth_units || 1) / 2) - (depthCm / 2)) * scale;
   const color = zone === 'red' ? 0xea8a96 : zone === 'yellow' ? 0xf2d16d : 0xe6a447;
+  const opacity = zone ? 0.65 : options.rackItem ? 0.9 : 1;
   const material = new THREE.MeshStandardMaterial({
     color,
     roughness: 0.64,
     metalness: 0.04,
-    transparent: Boolean(zone || options.translucent),
-    opacity: zone ? 0.42 : options.translucent ? 0.58 : 0.78
+    transparent: opacity < 1,
+    opacity
   });
   const edgeMaterial = new THREE.LineBasicMaterial({ color: zone === 'red' ? 0x9f2331 : 0x5f4327, transparent: true, opacity: 0.55 });
 
