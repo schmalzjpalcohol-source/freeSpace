@@ -63,7 +63,6 @@ let appState = {
   measurement: null,
   model3d: {
     active: false,
-    activeShelfId: '',
     zoom: 1,
     views: {}
   }
@@ -333,6 +332,24 @@ function packageInRackLevel(item, range) {
   const left = item.column_index;
   const right = item.column_index + (item.width_units || 1) - 1;
   return top <= range.end && bottom >= range.start && left <= range.xEnd && right >= range.xStart;
+}
+
+function rackLevelPackages(shelf, range) {
+  return shelf.packages
+    .filter(item => packageInRackLevel(item, range))
+    .map(item => {
+      const clippedTop = Math.max(item.row_index, range.start);
+      const clippedBottom = Math.min(item.row_index + (item.depth_units || 1) - 1, range.end);
+      const clippedLeft = Math.max(item.column_index, range.xStart);
+      const clippedRight = Math.min(item.column_index + (item.width_units || 1) - 1, range.xEnd);
+      return {
+        ...item,
+        row_index: clippedTop - range.start + 1,
+        column_index: clippedLeft - range.xStart + 1,
+        width_units: Math.max(1, clippedRight - clippedLeft + 1),
+        depth_units: Math.max(1, clippedBottom - clippedTop + 1)
+      };
+    });
 }
 
 function packageRect(item) {
@@ -1901,49 +1918,76 @@ function renderModel3d(shelves) {
     els.model3d.innerHTML = '';
     return;
   }
-  let activeIndex = shelves.findIndex(shelf => shelf.id === appState.model3d.activeShelfId);
-  if (activeIndex < 0) activeIndex = 0;
-  const shelf = shelves[activeIndex];
-  appState.model3d.activeShelfId = shelf.id;
-
   const grid = document.createElement('div');
   grid.className = 'model3d-grid';
-  const view = modelViewState(shelf.id);
-  const card = document.createElement('section');
-  card.className = 'model3d-card';
-  card.innerHTML = `
-    <div class="model3d-head">
-      <div class="model3d-title">
-        <strong>${escapeHtml(shelf.label || shelf.name)}</strong>
-        <span>${escapeHtml(modelHeightSummary(shelf))} - ${activeIndex + 1}/${shelves.length}</span>
-      </div>
-      <div class="model3d-controls" aria-label="3D controls">
-        <button type="button" data-model-nav="prev" ${shelves.length < 2 ? 'disabled' : ''} aria-label="Previous area">&lt;</button>
-        <button type="button" data-model-nav="next" ${shelves.length < 2 ? 'disabled' : ''} aria-label="Next area">&gt;</button>
-        <button type="button" data-model-zoom="in" aria-label="Zoom in">+</button>
-        <button type="button" data-model-zoom="out" aria-label="Zoom out">-</button>
-        <button type="button" data-model-zoom="reset">Reset</button>
-      </div>
-    </div>
-  `;
 
-  const viewport = document.createElement('div');
-  viewport.className = 'model3d-viewport';
-  if (!window.THREE) {
-    const missing = document.createElement('div');
-    missing.className = 'model3d-missing';
-    missing.textContent = '3D library could not be loaded.';
-    viewport.append(missing);
-  } else {
-    createThreeAreaScene(viewport, shelf, view);
-  }
+  shelves.forEach(shelf => {
+    const modelShelf = model3dDisplayShelf(shelf);
+    const view = modelViewState(modelShelf.modelId || modelShelf.id);
+    const card = document.createElement('section');
+    card.className = `model3d-card ${planPlaceRole(shelf) === 'rack' ? 'rack-model-card' : ''}`;
+    card.innerHTML = `
+      <div class="model3d-head">
+        <div class="model3d-title">
+          <strong>${escapeHtml(modelShelf.label || modelShelf.name)}</strong>
+          <span>${escapeHtml(modelHeightSummary(modelShelf))}</span>
+        </div>
+        <div class="model3d-controls" aria-label="3D controls">
+          ${planPlaceRole(shelf) === 'rack' ? model3dRackLevelButtons(shelf) : ''}
+          <button type="button" data-model-zoom="in" aria-label="Zoom in">+</button>
+          <button type="button" data-model-zoom="out" aria-label="Zoom out">-</button>
+          <button type="button" data-model-zoom="reset">Reset</button>
+        </div>
+      </div>
+    `;
 
-  card.append(viewport);
-  grid.append(card);
-  attachModel3dZoomButtons(card, view);
-  attachModel3dNavButtons(card, shelves, activeIndex);
+    const viewport = document.createElement('div');
+    viewport.className = 'model3d-viewport';
+    if (!window.THREE) {
+      const missing = document.createElement('div');
+      missing.className = 'model3d-missing';
+      missing.textContent = '3D library could not be loaded.';
+      viewport.append(missing);
+    } else {
+      createThreeAreaScene(viewport, modelShelf, view);
+    }
+
+    card.append(viewport);
+    grid.append(card);
+    attachModel3dZoomButtons(card, view);
+    attachModel3dRackLevelButtons(card);
+  });
+
   els.model3d.innerHTML = '';
   els.model3d.append(grid);
+}
+
+function model3dDisplayShelf(shelf) {
+  if (planPlaceRole(shelf) !== 'rack') return shelf;
+  const range = rackLevelRange(shelf, appState.activeRackLevel);
+  return {
+    ...shelf,
+    id: shelf.id,
+    modelId: `${shelf.id}:level:${range.level}`,
+    name: `${shelf.name} - ${range.label}`,
+    label: `${shelf.label || shelf.name} - ${range.label}`,
+    rows: range.height,
+    columns: range.width,
+    packages: rackLevelPackages(shelf, range),
+    notes: range.heightLabel
+  };
+}
+
+function model3dRackLevelButtons(shelf) {
+  return `
+    <span class="model3d-levels" aria-label="Rack levels">
+      ${rackLevelSpecs(shelf).map(spec => `
+        <button type="button" data-model-rack-level="${spec.level}" class="${appState.activeRackLevel === spec.level ? 'active' : ''}">
+          ${escapeHtml(spec.short ? 'Small' : `Level ${spec.level}`)}
+        </button>
+      `).join('')}
+    </span>
+  `;
 }
 
 function modelHeightSummary(shelf) {
@@ -2218,12 +2262,10 @@ function attachModel3dZoomButtons(card, view) {
   });
 }
 
-function attachModel3dNavButtons(card, shelves, activeIndex) {
-  card.querySelectorAll('[data-model-nav]').forEach(button => {
+function attachModel3dRackLevelButtons(card) {
+  card.querySelectorAll('[data-model-rack-level]').forEach(button => {
     button.addEventListener('click', () => {
-      const direction = button.dataset.modelNav === 'next' ? 1 : -1;
-      const nextIndex = (activeIndex + direction + shelves.length) % shelves.length;
-      appState.model3d.activeShelfId = shelves[nextIndex].id;
+      appState.activeRackLevel = Number.parseInt(button.dataset.modelRackLevel, 10) || 1;
       render();
     });
   });

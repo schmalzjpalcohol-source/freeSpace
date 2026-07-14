@@ -442,10 +442,12 @@ select:hover {
   gap: 5px;
   flex-wrap: wrap;
   justify-content: flex-end;
+  align-items: center;
   flex: 0 0 auto;
 }
 
-.model3d-controls button {
+.model3d-controls button,
+.model3d-levels button {
   min-height: 28px;
   border: 1px solid var(--line);
   border-radius: 6px;
@@ -456,6 +458,25 @@ select:hover {
   font-weight: 950;
 }
 
+.model3d-levels {
+  max-width: min(100%, 380px);
+  display: flex;
+  gap: 5px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  padding-bottom: 2px;
+}
+
+.model3d-levels button {
+  flex: 0 0 auto;
+}
+
+.model3d-levels button.active {
+  border-color: var(--primary);
+  background: #edf7f5;
+  color: var(--primary-dark);
+}
+
 .model3d-controls button:disabled {
   opacity: 0.4;
   cursor: not-allowed;
@@ -463,8 +484,8 @@ select:hover {
 
 .model3d-viewport {
   position: relative;
-  height: min(46vh, 430px);
-  min-height: 310px;
+  height: min(42vh, 390px);
+  min-height: 280px;
   overflow: hidden;
   cursor: grab;
   touch-action: none;
@@ -935,14 +956,14 @@ select:hover {
 
 .rack-level-detail {
   width: calc(100% - 34px);
-  min-height: clamp(170px, 32vw, 260px);
+  min-height: clamp(230px, 38vw, 340px);
   margin-top: 32px;
   margin-left: 34px;
 }
 
 .rack-level-detail.short-rack-detail {
   width: calc(100% - 34px);
-  min-height: clamp(58px, 11vw, 86px);
+  min-height: clamp(96px, 16vw, 140px);
 }
 
 .rack-tools {
@@ -1154,7 +1175,6 @@ select:hover {
 }
 
 .package-rect {
-  container-type: size;
   border: 2px solid rgba(98, 65, 22, 0.72);
   padding: 7px;
   background:
@@ -1265,7 +1285,8 @@ select:hover {
 
 .measure {
   justify-self: start;
-  max-width: 100%;
+  min-width: min(180px, calc(100vw - 64px));
+  max-width: min(240px, calc(100vw - 64px));
   border: 1px solid rgba(89, 61, 25, 0.18);
   border-radius: 6px;
   padding: 4px 6px;
@@ -1281,7 +1302,13 @@ select:hover {
 
 .pkg {
   align-self: center;
-  min-width: 0;
+  width: max-content;
+  min-width: min(180px, calc(100vw - 64px));
+  max-width: min(260px, calc(100vw - 64px));
+  padding: 4px 6px;
+  border: 1px solid rgba(89, 61, 25, 0.12);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.78);
   font-size: 0.88rem;
   font-weight: 900;
   line-height: 1.15;
@@ -1292,7 +1319,12 @@ select:hover {
 }
 
 .note {
-  min-width: 0;
+  width: max-content;
+  min-width: min(180px, calc(100vw - 64px));
+  max-width: min(260px, calc(100vw - 64px));
+  padding: 3px 6px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.62);
   color: rgba(20, 32, 34, 0.72);
   font-size: 0.74rem;
   font-weight: 750;
@@ -1301,30 +1333,6 @@ select:hover {
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
-}
-
-@container (max-width: 112px) {
-  .package-rect .pkg,
-  .package-rect .note {
-    display: none;
-  }
-
-  .package-rect .measure {
-    max-width: 100%;
-    font-size: 0.66rem;
-  }
-}
-
-@container (max-height: 72px) {
-  .package-rect .pkg,
-  .package-rect .note {
-    display: none;
-  }
-
-  .package-rect .measure {
-    max-width: 100%;
-    font-size: 0.66rem;
-  }
 }
 
 .delete {
