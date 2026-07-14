@@ -2006,16 +2006,24 @@ function renderModel3d(shelves) {
 function model3dDisplayShelf(shelf) {
   if (planPlaceRole(shelf) !== 'rack') return shelf;
   const range = rackLevelRange(shelf, appState.activeRackLevel);
+  const regularLevel = range.level >= 1 && range.level <= 3;
+  const modelWidth = regularLevel ? 150 : range.width;
+  const modelDepth = regularLevel ? 90 : range.height;
+  const modelHeight = regularLevel ? 65 : 220;
+  const modelPackages = rackLevelPackages(shelf, range)
+    .filter(item => !regularLevel || (item.column_index || 1) <= modelWidth);
   return {
     ...shelf,
     id: shelf.id,
     modelId: `${shelf.id}:level:${range.level}`,
     name: `${shelf.name} - ${range.label}`,
     label: `${shelf.label || shelf.name} - ${range.label}`,
-    rows: range.height,
-    columns: range.width,
-    packages: rackLevelPackages(shelf, range),
-    notes: range.heightLabel
+    rows: modelDepth,
+    columns: modelWidth,
+    packages: modelPackages,
+    modelHeightCm: modelHeight,
+    modelIsRackLevel: true,
+    notes: `${formatSizeCm(modelWidth, modelDepth)} x ${formatCm(modelHeight)} cm high`
   };
 }
 
@@ -2032,6 +2040,9 @@ function model3dRackLevelButtons(shelf) {
 }
 
 function modelHeightSummary(shelf) {
+  if (shelf.modelIsRackLevel) {
+    return `${formatCm(shelf.rows)} x ${formatCm(shelf.columns)} x ${formatCm(shelf.modelHeightCm)} cm`;
+  }
   return 'max height 220 cm';
 }
 
@@ -2052,7 +2063,7 @@ function modelViewState(id) {
 
 function createThreeAreaScene(viewport, shelf, view) {
   const widthCm = Math.max(1, shelf.columns || 1);
-  const depthCm = Math.max(1, effectiveRowsForShelf(shelf) || shelf.rows || 1);
+  const depthCm = Math.max(1, shelf.modelIsRackLevel ? shelf.rows : (effectiveRowsForShelf(shelf) || shelf.rows || 1));
   const maxDim = Math.max(widthCm, depthCm, 100);
   const scale = 8 / maxDim;
   // Keep width, depth and height on one scale so defined heights stay proportional.
@@ -2089,6 +2100,17 @@ function createThreeAreaScene(viewport, shelf, view) {
   );
   edge.position.copy(floorMesh.position);
   root.add(edge);
+
+  if (shelf.modelIsRackLevel) {
+    const rackHeight = Math.max(1, shelf.modelHeightCm || 65) * heightScale;
+    const rackBoundsGeometry = new THREE.BoxGeometry(areaWidth, rackHeight, areaDepth);
+    const rackBounds = new THREE.LineSegments(
+      new THREE.EdgesGeometry(rackBoundsGeometry),
+      new THREE.LineBasicMaterial({ color: 0x6f7d80, transparent: true, opacity: 0.72 })
+    );
+    rackBounds.position.y = rackHeight / 2;
+    root.add(rackBounds);
+  }
 
   const grid = new THREE.GridHelper(Math.max(areaWidth, areaDepth), 12, 0xa8b6b8, 0xd2dddd);
   grid.scale.x = areaWidth / Math.max(areaWidth, areaDepth);
