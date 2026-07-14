@@ -59,6 +59,7 @@ let appState = {
   shelves: [],
   selected: null,
   activeView: 'packages',
+  activeAreaId: '',
   activePlanRole: 'floor-main',
   activeRackLevel: 1,
   measurement: null,
@@ -977,8 +978,6 @@ function render() {
 
   const floorPlaces = appState.shelves.filter(shelf => placeKind(shelf) === 'floor');
   const shelfPlaces = appState.shelves.filter(shelf => placeKind(shelf) === 'shelf');
-  const planShelves = selectedPlanShelves(shelfPlaces, floorPlaces);
-  const oldPlaces = appState.shelves.filter(shelf => !planPlaceRole(shelf));
   const visibleShelves = appState.shelves;
   const freeArea = totalFreeArea(visibleShelves);
   els.summaryText.textContent = visibleShelves.length
@@ -992,30 +991,7 @@ function render() {
   );
   renderModel3d(visibleShelves);
   renderPlanDrawing(shelfPlaces, floorPlaces);
-  renderAdditionalAreas(oldPlaces);
   renderPlaces();
-}
-
-function renderAdditionalAreas(places) {
-  if (!places.length) return;
-  const section = document.createElement('section');
-  section.className = 'additional-areas';
-  const heading = document.createElement('div');
-  heading.className = 'additional-areas-head';
-  heading.innerHTML = `
-    <span class="place-type">Additional storage</span>
-    <h2>Other areas (${places.length})</h2>
-  `;
-  section.append(heading);
-  places.forEach(place => section.append(renderPlanSlot('other', place)));
-  els.shelves.append(section);
-}
-
-function selectedPlanShelves(shelfPlaces, floorPlaces) {
-  const all = [...shelfPlaces, ...floorPlaces];
-  return ['floor-main', 'rack', 'floor-long']
-    .map(role => findPlanShelf(role, all))
-    .filter(Boolean);
 }
 
 function isNearSize(shelf, role) {
@@ -1096,9 +1072,44 @@ function renderPlanDrawing(shelfPlaces, floorPlaces) {
   const all = [...shelfPlaces, ...floorPlaces];
   const plan = document.createElement('section');
   plan.className = 'plan-drawing';
-  plan.append(renderPlanSwitcher());
-  plan.append(renderPlanSlot(appState.activePlanRole, findPlanShelf(appState.activePlanRole, all)));
+  if (all.length) {
+    const selected = all.find(place => String(place.id) === String(appState.activeAreaId))
+      || findPlanShelf(appState.activePlanRole, all)
+      || all[0];
+    appState.activeAreaId = selected.id;
+    const role = planPlaceRole(selected) || 'other';
+    appState.activePlanRole = role;
+    plan.append(renderAreaSwitcher(all, selected));
+    plan.append(renderPlanSlot(role, selected));
+  } else {
+    plan.append(renderPlanSwitcher());
+    plan.append(renderPlanSlot(appState.activePlanRole, null));
+  }
   els.shelves.append(plan);
+}
+
+function renderAreaSwitcher(places, selected) {
+  const nav = document.createElement('div');
+  nav.className = 'plan-switcher area-switcher';
+  nav.setAttribute('aria-label', 'All storage areas');
+  places.forEach(place => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `plan-switch ${String(place.id) === String(selected.id) ? 'active' : ''}`;
+    button.innerHTML = `
+      <span>${escapeHtml(place.label || place.name)}</span>
+      <small>${escapeHtml(placeLabel(placeKind(place)))}</small>
+    `;
+    button.addEventListener('click', () => {
+      appState.activeAreaId = place.id;
+      appState.activePlanRole = planPlaceRole(place) || 'other';
+      clearPackageForm();
+      els.selectedCell.textContent = 'No area selected';
+      render();
+    });
+    nav.append(button);
+  });
+  return nav;
 }
 
 function renderPlanSwitcher() {

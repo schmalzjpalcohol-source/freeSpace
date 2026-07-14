@@ -894,6 +894,33 @@ select:hover {
   gap: 8px;
 }
 
+.area-switcher {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
+.area-switcher .plan-switch {
+  min-width: 0;
+  height: auto;
+  min-height: 52px;
+  display: grid;
+  align-content: center;
+  gap: 2px;
+  padding: 7px 10px;
+  text-align: left;
+}
+
+.area-switcher .plan-switch span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.area-switcher .plan-switch small {
+  color: var(--quiet);
+  font-size: 0.68rem;
+  font-weight: 850;
+}
+
 .plan-switch {
   min-height: 42px;
   border: 1px solid var(--line);
