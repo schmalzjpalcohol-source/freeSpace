@@ -2135,7 +2135,7 @@ function renderModel3d(shelves) {
           <span>${escapeHtml(modelHeightSummary(modelShelf))}</span>
         </div>
         <div class="model3d-controls" aria-label="3D controls">
-          ${planPlaceRole(shelf) === 'rack' ? model3dRackLevelButtons(shelf) : ''}
+          ${planPlaceRole(shelf) === 'rack' && !modelShelf.modelShowsAllLevels ? model3dRackLevelButtons(shelf) : ''}
           <button type="button" data-model-zoom="in" aria-label="Zoom in">+</button>
           <button type="button" data-model-zoom="out" aria-label="Zoom out">-</button>
           <button type="button" data-model-zoom="reset">Reset</button>
@@ -2166,28 +2166,30 @@ function renderModel3d(shelves) {
 
 function model3dDisplayShelf(shelf) {
   if (planPlaceRole(shelf) !== 'rack') return shelf;
-  const range = rackLevelRange(shelf, appState.activeRackLevel);
-  const regularLevel = range.level >= 1 && range.level <= 3;
-  const modelWidth = regularLevel ? 600 : range.width;
-  const modelDepth = regularLevel ? 90 : range.height;
-  const modelHeight = regularLevel ? 65 : 16;
-  const modelDimensionLabel = regularLevel
-    ? `90 x 600 x 65 cm`
-    : `16 x 150 x 90 cm`;
-  const modelPackages = rackLevelPackages(shelf, range);
+  const modelPackages = rackLevelSpecs(shelf).flatMap(spec => {
+    const range = rackLevelRange(shelf, spec.level);
+    const baseHeight = spec.short ? 195 : (spec.level - 1) * 65;
+    return rackLevelPackages(shelf, range).map(item => ({
+      ...item,
+      column_index: spec.short ? item.column_index + 450 : item.column_index,
+      modelRackLevel: spec.level,
+      modelBaseHeightCm: baseHeight
+    }));
+  });
   return {
     ...shelf,
     id: shelf.id,
-    modelId: `${shelf.id}:level:${range.level}`,
-    name: `${shelf.name} - ${range.label}`,
-    label: `${shelf.label || shelf.name} - ${range.label}`,
-    rows: modelDepth,
-    columns: modelWidth,
+    modelId: `${shelf.id}:complete-rack`,
+    name: shelf.name,
+    label: shelf.label || shelf.name,
+    rows: 90,
+    columns: 600,
     packages: modelPackages,
-    modelHeightCm: modelHeight,
-    modelDimensionLabel,
+    modelHeightCm: 211,
+    modelDimensionLabel: '600 x 90 cm · 3 levels x 65 cm · small rack 150 x 90 x 16 cm',
     modelIsRackLevel: true,
-    notes: `${formatSizeCm(modelWidth, modelDepth)} x ${formatCm(modelHeight)} cm high`
+    modelShowsAllLevels: true,
+    notes: 'Complete rack'
   };
 }
 
@@ -2274,6 +2276,43 @@ function createThreeAreaScene(viewport, shelf, view) {
     );
     rackBounds.position.y = rackHeight / 2;
     root.add(rackBounds);
+
+    if (shelf.modelShowsAllLevels) {
+      const frameMaterial = new THREE.MeshStandardMaterial({ color: 0x728083, roughness: 0.58, metalness: 0.34 });
+      const boardMaterial = new THREE.MeshStandardMaterial({ color: 0xdce7e6, roughness: 0.72, metalness: 0.08 });
+      [65, 130, 195].forEach(heightCm => {
+        const board = new THREE.Mesh(new THREE.BoxGeometry(areaWidth, 0.08, areaDepth), boardMaterial);
+        board.position.y = heightCm * heightScale;
+        board.receiveShadow = true;
+        root.add(board);
+      });
+      const postHeight = 195 * heightScale;
+      const postSize = Math.max(0.05, 4 * scale);
+      [
+        [-areaWidth / 2, -areaDepth / 2],
+        [areaWidth / 2, -areaDepth / 2],
+        [-areaWidth / 2, areaDepth / 2],
+        [areaWidth / 2, areaDepth / 2]
+      ].forEach(([x, z]) => {
+        const post = new THREE.Mesh(new THREE.BoxGeometry(postSize, postHeight, postSize), frameMaterial);
+        post.position.set(x, postHeight / 2, z);
+        post.castShadow = true;
+        root.add(post);
+      });
+      const smallWidth = 150 * scale;
+      const smallTop = new THREE.Mesh(new THREE.BoxGeometry(smallWidth, 0.08, areaDepth), boardMaterial);
+      smallTop.position.set((areaWidth - smallWidth) / 2, 211 * heightScale, 0);
+      root.add(smallTop);
+      const smallPostHeight = 16 * heightScale;
+      const smallLeft = areaWidth / 2 - smallWidth;
+      [smallLeft, areaWidth / 2].forEach(x => {
+        [-areaDepth / 2, areaDepth / 2].forEach(z => {
+          const post = new THREE.Mesh(new THREE.BoxGeometry(postSize, smallPostHeight, postSize), frameMaterial);
+          post.position.set(x, (195 * heightScale) + (smallPostHeight / 2), z);
+          root.add(post);
+        });
+      });
+    }
   }
 
   const grid = new THREE.GridHelper(Math.max(areaWidth, areaDepth), 12, 0xa8b6b8, 0xd2dddd);
@@ -2284,8 +2323,10 @@ function createThreeAreaScene(viewport, shelf, view) {
 
   const renderedItems = [];
   orderedForStacking(shelf.packages).forEach(item => {
-    const overlaps = renderedItems.filter(previous => rectsOverlap(packageRect(previous), packageRect(item)));
-    const baseHeightCm = overlaps.reduce((sum, previous) => sum + stackTotalHeightCm(previous), 0);
+    const overlaps = renderedItems.filter(previous => (
+      previous.modelRackLevel === item.modelRackLevel && rectsOverlap(packageRect(previous), packageRect(item))
+    ));
+    const baseHeightCm = (item.modelBaseHeightCm || 0) + overlaps.reduce((sum, previous) => sum + stackTotalHeightCm(previous), 0);
     renderThreeItem(root, item, scale, heightScale, widthCm, depthCm, {
       baseHeightCm,
       translucent: overlaps.length > 0
@@ -2385,6 +2426,12 @@ function buildModel3dLabels(shelf) {
   labels.className = 'model3d-labels';
   labels.innerHTML = `
     <span class="model3d-area-label">${escapeHtml(shelf.label || shelf.name)}</span>
+    ${shelf.modelShowsAllLevels ? `
+      <span>Level 1 · 0–65 cm</span>
+      <span>Level 2 · 65–130 cm</span>
+      <span>Level 3 · 130–195 cm</span>
+      <span>Small rack · 195–211 cm</span>
+    ` : ''}
     ${(shelf.packages || []).slice(0, 10).map(item => `
       <span class="${zoneKind(item) ? 'zone-label' : ''}">
         ${escapeHtml(item.package_name)}
