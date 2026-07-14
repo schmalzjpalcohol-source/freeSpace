@@ -2178,7 +2178,7 @@ function model3dDisplayShelf(shelf) {
   if (planPlaceRole(shelf) !== 'rack') return shelf;
   const modelPackages = rackLevelSpecs(shelf).flatMap(spec => {
     const range = rackLevelRange(shelf, spec.level);
-    const baseHeight = spec.short ? 195 : (spec.level - 1) * 65;
+    const baseHeight = spec.short ? 0 : (spec.level - 1) * 65;
     return rackLevelPackages(shelf, range).map(item => ({
       ...item,
       column_index: spec.short ? item.column_index + 450 : item.column_index,
@@ -2195,8 +2195,8 @@ function model3dDisplayShelf(shelf) {
     rows: 90,
     columns: 600,
     packages: modelPackages,
-    modelHeightCm: 211,
-    modelDimensionLabel: '600 x 90 cm · 3 levels x 65 cm · small rack 150 x 90 x 16 cm',
+    modelHeightCm: 195,
+    modelDimensionLabel: '600 x 90 cm · 3 levels x 65 cm · small rack inside bottom-right 150 x 90 x 16 cm',
     modelIsRackLevel: true,
     modelShowsAllLevels: true,
     notes: 'Complete rack'
@@ -2313,14 +2313,14 @@ function createThreeAreaScene(viewport, shelf, view) {
       });
       const smallWidth = 150 * scale;
       const smallTop = new THREE.Mesh(new THREE.BoxGeometry(smallWidth, 0.08, areaDepth), boardMaterial);
-      smallTop.position.set((areaWidth - smallWidth) / 2, 211 * heightScale, 0);
+      smallTop.position.set((areaWidth - smallWidth) / 2, 16 * heightScale, 0);
       root.add(smallTop);
       const smallPostHeight = 16 * heightScale;
       const smallLeft = areaWidth / 2 - smallWidth;
       [smallLeft, areaWidth / 2].forEach(x => {
         [-areaDepth / 2, areaDepth / 2].forEach(z => {
           const post = new THREE.Mesh(new THREE.BoxGeometry(postSize, smallPostHeight, postSize), frameMaterial);
-          post.position.set(x, (195 * heightScale) + (smallPostHeight / 2), z);
+          post.position.set(x, smallPostHeight / 2, z);
           root.add(post);
         });
       });
@@ -2442,7 +2442,7 @@ function buildModel3dLabels(shelf) {
       <span>Level 1 · 0–65 cm</span>
       <span>Level 2 · 65–130 cm</span>
       <span>Level 3 · 130–195 cm</span>
-      <span>Small rack · 195–211 cm</span>
+      <span>Small rack · inside bottom-right · 0–16 cm</span>
     ` : ''}
     ${(shelf.packages || []).slice(0, 10).map(item => `
       <span class="${zoneKind(item) ? 'zone-label' : ''}">
