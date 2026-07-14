@@ -875,39 +875,29 @@ select:hover {
   overflow: visible;
 }
 
-.rack-levels {
+.rack-level-section {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
-  min-width: 0;
-  padding: 0;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-}
-
-.rack-level {
-  grid-column: 1 / -1;
-  min-height: 58px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  padding: 8px;
-  background: var(--surface-soft);
-  color: var(--ink);
-  display: grid;
-  align-content: center;
-  gap: 2px;
-  text-align: center;
-  transform: none;
-}
-
-.rack-level.short-level {
-  grid-column: 4;
-  min-height: 42px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfdfd;
+  color: var(--ink);
+}
+
+.rack-level-section.active {
+  border-color: var(--primary);
+  box-shadow: inset 0 0 0 1px rgba(15, 118, 110, 0.12);
+}
+
+.rack-level-title {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.short-level-section {
   background: #fff9ec;
   border-color: #ead6ad;
 }
@@ -916,47 +906,27 @@ select:hover {
   display: none;
 }
 
-.rack-level::before {
-  content: "";
-  display: block;
-  width: 32px;
-  height: 6px;
-  margin: 0 auto 3px;
-  border-radius: 999px;
-  background: var(--line-strong);
-}
-
-.rack-level.short-level::before {
-  width: 40px;
-  margin: 0;
-  background: var(--accent);
-}
-
-.rack-level:hover,
-.rack-level.active {
-  border-color: var(--primary);
-  background: #edf7f5;
-  box-shadow: inset 0 0 0 1px rgba(15, 118, 110, 0.14);
-}
-
-.rack-level span {
+.rack-level-title span {
   font-weight: 950;
   overflow-wrap: anywhere;
 }
 
-.rack-level strong {
+.rack-level-title strong {
   font-size: 0.78rem;
+  text-align: right;
 }
 
-.rack-level small {
+.rack-level-title small {
+  display: block;
+  margin-top: 2px;
   color: var(--muted);
-  font-size: 0.7rem;
+  font-size: 0.72rem;
   font-weight: 850;
 }
 
 .rack-level-detail {
   width: calc(100% - 34px);
-  min-height: clamp(300px, 48vw, 460px);
+  min-height: clamp(260px, 42vw, 420px);
   margin-top: 32px;
   margin-left: 34px;
   background-size: 48px 48px;
@@ -964,7 +934,7 @@ select:hover {
 
 .rack-level-detail.short-rack-detail {
   width: calc(100% - 34px);
-  min-height: clamp(160px, 24vw, 220px);
+  min-height: clamp(180px, 28vw, 260px);
 }
 
 .rack-tools {
