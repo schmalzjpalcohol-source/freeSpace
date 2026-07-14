@@ -1,46 +1,46 @@
 # freeSpace
 
-Kostenlose Regalübersicht mit GitHub Pages als Frontend, Vercel Functions als Backend und Supabase Free Tier als Datenbank.
+Free storage-layout overview using GitHub Pages for the frontend, Vercel Functions for the backend, and the Supabase Free Tier for the database.
 
-## Architektur
+## Architecture
 
-- `docs/`: statische App für GitHub Pages
+- `docs/`: static GitHub Pages application
 - `api/`: Vercel Serverless Functions
-- `supabase/schema.sql`: Tabellen für Regale und Pakete
-- Auth: Benutzername/Passwort in Supabase, danach eigenes signiertes Backend-Token im `localStorage`
+- `supabase/schema.sql`: database tables for storage areas and items
+- Authentication: username and password stored in Supabase, followed by a custom signed backend token in `localStorage`
 
 ## Setup
 
-1. Supabase-Projekt erstellen und `supabase/schema.sql` im SQL Editor ausführen.
-2. Vercel-Projekt aus diesem Repo importieren.
-3. In Vercel diese Environment Variables setzen:
+1. Create a Supabase project and run `supabase/schema.sql` in the SQL Editor.
+2. Import this repository into a Vercel project.
+3. Configure these environment variables in Vercel:
    - `SUPABASE_URL`
    - `SUPABASE_SERVICE_ROLE_KEY`
-   - `FRONTEND_URL=https://DEIN-GITHUB-USER.github.io/DEIN-REPO/`
-   - `FRONTEND_ORIGIN=https://DEIN-GITHUB-USER.github.io`
-   - `JWT_SECRET` mit langem zufälligem Wert
-4. Nach dem Vercel-Deploy in `docs/config.js` eintragen:
+   - `FRONTEND_URL=https://YOUR-GITHUB-USER.github.io/YOUR-REPOSITORY/`
+   - `FRONTEND_ORIGIN=https://YOUR-GITHUB-USER.github.io`
+   - `JWT_SECRET` with a long random value
+4. After deploying to Vercel, configure `docs/config.js`:
 
 ```js
-window.FREESPACE_API_BASE_URL = 'https://DEIN-VERCEL-PROJEKT.vercel.app';
+window.FREESPACE_API_BASE_URL = 'https://YOUR-VERCEL-PROJECT.vercel.app';
 ```
 
-5. Vercel prüfen:
+5. Verify the Vercel deployment:
 
 ```text
-https://DEIN-VERCEL-PROJEKT.vercel.app/api/health
+https://YOUR-VERCEL-PROJECT.vercel.app/api/health
 ```
 
-Die Antwort sollte `{"ok":true,"database":"connected"}` enthalten.
+The response should contain `{"ok":true,"database":"connected"}`.
 
-6. GitHub Pages aktivieren:
+6. Enable GitHub Pages:
    - Settings
    - Pages
    - Source: Deploy from a branch
    - Branch: `main`
    - Folder: `/docs`
 
-## Lokal prüfen
+## Local development
 
 ```bash
 npm install
@@ -48,13 +48,13 @@ npm run check
 npm run dev
 ```
 
-Für lokale Tests müssen die Vercel-Env-Variablen lokal vorhanden sein. Die Secrets gehören nicht in Git.
+The Vercel environment variables must also be available locally when running local tests. Never commit secrets to Git.
 
-## Wichtig für ein öffentliches Repo
+## Public repository safety
 
-Keine dieser Variablen darf in Git landen:
+Never commit these variables:
 
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `JWT_SECRET`
 
-`docs/config.js` ist öffentlich sichtbar. Dort steht nur die öffentliche Vercel-URL, keine geheimen Daten.
+`docs/config.js` is publicly visible. It must contain only the public Vercel URL and no secrets.

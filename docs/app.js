@@ -153,6 +153,14 @@ function placeLabel(kind) {
   return kind === 'floor' ? 'Floor area' : 'Rack';
 }
 
+function displayAreaName(value) {
+  return String(value || '')
+    .replace(/bodenplatz/gi, 'Floor area')
+    .replace(/lagerfl[aä]che/gi, 'Storage area')
+    .replace(/fl[aä]che/gi, 'Area')
+    .replace(/regal/gi, 'Rack');
+}
+
 function packageTooltip(item) {
   const zone = zoneKind(item);
   if (zone) {
@@ -814,7 +822,7 @@ function setDraftFormValues(shelf, draft) {
   els.widthUnits.value = inputCm(adjusted.width);
   els.depthUnits.value = inputCm(adjusted.depth);
   appState.selected = { shelf, row: adjusted.row, column: adjusted.column };
-  els.selectedCell.textContent = `${shelf.name}: ${formatSizeCm(adjusted.width, adjusted.depth)} selected`;
+  els.selectedCell.textContent = `${displayAreaName(shelf.name)}: ${formatSizeCm(adjusted.width, adjusted.depth)} selected`;
   return adjusted;
 }
 
@@ -830,7 +838,7 @@ function setPackageEditFormValues(shelf, draft) {
   els.widthUnits.value = inputCm(adjusted.width);
   els.depthUnits.value = inputCm(adjusted.depth);
   appState.selected = { shelf, row: adjusted.row, column: adjusted.column };
-  els.selectedCell.textContent = `${shelf.name}: change ready`;
+  els.selectedCell.textContent = `${displayAreaName(shelf.name)}: change ready`;
   return adjusted;
 }
 
@@ -857,7 +865,7 @@ function applyDraftSelection(shelf, draft) {
   els.saveButton.textContent = 'Save item';
   els.deletePackageButton.classList.add('hidden');
   els.cancelEditButton.classList.add('hidden');
-  showMessage(`${shelf.name}: space selected. Save when ready.`);
+  showMessage(`${displayAreaName(shelf.name)}: space selected. Save when ready.`);
   return true;
 }
 
@@ -881,8 +889,8 @@ function selectCell(shelf, row, column, item) {
   els.deletePackageButton.classList.toggle('hidden', !item);
   els.cancelEditButton.classList.toggle('hidden', !item);
   els.selectedCell.textContent = item
-    ? `${shelf.name}: editing active`
-    : `${shelf.name}: space selected`;
+    ? `${displayAreaName(shelf.name)}: editing active`
+    : `${displayAreaName(shelf.name)}: space selected`;
   if (!item) els.packageName.focus();
   render();
 }
@@ -1118,7 +1126,7 @@ function renderAreaSwitcher(places, selected) {
     button.type = 'button';
     button.className = `plan-switch ${parentId ? 'sub-rack-switch' : ''} ${String(place.id) === String(selected.id) ? 'active' : ''}`;
     button.innerHTML = `
-      <span>${parentId ? '↳ ' : ''}${escapeHtml(place.label || place.name)}</span>
+      <span>${parentId ? '↳ ' : ''}${escapeHtml(displayAreaName(place.label || place.name))}</span>
       <small>${parentId ? 'Sub-rack' : escapeHtml(placeLabel(placeKind(place)))}</small>
     `;
     button.addEventListener('click', () => {
@@ -1196,7 +1204,7 @@ function renderPlanSlot(role, shelf) {
   meta.innerHTML = `
     <div>
       <span class="place-type">${placeLabel(kind)}</span>
-      <h2>${escapeHtml(displayShelf.label || displayShelf.name)}</h2>
+      <h2>${escapeHtml(displayAreaName(displayShelf.label || displayShelf.name))}</h2>
     </div>
     <div class="stats">
       <span class="stat">${formatSizeCm(displayShelf.columns, displayShelf.rows)}</span>
@@ -1221,7 +1229,7 @@ function renderPlanSlot(role, shelf) {
     meta.querySelector('.delete-area').addEventListener('click', () => {
       const itemCount = shelf.packages?.length || 0;
       const detail = itemCount ? ` It contains ${itemCount} item(s).` : '';
-      if (!window.confirm(`Really delete "${shelf.label || shelf.name}"?${detail}`)) return;
+      if (!window.confirm(`Really delete "${displayAreaName(shelf.label || shelf.name)}"?${detail}`)) return;
       deletePlace(shelf.id).catch(error => showMessage(error.message, 'error'));
     });
   }
@@ -2131,7 +2139,7 @@ function renderModel3d(shelves) {
     card.innerHTML = `
       <div class="model3d-head">
         <div class="model3d-title">
-          <strong>${escapeHtml(modelShelf.label || modelShelf.name)}</strong>
+          <strong>${escapeHtml(displayAreaName(modelShelf.label || modelShelf.name))}</strong>
           <span>${escapeHtml(modelHeightSummary(modelShelf))}</span>
         </div>
         <div class="model3d-controls" aria-label="3D controls">
@@ -2429,7 +2437,7 @@ function buildModel3dLabels(shelf) {
   const labels = document.createElement('div');
   labels.className = 'model3d-labels';
   labels.innerHTML = `
-    <span class="model3d-area-label">${escapeHtml(shelf.label || shelf.name)}</span>
+    <span class="model3d-area-label">${escapeHtml(displayAreaName(shelf.label || shelf.name))}</span>
     ${shelf.modelShowsAllLevels ? `
       <span>Level 1 · 0–65 cm</span>
       <span>Level 2 · 65–130 cm</span>
@@ -2595,7 +2603,7 @@ function renderPlaceGroup(title, places, muted = false) {
     item.innerHTML = `
       <div>
         <span class="place-type">${placeLabel(kind)}</span>
-        <h3>${escapeHtml(place.label || place.name)}</h3>
+        <h3>${escapeHtml(displayAreaName(place.label || place.name))}</h3>
         <p>${formatSizeCm(place.columns, place.rows)} · ${lengthSummary(place)}</p>
       </div>
       <div class="place-row-actions">
@@ -2616,7 +2624,7 @@ function selectPlace(place) {
   els.placeId.value = place.id;
   els.placeParentId.value = parentRackId(place);
   els.placeLocationType.value = placeKind(place);
-  els.placeName.value = place.name;
+  els.placeName.value = displayAreaName(place.name);
   els.placeRows.value = inputCm(place.rows);
   els.placeColumns.value = inputCm(place.columns);
   els.placeNotes.value = visiblePlaceNotes(place.notes);
@@ -2629,7 +2637,7 @@ function startSubRackCreation(parent) {
   const existingCount = appState.shelves.filter(place => parentRackId(place) === String(parent.id)).length;
   els.placeParentId.value = parent.id;
   els.placeLocationType.value = 'shelf';
-  els.placeName.value = `${parent.label || parent.name} - Sub-rack ${existingCount + 1}`;
+  els.placeName.value = `${displayAreaName(parent.label || parent.name)} - Sub-rack ${existingCount + 1}`;
   els.placeRows.value = 90;
   els.placeColumns.value = 150;
   els.placeNotes.value = '';
