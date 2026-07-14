@@ -1177,6 +1177,7 @@ function renderRackLevelDetail(shelf, level) {
   canvas.append(renderMeasureOverlay(measurement, range));
 
   const visiblePackages = shelf.packages.filter(item => packageInRackLevel(item, range));
+  const renderedPackages = [];
   visiblePackages.forEach(item => {
     const rectangle = document.createElement('button');
     const selectedPackage = els.packageId.value === item.id;
@@ -1201,6 +1202,9 @@ function renderRackLevelDetail(shelf, level) {
     rectangle.classList.toggle('blocked-zone', isBlockedItem(displayItem));
     rectangle.classList.toggle('reserve-zone', isYellowZone(displayItem));
     rectangle.classList.toggle('stacked-zone', isStackedItem(displayItem));
+    rectangle.classList.toggle('overlapping-item', renderedPackages.some(previous => (
+      !isZoneItem(previous) && !isZoneItem(displayItem) && rectsOverlap(packageRect(previous), packageRect(displayItem))
+    )));
     rectangle.type = 'button';
     rectangle.style.left = `${((clippedLeft - range.xStart) / range.width) * 100}%`;
     rectangle.style.top = `${((clippedTop - range.start) / range.height) * 100}%`;
@@ -1218,9 +1222,10 @@ function renderRackLevelDetail(shelf, level) {
         rectangle.dataset.dragged = 'false';
         return;
       }
-      selectCell(shelf, item.row_index, item.column_index, item);
+      selectOverlappingItem(shelf, item, renderedPackages);
     });
     canvas.append(rectangle);
+    renderedPackages.push(displayItem);
   });
 
   const draft = selectedDraft();
@@ -1462,11 +1467,8 @@ function renderPlaceCanvas(shelf, kind, role = planRole(shelf)) {
     canvas.append(marker);
   }
 
-  const floorStackGroups = kind === 'floor' ? findFloorStackGroups(shelf) : [];
-  floorStackGroups.forEach(group => renderFloorStackGroup(canvas, shelf, group));
-
+  const renderedPackages = [];
   shelf.packages.forEach(item => {
-    if (shouldSkipFloorStackItem(floorStackGroups, item)) return;
     const rectangle = document.createElement('button');
     const selectedPackage = els.packageId.value === item.id;
     const editDraft = selectedPackage ? selectedPackageDraft(item) : null;
@@ -1483,6 +1485,9 @@ function renderPlaceCanvas(shelf, kind, role = planRole(shelf)) {
     rectangle.classList.toggle('blocked-zone', isBlockedItem(displayItem));
     rectangle.classList.toggle('reserve-zone', isYellowZone(displayItem));
     rectangle.classList.toggle('stacked-zone', isStackedItem(displayItem));
+    rectangle.classList.toggle('overlapping-item', renderedPackages.some(previous => (
+      !isZoneItem(previous) && !isZoneItem(displayItem) && rectsOverlap(packageRect(previous), packageRect(displayItem))
+    )));
     rectangle.type = 'button';
     rectangle.style.left = `${((displayItem.column_index - 1) / shelf.columns) * 100}%`;
     rectangle.style.top = `${((displayItem.row_index - 1) / shelf.rows) * 100}%`;
@@ -1500,9 +1505,10 @@ function renderPlaceCanvas(shelf, kind, role = planRole(shelf)) {
         rectangle.dataset.dragged = 'false';
         return;
       }
-      selectCell(shelf, item.row_index, item.column_index, item);
+      selectOverlappingItem(shelf, item, renderedPackages);
     });
     canvas.append(rectangle);
+    renderedPackages.push(displayItem);
   });
 
   if (!shelf.packages.length && (!draft || draft.shelf.id !== shelf.id)) {
@@ -1513,6 +1519,17 @@ function renderPlaceCanvas(shelf, kind, role = planRole(shelf)) {
   }
 
   return canvas;
+}
+
+function selectOverlappingItem(shelf, clickedItem, previouslyRendered) {
+  const overlapping = previouslyRendered
+    .filter(item => String(item.id) !== String(clickedItem.id) && !isZoneItem(item) && rectsOverlap(packageRect(item), packageRect(clickedItem)))
+    .reverse();
+  const choices = [clickedItem, ...overlapping];
+  const selectedId = els.packageId.value;
+  const selectedIndex = choices.findIndex(item => String(item.id) === String(selectedId));
+  const item = choices[(selectedIndex + 1) % choices.length];
+  selectCell(shelf, item.row_index, item.column_index, item);
 }
 
 function findFloorStackGroups(shelf) {
@@ -2019,7 +2036,8 @@ function createThreeAreaScene(viewport, shelf, view) {
   const depthCm = Math.max(1, effectiveRowsForShelf(shelf) || shelf.rows || 1);
   const maxDim = Math.max(widthCm, depthCm, 100);
   const scale = 8 / maxDim;
-  const heightScale = scale * 1.2;
+  // Keep width, depth and height on one scale so defined heights stay proportional.
+  const heightScale = scale;
   const areaWidth = widthCm * scale;
   const areaDepth = depthCm * scale;
 

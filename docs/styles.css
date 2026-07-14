@@ -498,6 +498,7 @@ select:hover {
 .model3d-tooltip {
   position: absolute;
   z-index: 5;
+  width: max-content;
   max-width: min(260px, calc(100% - 28px));
   padding: 7px 9px;
   border-radius: 7px;
@@ -508,7 +509,7 @@ select:hover {
   line-height: 1.2;
   pointer-events: none;
   transform: translate(12px, calc(-100% - 10px));
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
   box-shadow: 0 10px 26px rgba(20, 32, 34, 0.26);
 }
 
@@ -878,7 +879,7 @@ select:hover {
 .rack-levels {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
+  gap: 12px;
   min-width: 0;
   padding: 0;
   border: 0;
@@ -888,16 +889,16 @@ select:hover {
 
 .rack-level {
   grid-column: 1 / -1;
-  min-height: 58px;
+  min-height: 72px;
   border: 1px solid var(--line);
   border-radius: 6px;
-  padding: 8px;
-  background: var(--surface-soft);
+  padding: 11px 14px;
+  background: #f8faf9;
   color: var(--ink);
   display: grid;
   align-content: center;
   gap: 2px;
-  text-align: center;
+  text-align: left;
   transform: none;
 }
 
@@ -919,9 +920,9 @@ select:hover {
 .rack-level::before {
   content: "";
   display: block;
-  width: 32px;
-  height: 6px;
-  margin: 0 auto 3px;
+  width: 36px;
+  height: 4px;
+  margin: 0 0 4px;
   border-radius: 999px;
   background: var(--line-strong);
 }
@@ -941,7 +942,7 @@ select:hover {
 
 .rack-level span {
   font-weight: 950;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 .rack-level strong {
@@ -956,7 +957,7 @@ select:hover {
 
 .rack-level-detail {
   width: calc(100% - 34px);
-  min-height: clamp(300px, 48vw, 460px);
+  min-height: 0;
   margin-top: 32px;
   margin-left: 34px;
   background-size: 48px 48px;
@@ -964,13 +965,14 @@ select:hover {
 
 .rack-level-detail.short-rack-detail {
   width: calc(100% - 34px);
-  min-height: clamp(160px, 24vw, 220px);
+  min-height: 0;
 }
 
 .rack-tools {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+  margin: 4px 0 2px;
   flex-wrap: wrap;
   min-width: 0;
 }
@@ -1057,8 +1059,8 @@ select:hover {
   padding: 0;
   background-color: #ffffff;
   background-image:
-    linear-gradient(to right, rgba(20, 32, 34, 0.035) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(20, 32, 34, 0.035) 1px, transparent 1px);
+    linear-gradient(to right, rgba(20, 32, 34, 0.022) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(20, 32, 34, 0.022) 1px, transparent 1px);
   background-size: 64px 64px;
   cursor: crosshair;
   touch-action: none;
@@ -1162,15 +1164,15 @@ select:hover {
 
 .rack .place-canvas {
   background-image:
-    linear-gradient(to right, transparent 0 24.5%, rgba(20, 32, 34, 0.18) 24.5% 25.5%, transparent 25.5% 49.5%, rgba(20, 32, 34, 0.18) 49.5% 50.5%, transparent 50.5% 74.5%, rgba(20, 32, 34, 0.18) 74.5% 75.5%, transparent 75.5%),
-    linear-gradient(to bottom, rgba(20, 32, 34, 0.045) 1px, transparent 1px);
+    linear-gradient(to right, transparent 0 24.75%, rgba(20, 32, 34, 0.1) 24.75% 25.25%, transparent 25.25% 49.75%, rgba(20, 32, 34, 0.1) 49.75% 50.25%, transparent 50.25% 74.75%, rgba(20, 32, 34, 0.1) 74.75% 75.25%, transparent 75.25%),
+    linear-gradient(to bottom, rgba(20, 32, 34, 0.025) 1px, transparent 1px);
 }
 
 .rack-level-detail.place-canvas {
-  background-color: #fbfefe;
+  background-color: #f9fbfa;
   background-image:
-    linear-gradient(to right, rgba(15, 118, 110, 0.18) 0 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(20, 32, 34, 0.055) 0 1px, transparent 1px);
+    linear-gradient(to right, rgba(20, 32, 34, 0.035) 0 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(20, 32, 34, 0.035) 0 1px, transparent 1px);
 }
 
 .package-rect,
@@ -1252,6 +1254,17 @@ select:hover {
   white-space: normal;
 }
 
+.package-rect.overlapping-item {
+  opacity: 0.66;
+  z-index: 4;
+}
+
+.package-rect.overlapping-item:hover,
+.package-rect.overlapping-item:focus-visible,
+.package-rect.overlapping-item.selected {
+  opacity: 0.82;
+}
+
 .package-rect::after {
   content: attr(data-tooltip);
   position: absolute;
@@ -1272,7 +1285,7 @@ select:hover {
   transform: translateX(-50%) translateY(4px) scale(0.96);
   transition: opacity 140ms ease, transform 140ms ease;
   white-space: normal;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
   box-shadow: 0 10px 26px rgba(20, 32, 34, 0.28);
 }
 
@@ -1361,8 +1374,15 @@ select:hover {
 }
 
 @container (max-width: 64px) {
+  .package-rect .measure,
   .package-rect .pkg,
   .package-rect .note {
+    display: none;
+  }
+}
+
+@container (max-width: 104px) {
+  .package-rect .measure {
     display: none;
   }
 }
@@ -1374,6 +1394,7 @@ select:hover {
 }
 
 @container (max-height: 28px) {
+  .package-rect .measure,
   .package-rect .pkg {
     display: none;
   }
@@ -1411,6 +1432,7 @@ select:hover {
   background: transparent;
 }
 
+.rack-package.compact-label .measure,
 .rack-package.compact-label .pkg,
 .rack-package.compact-label .note {
   display: none;
@@ -1619,14 +1641,13 @@ select:hover {
 }
 
 .dim-left {
-  left: 6px;
-  top: 36px;
-  bottom: 8px;
-  width: 28px;
-  max-width: none;
-  padding: 6px 3px;
-  writing-mode: vertical-rl;
-  text-orientation: mixed;
+  left: 8px;
+  top: 42px;
+  bottom: auto;
+  width: max-content;
+  max-width: calc(100% - 16px);
+  padding: 3px 6px;
+  writing-mode: horizontal-tb;
   text-align: center;
 }
 
@@ -1653,13 +1674,15 @@ select:hover {
 
 .floor-canvas .dim-left,
 .rack-level-detail .dim-left {
-  left: -34px;
+  left: 0;
   top: 50%;
   bottom: auto;
   width: auto;
-  max-height: calc(100% - 16px);
-  padding: 8px 5px;
-  transform: translateY(-50%);
+  max-width: min(220px, calc(100% - 16px));
+  padding: 5px 8px;
+  transform: translate(calc(-50% - 18px), -50%) rotate(-90deg);
+  transform-origin: center;
+  white-space: nowrap;
 }
 
 .dim-bays {
@@ -1877,16 +1900,16 @@ select:hover {
   }
 
   .place-canvas {
-    min-height: 320px;
+    min-height: 0;
   }
 
   .floor-main .place-canvas {
-    min-height: 420px;
+    min-height: 0;
   }
 
   .floor-long .place-canvas {
     width: min(100%, 420px);
-    min-height: 620px;
+    min-height: 0;
   }
 
   .floor-long .floor-canvas {
@@ -1931,18 +1954,19 @@ select:hover {
   .dim-left {
     left: 5px;
     top: 34px;
-    bottom: 8px;
-    width: 24px;
-    max-width: none;
+    bottom: auto;
+    width: max-content;
+    max-width: calc(100% - 10px);
   }
 
   .floor-canvas .dim-left,
   .rack-level-detail .dim-left {
-    left: -30px;
+    left: 0;
     top: 50%;
     bottom: auto;
     width: auto;
-    transform: translateY(-50%);
+    max-width: min(190px, calc(100% - 12px));
+    transform: translate(calc(-50% - 15px), -50%) rotate(-90deg);
   }
 
   .dim-bays {
