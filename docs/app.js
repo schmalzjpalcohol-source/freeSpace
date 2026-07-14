@@ -1465,7 +1465,7 @@ function renderPlaceCanvas(shelf, kind, role = planRole(shelf)) {
     canvas.append(marker);
   }
 
-  shelf.packages.forEach(item => {
+  shelf.packages.forEach((item, itemIndex) => {
     const rectangle = document.createElement('button');
     const selectedPackage = els.packageId.value === item.id;
     const editDraft = selectedPackage ? selectedPackageDraft(item) : null;
@@ -1482,17 +1482,26 @@ function renderPlaceCanvas(shelf, kind, role = planRole(shelf)) {
     rectangle.classList.toggle('blocked-zone', isBlockedItem(displayItem));
     rectangle.classList.toggle('reserve-zone', isYellowZone(displayItem));
     rectangle.classList.toggle('stacked-zone', isStackedItem(displayItem));
+    const isUpperStackItem = kind === 'floor' && !isZoneItem(displayItem) && shelf.packages
+      .slice(0, itemIndex)
+      .some(previous => !isZoneItem(previous) && rectsOverlap(packageRect(previous), packageRect(displayItem)));
+    rectangle.classList.toggle('upper-stack-item', isUpperStackItem);
     rectangle.type = 'button';
     rectangle.style.left = `${((displayItem.column_index - 1) / shelf.columns) * 100}%`;
     rectangle.style.top = `${((displayItem.row_index - 1) / shelf.rows) * 100}%`;
     rectangle.style.width = `${((displayItem.width_units || 1) / shelf.columns) * 100}%`;
     rectangle.style.height = `${((displayItem.depth_units || 1) / shelf.rows) * 100}%`;
-    rectangle.dataset.tooltip = packageTooltip(displayItem);
+    // Floor names must never escape their footprint. Rack items use the
+    // hover tooltip only when their label cannot fit (handled separately).
+    rectangle.dataset.tooltip = '';
     rectangle.setAttribute('aria-label', item.package_name);
     rectangle.innerHTML = packageHtml(displayItem, selectedPackage);
     rectangle.addEventListener('pointerdown', event => {
-      if (!selectedPackage) return;
-      startPackageEdit(event, canvas, shelf, item, rectangle, displayItem);
+      if (selectedPackage) {
+        startPackageEdit(event, canvas, shelf, item, rectangle, displayItem);
+        return;
+      }
+      startPackageMove(event, canvas, shelf, item, rectangle);
     });
     rectangle.addEventListener('click', event => {
       if (rectangle.dataset.dragged === 'true') {
@@ -1590,7 +1599,7 @@ function renderDimensionLabels(shelf, kind, role = planRole(shelf)) {
   labels.innerHTML = `
     <span class="dim dim-top">${formatCm(shelf.columns)} cm</span>
     <span class="dim dim-left">${formatCm(shelf.rows)} cm</span>
-    ${kind === 'shelf' ? '<span class="dim dim-bays">600 cm length</span>' : ''}
+    ${kind === 'shelf' ? `<span class="dim dim-bays">${formatCm(shelf.columns)} cm length</span>` : ''}
   `;
   return labels;
 }
@@ -2017,7 +2026,9 @@ function modelViewState(id) {
 
 function createThreeAreaScene(viewport, shelf, view) {
   const widthCm = Math.max(1, shelf.columns || 1);
-  const depthCm = Math.max(1, effectiveRowsForShelf(shelf) || shelf.rows || 1);
+  // model3dDisplayShelf already isolates one physical rack level. Do not
+  // expand that 90 cm level back to the internal 450 cm storage coordinate map.
+  const depthCm = Math.max(1, shelf.rows || 1);
   const maxDim = Math.max(widthCm, depthCm, 100);
   const scale = 8 / maxDim;
   const heightScale = scale * 1.2;

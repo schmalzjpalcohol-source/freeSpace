@@ -877,7 +877,7 @@ select:hover {
 
 .rack-levels {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr)) minmax(110px, 0.55fr);
   gap: 8px;
   min-width: 0;
   padding: 0;
@@ -902,8 +902,8 @@ select:hover {
 }
 
 .rack-level.short-level {
-  grid-column: 4;
-  min-height: 42px;
+  grid-column: auto;
+  min-height: 72px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -956,7 +956,8 @@ select:hover {
 
 .rack-level-detail {
   width: calc(100% - 34px);
-  min-height: clamp(360px, 52vh, 560px);
+  height: clamp(260px, calc(100vh - 430px), 420px);
+  min-height: 0;
   margin-top: 32px;
   margin-left: 34px;
   background-size: 48px 48px;
@@ -1201,6 +1202,7 @@ select:hover {
   touch-action: none;
   transform: none;
   z-index: 2;
+  container-type: size;
 }
 
 .package-rect.blocked-zone {
@@ -1225,6 +1227,16 @@ select:hover {
     14px 14px 0 rgba(201, 133, 40, 0.14),
     inset 0 0 0 1px rgba(255, 255, 255, 0.46),
     0 10px 24px rgba(20, 32, 34, 0.16);
+}
+
+.package-rect.upper-stack-item {
+  opacity: 0.58;
+  backdrop-filter: blur(1px);
+}
+
+.package-rect.upper-stack-item:hover,
+.package-rect.upper-stack-item.selected {
+  opacity: 0.78;
 }
 
 .package-rect.floor-stack-group {
@@ -1268,6 +1280,10 @@ select:hover {
   white-space: normal;
   overflow-wrap: anywhere;
   box-shadow: 0 10px 26px rgba(20, 32, 34, 0.28);
+}
+
+.package-rect[data-tooltip=""]::after {
+  display: none;
 }
 
 .package-rect:hover::after,
@@ -1324,6 +1340,30 @@ select:hover {
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
+}
+
+.package-rect .pkg {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  white-space: nowrap;
+  text-overflow: clip;
+  overflow: hidden;
+}
+
+.package-rect .measure,
+.package-rect .note {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+@container (max-width: 64px) {
+  .package-rect .pkg,
+  .package-rect .note {
+    display: none;
+  }
 }
 
 .note {
@@ -1816,6 +1856,10 @@ select:hover {
     grid-template-columns: 1fr;
     width: 100%;
     min-width: 0;
+  }
+
+  .rack-levels {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .plan-slot.rack .plan-meta {
