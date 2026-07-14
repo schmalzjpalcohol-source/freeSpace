@@ -270,8 +270,12 @@ function stackTotalHeightCm(item) {
   return stackCount(item) * itemHeightCm(item);
 }
 
-function maxStackHeightForShelf() {
-  return 220;
+function maxStackHeightForShelf(shelf, candidate = {}) {
+  if (placeKind(shelf) === 'floor') return 100;
+  const row = candidate.row ?? candidate.rowIndex ?? 1;
+  const column = candidate.column ?? candidate.columnIndex ?? 1;
+  const smallColumnStart = Math.max(1, (shelf.columns || 600) - 149);
+  return row >= 361 && column >= smallColumnStart ? 16 : 65;
 }
 
 function maxFreeRunCm(shelf) {
@@ -702,8 +706,8 @@ function touchesForbiddenArea(shelf, draft) {
   return shelf.packages.some(item => isBlockedItem(item) && rectsOverlap(rect, packageRect(item)));
 }
 
-function floorStackOverlapHeight(shelf, candidate, excludeId = '') {
-  if (!shelf || placeKind(shelf) !== 'floor') return 0;
+function stackOverlapHeight(shelf, candidate, excludeId = '') {
+  if (!shelf) return 0;
   const rect = draftRect(candidate);
   return shelf.packages
     .filter(item => item.id !== excludeId && !isZoneItem(item) && rectsOverlap(rect, packageRect(item)))
@@ -2143,9 +2147,7 @@ function createThreeAreaScene(viewport, shelf, view) {
   const renderedItems = [];
   (shelf.packages || []).forEach(item => {
     const overlaps = renderedItems.filter(previous => rectsOverlap(packageRect(previous), packageRect(item)));
-    const baseHeightCm = placeKind(shelf) === 'floor'
-      ? overlaps.reduce((sum, previous) => sum + stackTotalHeightCm(previous), 0)
-      : 0;
+    const baseHeightCm = overlaps.reduce((sum, previous) => sum + stackTotalHeightCm(previous), 0);
     renderThreeItem(root, item, scale, heightScale, widthCm, depthCm, {
       baseHeightCm,
       translucent: overlaps.length > 0
@@ -2543,7 +2545,7 @@ async function submitPackage(event) {
       row: candidateRect.row,
       column: candidateRect.column
     });
-    const existingOverlapHeight = floorStackOverlapHeight(selectedShelf, candidateRect, payload.packageId);
+    const existingOverlapHeight = stackOverlapHeight(selectedShelf, candidateRect, payload.packageId);
     const combinedHeight = totalHeight + existingOverlapHeight;
     if (combinedHeight > maxHeight) {
       showMessage(`Stack is too high: ${formatCm(combinedHeight)} cm total, max ${formatCm(maxHeight)} cm here.`, 'error');

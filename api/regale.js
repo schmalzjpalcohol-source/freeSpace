@@ -178,7 +178,7 @@ async function assertPlaceFree(shelf, candidate, excludeId) {
   ));
   const candidateZone = zoneKind({ package_name: candidate.packageName, note: candidate.note });
   const collision = overlappingPackages.find(item => {
-    if (shelf.location_type === 'floor' && !candidateZone && !isZoneItem(item)) return false;
+    if (!candidateZone && !isZoneItem(item)) return false;
     return !canOverlap(candidate, item);
   });
   if (collision) {
@@ -190,11 +190,9 @@ async function assertPlaceFree(shelf, candidate, excludeId) {
   if (!candidateZone) {
     const totalHeight = stackCount(candidate.quantity) * itemHeightCm(candidate);
     const maxHeight = maxStackHeightForShelf(shelf, candidate);
-    const overlapHeight = shelf.location_type === 'floor'
-      ? overlappingPackages
-        .filter(item => !isZoneItem(item))
-        .reduce((sum, item) => sum + stackTotalHeightCm(item), 0)
-      : 0;
+    const overlapHeight = overlappingPackages
+      .filter(item => !isZoneItem(item))
+      .reduce((sum, item) => sum + stackTotalHeightCm(item), 0);
     const combinedHeight = totalHeight + overlapHeight;
     if (combinedHeight > maxHeight) {
       const error = new Error(`Stack is too high: ${combinedHeight} cm, max ${maxHeight} cm here.`);
