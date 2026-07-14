@@ -886,8 +886,10 @@ select:hover {
   grid-template-columns: 1fr;
   gap: 10px;
   width: 100%;
+  max-width: 100%;
   min-width: 0;
   overflow: visible;
+  contain: inline-size;
 }
 
 .rack-levels {
@@ -971,7 +973,10 @@ select:hover {
 
 .rack-level-detail {
   width: calc(100% - 34px);
+  max-width: calc(100% - 34px);
+  height: clamp(240px, 34vw, 380px);
   min-height: clamp(240px, 34vw, 380px);
+  aspect-ratio: auto !important;
   margin-top: 24px;
   margin-left: 34px;
   background-size: 48px 48px;
@@ -979,7 +984,10 @@ select:hover {
 
 .rack-level-detail.short-rack-detail {
   width: calc(100% - 34px);
+  max-width: calc(100% - 34px);
+  height: clamp(220px, 30vw, 340px);
   min-height: clamp(220px, 30vw, 340px);
+  aspect-ratio: auto !important;
 }
 
 .rack-tools {
@@ -1937,6 +1945,7 @@ select:hover {
 
   .rack-level-detail.place-canvas,
   .rack-level-detail.short-rack-detail {
+    height: 220px;
     min-height: 220px;
   }
 
