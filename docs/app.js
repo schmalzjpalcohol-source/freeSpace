@@ -295,10 +295,10 @@ function rackLevelSpecs(shelf) {
   };
   const small = levelRange(5);
   return [
-    { level: 1, label: 'Rack level 1', ...levelRange(1), xStart: 1, xEnd: width, short: false, heightLabel: 'max height 220 cm' },
-    { level: 2, label: 'Rack level 2', ...levelRange(2), xStart: 1, xEnd: width, short: false, heightLabel: 'max height 220 cm' },
-    { level: 3, label: 'Rack level 3', ...levelRange(3), xStart: 1, xEnd: width, short: false, heightLabel: 'max height 220 cm' },
-    { level: 4, label: 'Rack level 4', ...levelRange(4), xStart: 1, xEnd: width, short: false, heightLabel: 'max height 220 cm' },
+    { level: 1, label: 'Rack level 1', ...levelRange(1), xStart: 1, xEnd: width, short: false, heightLabel: '600 x 90 cm, max height 220 cm' },
+    { level: 2, label: 'Rack level 2', ...levelRange(2), xStart: 1, xEnd: width, short: false, heightLabel: '600 x 90 cm, max height 220 cm' },
+    { level: 3, label: 'Rack level 3', ...levelRange(3), xStart: 1, xEnd: width, short: false, heightLabel: '600 x 90 cm, max height 220 cm' },
+    { level: 4, label: 'Rack level 4', ...levelRange(4), xStart: 1, xEnd: width, short: false, heightLabel: '600 x 90 cm, max height 220 cm' },
     { level: 5, label: 'Small rack', ...small, xStart: Math.max(1, width - 149), xEnd: width, short: true, heightLabel: '150 x 90 cm, max height 220 cm' }
   ];
 }
@@ -1989,7 +1989,7 @@ function model3dRackLevelButtons(shelf) {
     <span class="model3d-levels" aria-label="Rack levels">
       ${rackLevelSpecs(shelf).map(spec => `
         <button type="button" data-model-rack-level="${spec.level}" class="${appState.activeRackLevel === spec.level ? 'active' : ''}">
-          ${escapeHtml(spec.short ? 'Small' : `Level ${spec.level}`)}
+          ${escapeHtml(spec.short ? 'Small 150x90' : `Level ${spec.level} 600x90`)}
         </button>
       `).join('')}
     </span>
