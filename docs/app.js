@@ -14,6 +14,7 @@ const els = {
   appView: document.querySelector('#appView'),
   packageView: document.querySelector('#packageView'),
   placeView: document.querySelector('#placeView'),
+  backToOverviewButton: document.querySelector('#backToOverviewButton'),
   placeForm: document.querySelector('#placeForm'),
   placeId: document.querySelector('#placeId'),
   placeLocationType: document.querySelector('#placeLocationType'),
@@ -978,19 +979,36 @@ function render() {
   const shelfPlaces = appState.shelves.filter(shelf => placeKind(shelf) === 'shelf');
   const planShelves = selectedPlanShelves(shelfPlaces, floorPlaces);
   const oldPlaces = appState.shelves.filter(shelf => !planPlaceRole(shelf));
-  const freeArea = totalFreeArea(planShelves);
-  els.summaryText.textContent = planShelves.length
-    ? `${formatAreaCm2(freeArea)} free area across the 3 layout areas.${oldPlaces.length ? ` ${oldPlaces.length} old area hidden.` : ''}`
-    : `The 3 layout areas have not been created yet.${oldPlaces.length ? ` ${oldPlaces.length} old area is listed under Manage areas.` : ''}`;
+  const visibleShelves = appState.shelves;
+  const freeArea = totalFreeArea(visibleShelves);
+  els.summaryText.textContent = visibleShelves.length
+    ? `${formatAreaCm2(freeArea)} free area across ${visibleShelves.length} area(s).`
+    : 'No areas have been created yet.';
 
   renderOverview(
-    planShelves,
+    visibleShelves,
     shelfPlaces.filter(shelf => planPlaceRole(shelf) === 'rack'),
     floorPlaces.filter(shelf => planPlaceRole(shelf))
   );
-  renderModel3d(planShelves);
+  renderModel3d(visibleShelves);
   renderPlanDrawing(shelfPlaces, floorPlaces);
+  renderAdditionalAreas(oldPlaces);
   renderPlaces();
+}
+
+function renderAdditionalAreas(places) {
+  if (!places.length) return;
+  const section = document.createElement('section');
+  section.className = 'additional-areas';
+  const heading = document.createElement('div');
+  heading.className = 'additional-areas-head';
+  heading.innerHTML = `
+    <span class="place-type">Additional storage</span>
+    <h2>Other areas (${places.length})</h2>
+  `;
+  section.append(heading);
+  places.forEach(place => section.append(renderPlanSlot('other', place)));
+  els.shelves.append(section);
 }
 
 function selectedPlanShelves(shelfPlaces, floorPlaces) {
@@ -1155,7 +1173,7 @@ function renderPlanSlot(role, shelf) {
   slot.append(meta);
 
   if (shelf) {
-    if (role === 'rack') {
+    if (role === 'rack' || kind === 'shelf') {
       slot.append(renderRackDisplay(displayShelf));
     } else {
       slot.append(renderPlaceTools(displayShelf));
@@ -2754,6 +2772,10 @@ if (els.defaultPlanButton) {
 
 els.packagesTab?.addEventListener('click', () => setActiveView('packages'));
 els.placesTab?.addEventListener('click', () => setActiveView('places'));
+els.backToOverviewButton?.addEventListener('click', () => {
+  clearPlaceForm();
+  setActiveView('packages');
+});
 
 els.packageForm.addEventListener('submit', event => {
   submitPackage(event).catch(error => showMessage(error.message, 'error'));
