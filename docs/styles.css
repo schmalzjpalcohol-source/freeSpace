@@ -1501,57 +1501,55 @@ select:hover {
 .package-rect.door-visual,
 .draft-marker.door-visual {
   z-index: 6;
-  min-height: 18px;
-  border: 4px solid #4b3624;
-  border-bottom-width: 2px;
-  border-radius: 3px 3px 14px 3px;
-  padding: 2px 6px;
-  background: linear-gradient(90deg, #d9aa6c, #f3d3a8);
+  min-width: 34px;
+  min-height: 34px;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  background: transparent;
   color: #392614;
-  box-shadow: 0 4px 12px rgba(57, 38, 20, 0.25);
+  box-shadow: none;
   overflow: visible;
 }
 
-.door-swing {
+.door-icon {
   display: none;
 }
 
-.door-visual > .door-swing {
+.door-visual > .door-icon {
   display: block;
   position: absolute;
-  right: -68%;
-  top: 7%;
-  width: 72%;
-  height: 86%;
-  border: 3px solid #60401f;
-  border-left-width: 5px;
-  border-radius: 2px 10px 10px 2px;
-  background: linear-gradient(90deg, rgba(135, 85, 42, 0.88), rgba(199, 147, 92, 0.78));
-  box-shadow: 3px 5px 9px rgba(57, 38, 20, 0.2);
-  transform: rotate(-24deg);
-  transform-origin: left center;
+  left: 50%;
+  top: 50%;
+  width: 32px;
+  height: 32px;
+  filter: drop-shadow(0 3px 4px rgba(57, 38, 20, 0.24));
+  transform: translate(-50%, -50%);
+  transform-origin: center;
   pointer-events: none;
 }
 
-.door-visual.door-flipped > .door-swing {
-  left: -68%;
-  right: auto;
-  border-right-width: 5px;
-  border-left-width: 3px;
-  border-radius: 10px 2px 2px 10px;
-  transform: rotate(24deg);
-  transform-origin: right center;
+.door-visual.door-flipped > .door-icon {
+  transform: translate(-50%, -50%) scaleX(-1);
 }
 
-.door-visual::before {
-  content: "";
-  position: absolute;
-  right: 5px;
-  top: 50%;
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: #3b2a1c;
+.door-icon svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.door-icon-frame { fill: #4b3624; }
+.door-icon-panel { fill: #b7793e; }
+.door-icon-detail {
+  fill: none;
+  stroke: #e4bd8a;
+  stroke-width: 1.2;
+}
+.door-icon-knob { fill: #f5dfb7; }
+
+.door-visual.selected > .door-icon {
+  filter: drop-shadow(0 0 4px rgba(15, 118, 110, 0.8));
 }
 
 .door-visual.door-top { transform: translateY(calc(-100% - 16px)); }
@@ -1570,17 +1568,7 @@ select:hover {
 
 .door-visual .pkg,
 .door-visual .draft-size {
-  position: relative;
-  z-index: 1;
-  align-self: center;
-  width: 100%;
-  max-width: 100%;
-  border: 0;
-  padding: 0;
-  background: transparent;
-  font-size: clamp(0.58rem, 2cqw, 0.76rem);
-  line-height: 1;
-  text-align: center;
+  display: none;
 }
 
 .column-visual .measure,
@@ -1895,10 +1883,9 @@ select:hover {
 }
 
 .draft-marker.door-visual {
-  border: 4px solid #4b3624;
-  border-bottom-width: 2px;
-  border-radius: 3px 3px 14px 3px;
-  background: linear-gradient(90deg, #d9aa6c, #f3d3a8);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 .draft-marker .draft-size {

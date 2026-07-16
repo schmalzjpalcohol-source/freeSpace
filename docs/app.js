@@ -2100,7 +2100,7 @@ function renderDimensionLabels(shelf, kind, role = planRole(shelf)) {
 
 function draftMarkerHtml(draft) {
   return `
-    <i class="door-swing" aria-hidden="true"></i>
+    ${doorIconHtml()}
     <span class="draft-size">${formatSizeCm(draft.width, draft.depth)}</span>
     <b data-handle="n"></b>
     <b data-handle="e"></b>
@@ -2110,6 +2110,19 @@ function draftMarkerHtml(draft) {
     <b data-handle="se"></b>
     <b data-handle="sw"></b>
     <b data-handle="nw"></b>
+  `;
+}
+
+function doorIconHtml() {
+  return `
+    <span class="door-icon" aria-hidden="true">
+      <svg viewBox="0 0 32 32" focusable="false">
+        <rect class="door-icon-frame" x="4" y="2" width="24" height="28" rx="2"></rect>
+        <rect class="door-icon-panel" x="8" y="6" width="16" height="22" rx="1"></rect>
+        <path class="door-icon-detail" d="M10 9h12M10 24h12"></path>
+        <circle class="door-icon-knob" cx="20.5" cy="17" r="1.6"></circle>
+      </svg>
+    </span>
   `;
 }
 
@@ -2998,7 +3011,7 @@ function packageHtml(item, selected = false) {
   const height = itemHeightCm(item);
   const note = displayItemNote(item.note || '');
   return `
-    ${kind === 'door' && !selected ? '<i class="door-swing" aria-hidden="true"></i>' : ''}
+    ${kind === 'door' && !selected ? doorIconHtml() : ''}
     <span class="measure">${formatSizeCm(item.width_units || 1, item.depth_units || 1)} · h ${formatNumber(count * height * 10)} mm</span>
     <span class="pkg">${escapeHtml(item.package_name)}</span>
     <span class="note">${kind === 'door' ? 'visual marker · outside area · no space deducted' : zone ? `${escapeHtml(kind)} · full available height` : `${escapeHtml(count)}x stacked${note ? ` · ${escapeHtml(note)}` : ''}`}</span>
