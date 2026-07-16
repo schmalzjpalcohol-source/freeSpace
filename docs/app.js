@@ -183,7 +183,7 @@ function packageTooltip(item) {
   const zone = zoneKind(item);
   const kind = specialKind(item);
   if (kind === 'door') {
-    return `${item.package_name || 'Door'}\nVisual marker outside the storage area\nDoes not reduce free space`;
+    return 'Door';
   }
   if (zone) {
     const isRed = zone === 'red';
@@ -769,7 +769,7 @@ function draftAsItem(draft, kind = draftSpecialKind()) {
     column_index: draft.column,
     width_units: draft.width,
     depth_units: draft.depth,
-    package_name: kind === 'door' ? 'Door outside area' : kind,
+    package_name: kind === 'door' ? 'Door' : kind,
     note: kind === 'door' ? currentDoorNote() : (els.note.value || (kind ? `element:${kind}` : ''))
   };
 }
@@ -1880,6 +1880,7 @@ function renderPlaceCanvas(shelf, kind, role = planRole(shelf)) {
     dragDraft = draftFromCorners(dragStart, dragStart, shelf);
     dragMarker = document.createElement('div');
     dragMarker.className = 'drag-marker';
+    decorateDraftMarker(dragMarker, dragDraft, shelf);
     canvas.append(dragMarker);
     canvas.setPointerCapture(event.pointerId);
     updateDragMarker(shelf, dragMarker, dragDraft);
@@ -1893,6 +1894,7 @@ function renderPlaceCanvas(shelf, kind, role = planRole(shelf)) {
       return;
     }
     if (!dragDraft || !dragMarker) return;
+    updateDoorSideFromPointer(event, canvas);
     dragDraft = draftFromCorners(dragStart, canvasCellFromEvent(event, canvas, shelf), shelf);
     updateDragMarker(shelf, dragMarker, dragDraft);
   });
@@ -2090,6 +2092,22 @@ function updateDragMarker(shelf, marker, draft) {
   }
 }
 
+function updateDoorSideFromPointer(event, canvas) {
+  if (draftSpecialKind() !== 'door') return false;
+  const rect = canvas.getBoundingClientRect();
+  const outside = [
+    ['top', rect.top - event.clientY],
+    ['right', event.clientX - rect.right],
+    ['bottom', event.clientY - rect.bottom],
+    ['left', rect.left - event.clientX]
+  ].sort((a, b) => b[1] - a[1]);
+  const [side, distance] = outside[0];
+  if (distance < 8 || side === els.doorSideValue.value) return false;
+  els.doorSideValue.value = side;
+  els.doorFlippedValue.value = '0';
+  return true;
+}
+
 function renderDimensionLabels(shelf, kind, role = planRole(shelf)) {
   const labels = document.createElement('div');
   labels.className = 'dimension-labels';
@@ -2150,6 +2168,7 @@ function startDraftEdit(event, canvas, shelf, marker, draft) {
   let currentDraft = draft;
 
   const move = moveEvent => {
+    if (handle === 'move') updateDoorSideFromPointer(moveEvent, canvas);
     const cell = canvasCellFromEvent(moveEvent, canvas, shelf);
     currentDraft = handle === 'move'
       ? draftAtCell(
@@ -2192,6 +2211,7 @@ function startRackDraftEdit(event, canvas, shelf, range, marker, localDraft) {
   };
 
   const move = moveEvent => {
+    if (handle === 'move') updateDoorSideFromPointer(moveEvent, canvas);
     const cell = canvasCellFromEvent(moveEvent, canvas, localShelf);
     const nextLocalDraft = handle === 'move'
       ? draftAtCell(
@@ -2249,6 +2269,7 @@ function startRackPackageEdit(event, canvas, shelf, range, item, rectangle, disp
     const distance = Math.hypot(moveEvent.clientX - startPointer.x, moveEvent.clientY - startPointer.y);
     if (!moved && distance < 6) return;
     moved = true;
+    if (handle === 'move') updateDoorSideFromPointer(moveEvent, canvas);
     const cell = canvasCellFromEvent(moveEvent, canvas, localShelf);
     const nextLocalDraft = handle === 'move'
       ? draftAtCell(
@@ -2309,6 +2330,7 @@ function startPackageEdit(event, canvas, shelf, item, rectangle, displayItem) {
     const distance = Math.hypot(moveEvent.clientX - startPointer.x, moveEvent.clientY - startPointer.y);
     if (!moved && distance < 6) return;
     moved = true;
+    if (handle === 'move') updateDoorSideFromPointer(moveEvent, canvas);
     const cell = canvasCellFromEvent(moveEvent, canvas, shelf);
     const nextDraft = handle === 'move'
       ? draftAtCell(
@@ -2772,7 +2794,7 @@ function buildModel3dLabels(shelf) {
     ` : ''}
     ${(shelf.packages || []).slice(0, 10).map(item => `
       <span class="${zoneKind(item) ? 'zone-label' : ''}">
-        ${escapeHtml(item.package_name)}
+        ${escapeHtml(isDoorItem(item) ? 'Door' : item.package_name)}
         ${zoneKind(item) ? escapeHtml(specialKind(item)) : `${formatNumber(stackTotalHeightCm(item) * 10)} mm`}
       </span>
     `).join('')}
@@ -3279,18 +3301,9 @@ els.cancelEditButton.addEventListener('click', () => {
 els.doorSideControls.addEventListener('click', event => {
   const button = event.target.closest('[data-door-side]');
   if (!button || !appState.selected?.shelf || draftSpecialKind() !== 'door') return;
-  const side = button.dataset.doorSide;
-  let width = cmInputToCm(els.widthUnits.value, 90);
-  let depth = cmInputToCm(els.depthUnits.value, 10);
-  const needsHorizontal = side === 'top' || side === 'bottom';
-  if ((needsHorizontal && depth > width) || (!needsHorizontal && width > depth)) {
-    [width, depth] = [depth, width];
-  }
-  els.doorSideValue.value = side;
+  els.doorSideValue.value = button.dataset.doorSide;
   els.doorFlippedValue.value = '0';
-  els.widthUnits.value = inputCm(width);
-  els.depthUnits.value = inputCm(depth);
-  updateDraftFromSizeInputs();
+  render();
 });
 
 els.deletePackageButton.addEventListener('click', async () => {
@@ -3340,7 +3353,7 @@ document.querySelectorAll('[data-zone-kind]').forEach(button => {
       yellow: ['Yellow reserve zone', 'zone:yellow'],
       column: ['Column', 'element:column, zone:red'],
       corridor: ['Corridor', 'element:corridor, zone:yellow'],
-      door: ['Door outside area', 'element:door']
+      door: ['Door', 'element:door']
     };
     const [name, note] = definitions[kind] || definitions.red;
     els.packageName.value = name;

@@ -1499,7 +1499,8 @@ select:hover {
 }
 
 .package-rect.door-visual,
-.draft-marker.door-visual {
+.draft-marker.door-visual,
+.drag-marker.door-visual {
   z-index: 6;
   min-width: 0;
   min-height: 0;
@@ -1510,6 +1511,14 @@ select:hover {
   color: #fff;
   box-shadow: 0 3px 8px rgba(0, 0, 0, 0.24);
   overflow: visible;
+}
+
+.package-rect.door-visual::after {
+  max-width: 90px;
+  padding: 3px 5px;
+  font-size: 0.66rem;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 .door-visual.door-top { transform: translateY(calc(-100% - 16px)); }
@@ -2060,7 +2069,7 @@ select:hover {
 
 .floor-canvas .dim-top,
 .rack-level-detail .dim-top {
-  top: -34px;
+  top: -58px;
   max-width: min(70%, calc(100% - 18px));
 }
 
