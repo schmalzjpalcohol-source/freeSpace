@@ -5,7 +5,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>freeSpace Storage Layout</title>
-    <link rel="stylesheet" href="./styles.css?v=20260716-gray-elements-door-swing">
+    <link rel="stylesheet" href="./styles.css?v=20260716-stable-flippable-door">
 </head>
 
 <body>
@@ -55,6 +55,8 @@
         </div>
         <form id="packageForm">
           <input id="packageId" name="packageId" type="hidden">
+          <input id="doorSideValue" type="hidden">
+          <input id="doorFlippedValue" type="hidden" value="0">
           <label class="hidden">
             Area type
             <select id="locationType" name="locationType">
@@ -140,7 +142,8 @@
             <button id="saveButton" class="primary" type="submit">Save item</button>
             <button id="deletePackageButton" class="danger hidden" type="button">Delete</button>
           </div>
-          <button id="cancelEditButton" class="ghost wide hidden" type="button">Cancel editing</button>
+          <button id="cancelEditButton" class="ghost wide hidden" type="button">Cancel</button>
+          <button id="flipDoorButton" class="ghost wide hidden" type="button">Flip door opening</button>
         </form>
       </aside>
 
@@ -242,7 +245,7 @@
 
   <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
   <script src="./config.js"></script>
-    <script src="./app.js?v=20260716-gray-elements-door-swing"></script>
+    <script src="./app.js?v=20260716-stable-flippable-door"></script>
 </body>
 
 </html>

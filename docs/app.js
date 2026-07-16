@@ -34,6 +34,8 @@ const els = {
   packageForm: document.querySelector('#packageForm'),
   formTitle: document.querySelector('#formTitle'),
   packageId: document.querySelector('#packageId'),
+  doorSideValue: document.querySelector('#doorSideValue'),
+  doorFlippedValue: document.querySelector('#doorFlippedValue'),
   selectedCell: document.querySelector('#selectedCell'),
   locationType: document.querySelector('#locationType'),
   model3d: document.querySelector('#model3d'),
@@ -50,6 +52,7 @@ const els = {
   note: document.querySelector('#note'),
   saveButton: document.querySelector('#saveButton'),
   deletePackageButton: document.querySelector('#deletePackageButton'),
+  flipDoorButton: document.querySelector('#flipDoorButton'),
   cancelEditButton: document.querySelector('#cancelEditButton'),
   toggleFitFinderButton: document.querySelector('#toggleFitFinderButton'),
   fitFinderForm: document.querySelector('#fitFinderForm'),
@@ -705,12 +708,46 @@ function isYellowZone(item) {
   return zoneKind(item) === 'yellow';
 }
 
-function doorSide(item, shelf) {
+function nearestDoorSide(item, shelf) {
   const left = (item.column_index || 1) - 1;
   const right = Math.max(0, (shelf.columns || 1) - ((item.column_index || 1) + (item.width_units || 1) - 1));
   const top = (item.row_index || 1) - 1;
   const bottom = Math.max(0, (shelf.rows || 1) - ((item.row_index || 1) + (item.depth_units || 1) - 1));
   return [['left', left], ['right', right], ['top', top], ['bottom', bottom]].sort((a, b) => a[1] - b[1])[0][0];
+}
+
+function doorSideFromNote(note) {
+  return String(note || '').match(/door-side\s*:\s*(top|right|bottom|left)/i)?.[1]?.toLowerCase() || '';
+}
+
+function doorIsFlipped(item) {
+  return /door-flipped\s*:\s*(?:1|true|yes)/i.test(String(item?.note || ''));
+}
+
+function noteWithDoorState(note, side, flipped) {
+  const clean = String(note || '')
+    .replace(/(?:,\s*)?door-side\s*:\s*(?:top|right|bottom|left)/gi, '')
+    .replace(/(?:,\s*)?door-flipped\s*:\s*(?:0|1|true|false|yes|no)/gi, '')
+    .replace(/^,\s*|\s*,$/g, '')
+    .trim();
+  const state = `door-side:${side}, door-flipped:${flipped ? 1 : 0}`;
+  return clean ? `${clean}, ${state}` : state;
+}
+
+function cleanDoorStateFromNote(note) {
+  return String(note || '')
+    .replace(/(?:,\s*)?door-side\s*:\s*(?:top|right|bottom|left)/gi, '')
+    .replace(/(?:,\s*)?door-flipped\s*:\s*(?:0|1|true|false|yes|no)/gi, '')
+    .replace(/^,\s*|\s*,$/g, '')
+    .trim();
+}
+
+function currentDoorNote() {
+  return noteWithDoorState(els.note.value, els.doorSideValue.value || 'left', els.doorFlippedValue.value === '1');
+}
+
+function doorSide(item, shelf) {
+  return doorSideFromNote(item?.note) || nearestDoorSide(item, shelf);
 }
 
 function placeDoorOutside(rectangle, item, shelf) {
@@ -733,7 +770,7 @@ function draftAsItem(draft, kind = draftSpecialKind()) {
     width_units: draft.width,
     depth_units: draft.depth,
     package_name: kind === 'door' ? 'Door outside area' : kind,
-    note: kind ? `element:${kind}` : ''
+    note: kind === 'door' ? currentDoorNote() : (els.note.value || (kind ? `element:${kind}` : ''))
   };
 }
 
@@ -742,6 +779,7 @@ function decorateDraftMarker(marker, draft, shelf) {
   marker.classList.toggle('column-visual', kind === 'column');
   marker.classList.toggle('corridor-visual', kind === 'corridor');
   marker.classList.toggle('door-visual', kind === 'door');
+  marker.classList.toggle('door-flipped', kind === 'door' && els.doorFlippedValue.value === '1');
   if (kind === 'door') placeDoorOutside(marker, draftAsItem(draft, kind), shelf);
 }
 
@@ -975,6 +1013,9 @@ function setDraftFormValues(shelf, draft) {
   els.columnIndex.value = adjusted.column;
   els.widthUnits.value = inputCm(adjusted.width);
   els.depthUnits.value = inputCm(adjusted.depth);
+  if (draftSpecialKind() === 'door' && !els.doorSideValue.value) {
+    els.doorSideValue.value = nearestDoorSide(draftAsItem(adjusted, 'door'), savingShelf);
+  }
   appState.selected = { shelf, row: adjusted.row, column: adjusted.column };
   els.selectedCell.textContent = `${displayAreaName(shelf.name)}: ${formatSizeCm(adjusted.width, adjusted.depth)} selected`;
   return adjusted;
@@ -1022,7 +1063,8 @@ function applyDraftSelection(shelf, draft) {
   els.formTitle.textContent = 'Add item';
   els.saveButton.textContent = 'Save item';
   els.deletePackageButton.classList.add('hidden');
-  els.cancelEditButton.classList.add('hidden');
+  els.cancelEditButton.classList.remove('hidden');
+  syncDraftActionButtons();
   showMessage(`${displayAreaName(shelf.name)}: space selected. Save when ready.`);
   return true;
 }
@@ -1041,11 +1083,13 @@ function selectCell(shelf, row, column, item) {
   els.heightUnits.value = item ? inputCm(itemHeightCm(item)) : '450';
   els.packageName.value = item ? item.package_name : '';
   els.quantity.value = item ? item.quantity : 1;
-  els.note.value = item ? cleanHeightFromNote(item.note || '') : '';
+  els.note.value = item ? cleanDoorStateFromNote(cleanHeightFromNote(item.note || '')) : '';
+  els.doorSideValue.value = item && isDoorItem(item) ? (doorSideFromNote(item.note) || nearestDoorSide(item, shelf)) : '';
+  els.doorFlippedValue.value = item && isDoorItem(item) && doorIsFlipped(item) ? '1' : '0';
   els.formTitle.textContent = item ? 'Edit item' : 'Add item';
   els.saveButton.textContent = item ? 'Save changes' : 'Save item';
   els.deletePackageButton.classList.toggle('hidden', !item);
-  els.cancelEditButton.classList.toggle('hidden', !item);
+  els.cancelEditButton.classList.remove('hidden');
   els.selectedCell.textContent = item
     ? `${displayAreaName(shelf.name)}: editing active`
     : `${displayAreaName(shelf.name)}: space selected`;
@@ -1056,6 +1100,8 @@ function selectCell(shelf, row, column, item) {
 function clearPackageForm() {
   appState.selected = null;
   els.packageId.value = '';
+  els.doorSideValue.value = '';
+  els.doorFlippedValue.value = '0';
   els.packageName.value = '';
   els.quantity.value = 1;
   els.note.value = '';
@@ -1065,7 +1111,15 @@ function clearPackageForm() {
   els.formTitle.textContent = 'Add item';
   els.saveButton.textContent = 'Save item';
   els.deletePackageButton.classList.add('hidden');
+  els.flipDoorButton.classList.add('hidden');
   els.cancelEditButton.classList.add('hidden');
+}
+
+function syncDraftActionButtons() {
+  const hasDraft = Boolean(appState.selected);
+  const isDoor = hasDraft && draftSpecialKind() === 'door';
+  els.cancelEditButton.classList.toggle('hidden', !hasDraft);
+  els.flipDoorButton.classList.toggle('hidden', !isDoor);
 }
 
 function updateDraftFromSizeInputs(event) {
@@ -1155,6 +1209,7 @@ async function deletePackage(id) {
 
 function render() {
   setAuthUi();
+  syncDraftActionButtons();
   els.shelves.innerHTML = '';
   els.placeList.innerHTML = '';
 
@@ -1585,6 +1640,7 @@ function renderRackLevelDetail(shelf, level) {
         depth_units: editDraft.depth
       }
       : item;
+    if (selectedPackage) displayItem.note = isDoorItem(displayItem) ? currentDoorNote() : els.note.value;
     const clippedTop = Math.max(displayItem.row_index, range.start);
     const clippedBottom = Math.min(displayItem.row_index + (displayItem.depth_units || 1) - 1, range.end);
     const clippedLeft = Math.max(displayItem.column_index, range.xStart);
@@ -1609,6 +1665,7 @@ function renderRackLevelDetail(shelf, level) {
     rectangle.classList.toggle('column-visual', specialKind(displayItem) === 'column');
     rectangle.classList.toggle('corridor-visual', specialKind(displayItem) === 'corridor');
     rectangle.classList.toggle('door-visual', isDoorItem(displayItem));
+    rectangle.classList.toggle('door-flipped', isDoorItem(displayItem) && doorIsFlipped(displayItem));
     if (isDoorItem(displayItem)) rectangle.classList.add(`door-${doorSide(localDisplayItem, localShelf)}`);
     rectangle.classList.toggle('stacked-zone', isStackedItem(displayItem));
     rectangle.classList.toggle('overlapping-item', renderedPackages.some(previous => (
@@ -1893,6 +1950,7 @@ function renderPlaceCanvas(shelf, kind, role = planRole(shelf)) {
         depth_units: editDraft.depth
       }
       : item;
+    if (selectedPackage) displayItem.note = isDoorItem(displayItem) ? currentDoorNote() : els.note.value;
     rectangle.className = `package-rect ${selectedPackage ? 'selected' : ''}`;
     rectangle.classList.toggle('blocked-zone', isBlockedItem(displayItem));
     rectangle.classList.toggle('reserve-zone', isYellowZone(displayItem));
@@ -1902,6 +1960,7 @@ function renderPlaceCanvas(shelf, kind, role = planRole(shelf)) {
     rectangle.classList.toggle('column-visual', specialKind(displayItem) === 'column');
     rectangle.classList.toggle('corridor-visual', specialKind(displayItem) === 'corridor');
     rectangle.classList.toggle('door-visual', isDoorItem(displayItem));
+    rectangle.classList.toggle('door-flipped', isDoorItem(displayItem) && doorIsFlipped(displayItem));
     if (isDoorItem(displayItem)) rectangle.classList.add(`door-${doorSide(displayItem, shelf)}`);
     rectangle.classList.toggle('stacked-zone', isStackedItem(displayItem));
     rectangle.classList.toggle('overlapping-item', renderedPackages.some(previous => (
@@ -2662,7 +2721,17 @@ function renderThreeItem(root, item, scale, heightScale, widthCm, depthCm, optio
     if (side === 'top') z = (-depthCm / 2 - 5) * scale;
     if (side === 'bottom') z = (depthCm / 2 + 5) * scale;
   }
-  const color = kind === 'door' ? 0xb7793e : kind === 'column' ? 0x9f2331 : zone === 'red' ? 0xea8a96 : zone === 'yellow' ? 0xf2d16d : 0xe6a447;
+  const color = kind === 'door'
+    ? 0x9a6335
+    : kind === 'column'
+      ? 0x343b3f
+      : kind === 'corridor'
+        ? 0xdce1e3
+        : zone === 'red'
+          ? 0xea8a96
+          : zone === 'yellow'
+            ? 0xf2d16d
+            : 0xe6a447;
   const opacity = zone && kind !== 'column' ? 0.65 : options.rackItem ? 0.9 : 1;
   const material = new THREE.MeshStandardMaterial({
     color,
@@ -2671,12 +2740,11 @@ function renderThreeItem(root, item, scale, heightScale, widthCm, depthCm, optio
     transparent: opacity < 1,
     opacity
   });
-  const edgeMaterial = new THREE.LineBasicMaterial({ color: zone === 'red' ? 0x9f2331 : 0x5f4327, transparent: true, opacity: 0.55 });
+  const edgeColor = kind === 'column' ? 0x161a1c : kind === 'corridor' ? 0x737b7f : zone === 'red' ? 0x9f2331 : 0x5f4327;
+  const edgeMaterial = new THREE.LineBasicMaterial({ color: edgeColor, transparent: true, opacity: 0.55 });
 
   for (let index = 0; index < count; index += 1) {
-    const geometry = kind === 'column'
-      ? new THREE.CylinderGeometry(Math.min(boxWidth, boxDepth) / 2, Math.min(boxWidth, boxDepth) / 2, layerHeight, 24)
-      : new THREE.BoxGeometry(boxWidth, layerHeight, boxDepth);
+    const geometry = new THREE.BoxGeometry(boxWidth, layerHeight, boxDepth);
     const mesh = new THREE.Mesh(geometry, material);
     mesh.position.set(x, baseHeight + (layerHeight / 2) + (index * layerHeight), z);
     mesh.castShadow = true;
@@ -3012,9 +3080,19 @@ async function submitPackage(event) {
     }
   }
   payload.quantity = quantity;
-  payload.note = payloadSpecial === 'door'
-    ? cleanHeightFromNote(payload.note)
-    : noteWithHeight(payload.note, height);
+  if (payloadSpecial === 'door') {
+    const stableSide = els.doorSideValue.value || (selectedShelf
+      ? nearestDoorSide({
+        row_index: candidateRect.row,
+        column_index: candidateRect.column,
+        width_units: candidateRect.width,
+        depth_units: candidateRect.depth
+      }, shelfForSaving(selectedShelf))
+      : 'left');
+    payload.note = noteWithDoorState(cleanHeightFromNote(payload.note), stableSide, els.doorFlippedValue.value === '1');
+  } else {
+    payload.note = noteWithHeight(payload.note, height);
+  }
   payload.shelfRows = cmInputToMeters(payload.shelfRows, planPlaces.rack.rows);
   payload.shelfColumns = cmInputToMeters(payload.shelfColumns, 600);
   payload.widthUnits = cmInputToMeters(payload.widthUnits, 100);
@@ -3197,6 +3275,20 @@ els.cancelEditButton.addEventListener('click', () => {
   render();
 });
 
+els.flipDoorButton.addEventListener('click', () => {
+  if (!appState.selected?.shelf || draftSpecialKind() !== 'door') return;
+  const shelf = shelfForSaving(appState.selected.shelf);
+  const draft = {
+    row: Number.parseInt(els.rowIndex.value, 10) || appState.selected.row,
+    column: Number.parseInt(els.columnIndex.value, 10) || appState.selected.column,
+    width: cmInputToCm(els.widthUnits.value, 90),
+    depth: cmInputToCm(els.depthUnits.value, 10)
+  };
+  els.doorSideValue.value = els.doorSideValue.value || nearestDoorSide(draftAsItem(draft, 'door'), shelf);
+  els.doorFlippedValue.value = els.doorFlippedValue.value === '1' ? '0' : '1';
+  render();
+});
+
 els.deletePackageButton.addEventListener('click', async () => {
   if (!els.packageId.value) return;
   await deletePackage(els.packageId.value).catch(error => showMessage(error.message, 'error'));
@@ -3225,6 +3317,8 @@ document.querySelectorAll('[data-preset]').forEach(button => {
     els.packageName.value = name;
     els.quantity.value = quantity;
     els.note.value = note;
+    els.doorSideValue.value = '';
+    els.doorFlippedValue.value = '0';
     updateDraftFromSizeInputs();
   });
 });
@@ -3248,6 +3342,8 @@ document.querySelectorAll('[data-zone-kind]').forEach(button => {
     els.packageName.value = name;
     els.quantity.value = 1;
     els.note.value = note;
+    els.doorSideValue.value = '';
+    els.doorFlippedValue.value = '0';
     if (kind === 'column') {
       els.widthUnits.value = '300';
       els.depthUnits.value = '300';

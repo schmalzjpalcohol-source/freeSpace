@@ -1458,8 +1458,8 @@ select:hover {
 .package-rect.column-visual,
 .draft-marker.column-visual {
   border: 3px solid #202629;
-  border-radius: 999px;
-  background: radial-gradient(circle at 35% 30%, #f4f6f6 0 9%, #626a6e 40%, #242a2d 100%);
+  border-radius: 7px;
+  background: linear-gradient(135deg, #737b7f 0 18%, #454c50 18% 62%, #242a2d 62% 100%);
   color: #fff;
   box-shadow: inset -10px -10px 18px rgba(0, 0, 0, 0.34), 0 8px 18px rgba(24, 29, 31, 0.26);
 }
@@ -1469,7 +1469,7 @@ select:hover {
   position: absolute;
   inset: 17%;
   border: 1px solid rgba(255, 255, 255, 0.4);
-  border-radius: 50%;
+  border-radius: 3px;
   pointer-events: none;
 }
 
@@ -1531,6 +1531,16 @@ select:hover {
   transform: rotate(-24deg);
   transform-origin: left center;
   pointer-events: none;
+}
+
+.door-visual.door-flipped > .door-swing {
+  left: -68%;
+  right: auto;
+  border-right-width: 5px;
+  border-left-width: 3px;
+  border-radius: 10px 2px 2px 10px;
+  transform: rotate(24deg);
+  transform-origin: right center;
 }
 
 .door-visual::before {
@@ -1875,8 +1885,8 @@ select:hover {
 
 .draft-marker.column-visual {
   border: 3px solid #202629;
-  border-radius: 999px;
-  background: radial-gradient(circle at 35% 30%, #f4f6f6 0 9%, #626a6e 40%, #242a2d 100%);
+  border-radius: 7px;
+  background: linear-gradient(135deg, #737b7f 0 18%, #454c50 18% 62%, #242a2d 62% 100%);
 }
 
 .draft-marker.corridor-visual {
@@ -2200,8 +2210,8 @@ select:hover {
   width: 20px;
   height: 20px;
   border: 2px solid #202629;
-  border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, #f4f6f6 0 9%, #626a6e 42%, #242a2d 100%);
+  border-radius: 4px;
+  background: linear-gradient(135deg, #737b7f 0 22%, #454c50 22% 62%, #242a2d 62% 100%);
 }
 
 .corridor-preset .preset-preview i {
