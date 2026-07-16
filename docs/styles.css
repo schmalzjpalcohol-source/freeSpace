@@ -1300,9 +1300,14 @@ select:hover {
   user-select: none;
 }
 
+/* Keep a clear outside band around every area for dimensions and controls. */
+.plan-slot .place-canvas {
+  margin-top: 68px;
+  margin-bottom: 68px;
+}
+
 .floor-canvas {
   width: calc(100% - 34px);
-  margin-top: 64px;
   margin-left: 34px;
 }
 
@@ -2052,14 +2057,12 @@ select:hover {
   text-align: center;
 }
 
-.floor-canvas .dimension-labels,
-.rack-level-detail .dimension-labels {
+.plan-slot .place-canvas .dimension-labels {
   z-index: 6;
   overflow: visible;
 }
 
-.floor-canvas .dim,
-.rack-level-detail .dim {
+.plan-slot .place-canvas .dim {
   z-index: 6;
   padding: 5px 8px;
   background: rgba(255, 255, 255, 0.96);
@@ -2067,14 +2070,12 @@ select:hover {
   box-shadow: 0 6px 18px rgba(20, 32, 34, 0.08);
 }
 
-.floor-canvas .dim-top,
-.rack-level-detail .dim-top {
+.plan-slot .place-canvas .dim-top {
   top: -58px;
   max-width: min(70%, calc(100% - 18px));
 }
 
-.floor-canvas .dim-left,
-.rack-level-detail .dim-left {
+.plan-slot .place-canvas .dim-left {
   left: 0;
   top: 50%;
   bottom: auto;
@@ -2453,8 +2454,12 @@ select:hover {
     max-width: calc(100% - 10px);
   }
 
-  .floor-canvas .dim-left,
-  .rack-level-detail .dim-left {
+  .plan-slot .place-canvas {
+    margin-top: 58px;
+    margin-bottom: 58px;
+  }
+
+  .plan-slot .place-canvas .dim-left {
     left: 0;
     top: 50%;
     bottom: auto;
