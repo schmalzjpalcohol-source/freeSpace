@@ -13,6 +13,17 @@ function numberValue(value, fallback) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function localizedNumberValue(value, fallback) {
+  const text = String(value ?? '').trim();
+  const normalized = text.includes(',')
+    ? text.replaceAll('.', '').replace(',', '.')
+    : /\.\d{3}(?:\D|$)/.test(text)
+      ? text.replaceAll('.', '')
+      : text;
+  const parsed = Number.parseFloat(normalized);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
 function metersToCm(value, fallbackMeters, maxMeters = 1000) {
   const meters = Math.max(0.01, Math.min(maxMeters, numberValue(value, fallbackMeters)));
   return Math.max(1, Number((meters * 100).toFixed(1)));
@@ -50,7 +61,72 @@ function placePayload(body) {
 }
 
 async function packagesForPlace(id) {
-  return supabaseFetch(`packages?shelf_id=eq.${encodeURIComponent(id)}&select=id,row_index,column_index,width_units,depth_units,package_name`);
+  return supabaseFetch(`packages?shelf_id=eq.${encodeURIComponent(id)}&select=id,row_index,column_index,width_units,depth_units,package_name,quantity,note`);
+}
+
+function areaMaxHeightCm(notes, fallback = 220) {
+  const text = String(notes || '');
+  const marker = text.match(/max-height-mm\s*:\s*([0-9.,]+)/i);
+  if (marker) return Math.max(0.1, localizedNumberValue(marker[1], fallback * 10) / 10);
+  const mm = text.match(/max(?:imum)?\s*height\s*([0-9.,]+)\s*mm/i);
+  if (mm) return Math.max(0.1, localizedNumberValue(mm[1], fallback * 10) / 10);
+  const cm = text.match(/max(?:imum)?\s*height\s*([0-9.,]+)\s*cm/i);
+  return cm ? Math.max(0.1, localizedNumberValue(cm[1], fallback)) : fallback;
+}
+
+function itemHeightCm(item, fallback = 45) {
+  const match = String(item.note || '').match(/height\s*([0-9]+(?:[.,][0-9]+)?)\s*cm/i);
+  return Math.max(0.1, numberValue(match?.[1], fallback));
+}
+
+function stackCount(item) {
+  const count = Number.parseInt(item.quantity, 10);
+  return Number.isFinite(count) ? Math.max(1, count) : 1;
+}
+
+function noteWithHeight(note, height) {
+  const clean = String(note || '').replace(/(?:,\s*)?height\s*[0-9]+(?:[.,][0-9]+)?\s*cm/gi, '').replace(/^,\s*|\s*,$/g, '').trim();
+  return `${clean ? `${clean}, ` : ''}height ${height} cm`;
+}
+
+function assertPackagesHeightFit(packages, place) {
+  if (place.location_type !== 'floor') return;
+  const maxHeight = areaMaxHeightCm(place.notes, 220);
+  const items = packages.filter(item => !zoneKind(item) && !isDoor(item)).map(item => ({
+    item,
+    left: item.column_index,
+    right: item.column_index + (item.width_units || 1),
+    top: item.row_index,
+    bottom: item.row_index + (item.depth_units || 1),
+    height: stackCount(item) * itemHeightCm(item)
+  }));
+  const xEdges = [...new Set(items.flatMap(item => [item.left, item.right]))].sort((a, b) => a - b);
+  const yEdges = [...new Set(items.flatMap(item => [item.top, item.bottom]))].sort((a, b) => a - b);
+  for (let x = 0; x < xEdges.length - 1; x += 1) {
+    for (let y = 0; y < yEdges.length - 1; y += 1) {
+      const midpointX = (xEdges[x] + xEdges[x + 1]) / 2;
+      const midpointY = (yEdges[y] + yEdges[y + 1]) / 2;
+      const occupiedHeight = items
+        .filter(item => midpointX >= item.left && midpointX < item.right && midpointY >= item.top && midpointY < item.bottom)
+        .reduce((sum, item) => sum + item.height, 0);
+      if (occupiedHeight > maxHeight) {
+        const error = new Error('The new maximum height is lower than an existing stack.');
+        error.status = 409;
+        throw error;
+      }
+    }
+  }
+}
+
+async function syncZoneHeights(packages, place) {
+  if (place.location_type !== 'floor') return;
+  const maxHeight = areaMaxHeightCm(place.notes, 220);
+  for (const item of packages.filter(zoneKind)) {
+    await supabaseFetch(`packages?id=eq.${encodeURIComponent(item.id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ note: noteWithHeight(item.note, maxHeight) })
+    });
+  }
 }
 
 function assertPackagesStillFit(packages, rows, columns) {
@@ -124,6 +200,7 @@ module.exports = async function handler(req, res) {
       const payload = placePayload(body);
       const packages = await packagesForPlace(id);
       assertPackagesStillFit(packages, payload.rows, payload.columns);
+      assertPackagesHeightFit(packages, payload);
 
       const updated = await supabaseFetch(`shelves?id=eq.${encodeURIComponent(id)}`, {
         method: 'PATCH',
@@ -133,6 +210,7 @@ module.exports = async function handler(req, res) {
         method: 'PATCH',
         body: JSON.stringify({ shelf_name: payload.name })
       });
+      await syncZoneHeights(packages, payload);
       json(res, 200, { place: updated[0] });
       return;
     }

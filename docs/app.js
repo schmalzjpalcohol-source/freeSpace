@@ -22,6 +22,7 @@ const els = {
   placeName: document.querySelector('#placeName'),
   placeRows: document.querySelector('#placeRows'),
   placeColumns: document.querySelector('#placeColumns'),
+  placeHeight: document.querySelector('#placeHeight'),
   placeNotes: document.querySelector('#placeNotes'),
   placeList: document.querySelector('#placeList'),
   savePlaceButton: document.querySelector('#savePlaceButton'),
@@ -81,25 +82,26 @@ let appState = {
     views: {}
   }
 };
+let shelfVolumeCache = new WeakMap();
 
 const planPlaces = {
   'floor-main': {
     title: 'Floor area 1 - 8.800 x 3.800 mm',
     rows: 380,
     columns: 880,
-    notes: 'Max height 2.200 mm'
+    notes: 'max-height-mm:2200'
   },
   rack: {
     title: 'Rack 6.000 x 4.500 mm',
     rows: 450,
     columns: 600,
-    notes: 'Max height 2.200 mm'
+    notes: 'max-height-mm:650'
   },
   'floor-long': {
     title: 'Floor area 2 - 3.800 x 7.400 mm',
     rows: 740,
     columns: 380,
-    notes: 'Max height 2.200 mm'
+    notes: 'max-height-mm:2200'
   }
 };
 
@@ -248,12 +250,8 @@ function formatMeasureCm(cm) {
   return `${formatNumber(cm * 10)} mm`;
 }
 
-function formatAreaCm2(area) {
-  return `${formatNumber(Math.max(0, Number(area) || 0) * 100)} mm²`;
-}
-
-function formatVolumeCm3(volume) {
-  return `${formatNumber(Math.max(0, Number(volume) || 0))} cm³`;
+function formatVolumeMm3(volumeCm3) {
+  return `${formatNumber(Math.max(0, Number(volumeCm3) || 0) * 1000)} mm³`;
 }
 
 function rectArea(rect) {
@@ -347,43 +345,40 @@ function stackTotalHeightCm(item) {
   return stackCount(item) * itemHeightCm(item);
 }
 
+function areaMaxHeightCm(shelf, fallback = 220) {
+  const notes = String(shelf?.notes || '');
+  const mmMarker = notes.match(/max-height-mm\s*:\s*([0-9.,]+)/i);
+  if (mmMarker) return Math.max(0.1, numberValue(mmMarker[1], fallback * 10) / 10);
+  const visibleMm = notes.match(/max(?:imum)?\s*height\s*([0-9.,]+)\s*mm/i);
+  if (visibleMm) return Math.max(0.1, numberValue(visibleMm[1], fallback * 10) / 10);
+  const legacyCm = notes.match(/max(?:imum)?\s*height\s*([0-9.,]+)\s*cm/i);
+  if (legacyCm) return Math.max(0.1, numberValue(legacyCm[1], fallback));
+  return fallback;
+}
+
+function notesWithAreaMaxHeight(notes, heightCm) {
+  const clean = String(notes || '')
+    .replace(/(?:[;,]\s*)?max-height-mm\s*:\s*[0-9.,]+/gi, '')
+    .replace(/(?:[;,]\s*)?max(?:imum)?\s*height\s*[0-9.,]+\s*(?:mm|cm)/gi, '')
+    .replace(/^[\s;,]+|[\s;,]+$/g, '')
+    .trim();
+  const marker = `max-height-mm:${formatDecimal(heightCm * 10)}`;
+  return clean ? `${clean}; ${marker}` : marker;
+}
+
 function maxStackHeightForShelf(shelf, candidate = {}) {
-  if (placeKind(shelf) === 'floor') return 220;
+  if (placeKind(shelf) === 'floor') return areaMaxHeightCm(shelf, 220);
+  if (parentRackId(shelf) || planPlaceRole(shelf) !== 'rack') return areaMaxHeightCm(shelf, 65);
   const row = candidate.row ?? candidate.rowIndex ?? 1;
   const column = candidate.column ?? candidate.columnIndex ?? 1;
   const smallColumnStart = Math.max(1, (shelf.columns || 600) - 149);
   return row >= 361 && column >= smallColumnStart ? 16 : 65;
 }
 
-function maxFreeRunCm(shelf) {
-  const rows = Math.max(1, Math.round(shelf.rows || 1));
-  const columns = Math.max(1, Math.round(shelf.columns || 1));
-  let best = 0;
-
-  for (let row = 1; row <= rows; row += 1) {
-    const blocked = shelf.packages
-      .filter(item => row >= item.row_index && row < item.row_index + (item.depth_units || 1))
-      .map(item => [
-        clamp(item.column_index, 1, columns + 1),
-        clamp(item.column_index + (item.width_units || 1), 1, columns + 1)
-      ])
-      .sort((a, b) => a[0] - b[0]);
-
-    let cursor = 1;
-    blocked.forEach(([start, end]) => {
-      best = Math.max(best, start - cursor);
-      cursor = Math.max(cursor, end);
-    });
-    best = Math.max(best, columns + 1 - cursor);
-  }
-
-  return best;
-}
-
 function lengthSummary(shelf) {
   const capacity = totalCapacityCm3(shelf);
   const percent = capacity ? (freeVolumeCm3(shelf) / capacity) * 100 : 0;
-  return `${formatAreaCm2(freeAreaCm2(shelf))} · ${formatVolumeCm3(freeVolumeCm3(shelf))} · ${formatNumber(percent, 1)}% free`;
+  return `${formatVolumeMm3(freeVolumeCm3(shelf))} · ${formatNumber(percent, 1)}% free`;
 }
 
 function rackLevelSpecs(shelf) {
@@ -462,45 +457,17 @@ function packageRect(item) {
   };
 }
 
-function rackLevelFreeRunCm(shelf, level) {
+function rackLevelFreeVolumeCm3(shelf, level) {
   const range = rackLevelRange(shelf, level);
-  return maxFreeRunCm({
-    ...shelf,
-    rows: range.height,
-    columns: range.width,
-    packages: shelf.packages
-      .filter(item => packageInRackLevel(item, range))
-      .map(item => ({
-        ...item,
-        row_index: Math.max(1, item.row_index - range.start + 1),
-        column_index: Math.max(1, item.column_index - range.xStart + 1)
-      }))
-  });
-}
-
-function rackLevelFreeAreaCm2(shelf, level) {
-  const range = rackLevelRange(shelf, level);
-  return freeAreaCm2({
+  const slice = {
     ...shelf,
     isRackLevelSlice: true,
+    sliceMaxHeight: range.short ? 16 : 65,
     rows: range.height,
     columns: range.width,
-    packages: shelf.packages
-      .filter(item => packageInRackLevel(item, range))
-      .map(item => {
-        const clippedTop = Math.max(item.row_index, range.start);
-        const clippedBottom = Math.min(item.row_index + (item.depth_units || 1) - 1, range.end);
-        const clippedLeft = Math.max(item.column_index, range.xStart);
-        const clippedRight = Math.min(item.column_index + (item.width_units || 1) - 1, range.xEnd);
-        return {
-          ...item,
-          row_index: clippedTop - range.start + 1,
-          column_index: clippedLeft - range.xStart + 1,
-          width_units: Math.max(1, clippedRight - clippedLeft + 1),
-          depth_units: Math.max(1, clippedBottom - clippedTop + 1)
-        };
-      })
-  });
+    packages: rackLevelPackages(shelf, range)
+  };
+  return freeVolumeCm3(slice);
 }
 
 function draftInRackRange(shelf, range, cell, size) {
@@ -610,7 +577,24 @@ function measureSummary(measurement) {
   const width = end.column - measurement.start.column;
   const depth = end.row - measurement.start.row;
   if (measurement.mode === 'area') {
-    return `${formatNumber(Math.abs(width) * 10)} x ${formatNumber(Math.abs(depth) * 10)} mm = ${formatAreaCm2(Math.abs(width * depth))}`;
+    const shelf = appState.shelves.find(item => String(item.id) === String(measurement.shelfId));
+    if (!shelf) return '';
+    const localColumn = Math.min(measurement.start.column, end.column);
+    const localRow = Math.min(measurement.start.row, end.row);
+    const range = measurement.level ? rackLevelRange(shelf, measurement.level) : null;
+    const bounds = {
+      column: (range ? range.xStart : 1) + localColumn,
+      row: (range ? range.start : 1) + localRow,
+      width: Math.abs(width),
+      depth: Math.abs(depth)
+    };
+    const freeVolume = freeVolumeInBoundsCm3(shelf, bounds);
+    const measuredRegions = usableRegions(shelf).filter(region => rectIntersection(region, bounds));
+    const hasContent = shelf.packages.some(item => !isDoorItem(item) && rectIntersection(packageRect(item), bounds));
+    const heightText = !hasContent && measuredRegions.length === 1
+      ? ` x ${formatNumber(measuredRegions[0].maxHeight * 10)} mm`
+      : ' · remaining height deducted locally';
+    return `${formatNumber(Math.abs(width) * 10)} x ${formatNumber(Math.abs(depth) * 10)}${heightText} = ${formatVolumeMm3(freeVolume)}`;
   }
   return formatMeasureCm(Math.hypot(width, depth));
 }
@@ -687,18 +671,6 @@ function fitMatches(size) {
   return matches;
 }
 
-function totalFreeRun(shelves) {
-  return shelves.reduce((sum, shelf) => sum + maxFreeRunCm(shelf), 0);
-}
-
-function totalFreeArea(shelves) {
-  return shelves.reduce((sum, shelf) => sum + freeAreaCm2(shelf), 0);
-}
-
-function totalUsableArea(shelves) {
-  return shelves.reduce((sum, shelf) => sum + usableRegions(shelf).reduce((area, region) => area + rectArea(region), 0), 0);
-}
-
 function totalFreeVolume(shelves) {
   return shelves.reduce((sum, shelf) => sum + freeVolumeCm3(shelf), 0);
 }
@@ -755,7 +727,7 @@ function placeDoorOutside(rectangle, item, shelf) {
 
 function usableRegions(shelf) {
   if (shelf.isRackLevelSlice || planPlaceRole(shelf) !== 'rack') {
-    return [{ column: 1, row: 1, width: shelf.columns || 1, depth: shelf.rows || 1, maxHeight: maxStackHeightForShelf(shelf) }];
+    return [{ column: 1, row: 1, width: shelf.columns || 1, depth: shelf.rows || 1, maxHeight: shelf.sliceMaxHeight || maxStackHeightForShelf(shelf) }];
   }
   return rackLevelSpecs(shelf).map(spec => ({
     column: spec.xStart,
@@ -766,84 +738,66 @@ function usableRegions(shelf) {
   }));
 }
 
-function unionAreaInBounds(rects, bounds) {
-  const clipped = rects.map(rect => rectIntersection(bounds, rect)).filter(Boolean);
-  const xEdges = [...new Set(clipped.flatMap(rect => [rect.column, rect.column + rect.width]))].sort((a, b) => a - b);
-  let area = 0;
-  for (let index = 0; index < xEdges.length - 1; index += 1) {
-    const left = xEdges[index];
-    const right = xEdges[index + 1];
-    if (right <= left) continue;
-    const intervals = clipped
-      .filter(rect => rect.column < right && rect.column + rect.width > left)
-      .map(rect => [rect.row, rect.row + rect.depth])
-      .sort((a, b) => a[0] - b[0]);
-    let coveredDepth = 0;
-    let start = null;
-    let end = null;
-    intervals.forEach(([nextStart, nextEnd]) => {
-      if (start === null) {
-        start = nextStart;
-        end = nextEnd;
-      } else if (nextStart <= end) {
-        end = Math.max(end, nextEnd);
-      } else {
-        coveredDepth += end - start;
-        start = nextStart;
-        end = nextEnd;
+function totalCapacityCm3(shelf, bounds = null) {
+  return usableRegions(shelf).reduce((sum, region) => {
+    const visible = bounds ? rectIntersection(region, bounds) : region;
+    return sum + (visible ? rectArea(visible) * region.maxHeight : 0);
+  }, 0);
+}
+
+function pointInsideRect(x, y, rect) {
+  return x >= rect.column && x < rect.column + rect.width && y >= rect.row && y < rect.row + rect.depth;
+}
+
+function freeVolumeInBoundsCm3(shelf, bounds = null) {
+  const packages = (shelf.packages || []).filter(item => !isDoorItem(item));
+  return usableRegions(shelf).reduce((total, region) => {
+    const visibleRegion = bounds ? rectIntersection(region, bounds) : region;
+    if (!visibleRegion) return total;
+    const relevant = packages
+      .map(item => ({ item, rect: rectIntersection(visibleRegion, packageRect(item)) }))
+      .filter(entry => entry.rect);
+    const xEdges = [...new Set([
+      visibleRegion.column,
+      visibleRegion.column + visibleRegion.width,
+      ...relevant.flatMap(entry => [entry.rect.column, entry.rect.column + entry.rect.width])
+    ])].sort((a, b) => a - b);
+    const yEdges = [...new Set([
+      visibleRegion.row,
+      visibleRegion.row + visibleRegion.depth,
+      ...relevant.flatMap(entry => [entry.rect.row, entry.rect.row + entry.rect.depth])
+    ])].sort((a, b) => a - b);
+    let regionFree = 0;
+    for (let xIndex = 0; xIndex < xEdges.length - 1; xIndex += 1) {
+      for (let yIndex = 0; yIndex < yEdges.length - 1; yIndex += 1) {
+        const left = xEdges[xIndex];
+        const right = xEdges[xIndex + 1];
+        const top = yEdges[yIndex];
+        const bottom = yEdges[yIndex + 1];
+        const midpointX = (left + right) / 2;
+        const midpointY = (top + bottom) / 2;
+        const covering = relevant.filter(entry => pointInsideRect(midpointX, midpointY, entry.rect));
+        const blockedToTop = covering.some(entry => isZoneItem(entry.item));
+        const occupiedHeight = blockedToTop ? region.maxHeight : covering
+          .filter(entry => !isZoneItem(entry.item))
+          .reduce((sum, entry) => sum + stackTotalHeightCm(entry.item), 0);
+        const remainingHeight = Math.max(0, region.maxHeight - occupiedHeight);
+        regionFree += (right - left) * (bottom - top) * remainingHeight;
       }
-    });
-    if (start !== null) coveredDepth += end - start;
-    area += (right - left) * coveredDepth;
-  }
-  return area;
-}
-
-function occupiedAreaCm2(shelf, predicate = () => true) {
-  const rects = shelf.packages.filter(item => !isDoorItem(item) && predicate(item)).map(packageRect);
-  return usableRegions(shelf).reduce((sum, region) => sum + unionAreaInBounds(rects, region), 0);
-}
-
-function freeAreaCm2(shelf) {
-  const total = usableRegions(shelf).reduce((sum, region) => sum + rectArea(region), 0);
-  return Math.max(0, total - occupiedAreaCm2(shelf));
-}
-
-function itemAreaCm2(shelf) {
-  return occupiedAreaCm2(shelf, item => !isZoneItem(item));
-}
-
-function zoneAreaCm2(shelf) {
-  return occupiedAreaCm2(shelf, isZoneItem);
-}
-
-function totalCapacityCm3(shelf) {
-  return usableRegions(shelf).reduce((sum, region) => sum + (rectArea(region) * region.maxHeight), 0);
+    }
+    return total + regionFree;
+  }, 0);
 }
 
 function occupiedVolumeCm3(shelf) {
-  const zones = shelf.packages.filter(item => isZoneItem(item));
-  const zoneRects = zones.map(packageRect);
-  const zoneVolume = usableRegions(shelf).reduce((sum, region) => (
-    sum + (unionAreaInBounds(zoneRects, region) * region.maxHeight)
-  ), 0);
-  const itemVolume = shelf.packages
-    .filter(item => !isZoneItem(item) && !isDoorItem(item))
-    .reduce((sum, item) => {
-      const itemRect = packageRect(item);
-      const visibleArea = usableRegions(shelf).reduce((area, region) => {
-        const clippedItem = rectIntersection(region, itemRect);
-        if (!clippedItem) return area;
-        const coveredByZone = unionAreaInBounds(zoneRects, clippedItem);
-        return area + Math.max(0, rectArea(clippedItem) - coveredByZone);
-      }, 0);
-      return sum + (visibleArea * stackTotalHeightCm(item));
-    }, 0);
-  return Math.min(totalCapacityCm3(shelf), zoneVolume + itemVolume);
+  return Math.max(0, totalCapacityCm3(shelf) - freeVolumeCm3(shelf));
 }
 
 function freeVolumeCm3(shelf) {
-  return Math.max(0, totalCapacityCm3(shelf) - occupiedVolumeCm3(shelf));
+  if (shelfVolumeCache.has(shelf)) return shelfVolumeCache.get(shelf);
+  const volume = freeVolumeInBoundsCm3(shelf);
+  shelfVolumeCache.set(shelf, volume);
+  return volume;
 }
 
 function freePercent(shelves) {
@@ -1157,6 +1111,7 @@ function clearPlaceForm() {
   els.placeName.value = '';
   els.placeRows.value = inputCm(planPlaces.rack.rows);
   els.placeColumns.value = inputCm(600);
+  els.placeHeight.value = inputCm(65);
   els.placeNotes.value = '';
   els.savePlaceButton.textContent = 'Save area';
   els.cancelPlaceButton.classList.add('hidden');
@@ -1170,13 +1125,15 @@ function parentRackId(placeOrNotes) {
 function visiblePlaceNotes(notes) {
   return String(notes || '')
     .replace(/(?:[;,]\s*)?parent-rack\s*:\s*([^;,\s]+)/gi, '')
+    .replace(/(?:[;,]\s*)?max-height-mm\s*:\s*[0-9.,]+/gi, '')
+    .replace(/(?:[;,]\s*)?max(?:imum)?\s*height\s*[0-9.,]+\s*(?:mm|cm)/gi, '')
     .replace(/^[\s;,]+|[\s;,]+$/g, '')
     .trim();
 }
 
 function areaHeightLabel(shelf) {
-  if (placeKind(shelf) === 'floor') return 'max height 2.200 mm';
-  if (parentRackId(shelf)) return 'max height 650 mm';
+  if (placeKind(shelf) === 'floor') return `max height ${formatNumber(areaMaxHeightCm(shelf, 220) * 10)} mm`;
+  if (parentRackId(shelf)) return `max height ${formatNumber(areaMaxHeightCm(shelf, 65) * 10)} mm`;
   return planPlaceRole(shelf) === 'rack' ? 'levels 650 mm · small 160 mm' : 'max height 650 mm';
 }
 
@@ -1201,11 +1158,10 @@ function render() {
   const floorPlaces = appState.shelves.filter(shelf => placeKind(shelf) === 'floor');
   const shelfPlaces = appState.shelves.filter(shelf => placeKind(shelf) === 'shelf');
   const visibleShelves = appState.shelves;
-  const freeArea = totalFreeArea(visibleShelves);
   const freeVolume = totalFreeVolume(visibleShelves);
   const percentFree = freePercent(visibleShelves);
   els.summaryText.textContent = visibleShelves.length
-    ? `${formatAreaCm2(freeArea)} footprint · ${formatVolumeCm3(freeVolume)} true free volume · ${formatNumber(percentFree, 1)}% free across ${visibleShelves.length} area(s).`
+    ? `${formatVolumeMm3(freeVolume)} true free volume · ${formatNumber(percentFree, 1)}% free across ${visibleShelves.length} area(s).`
     : 'No areas have been created yet.';
 
   renderOverview(
@@ -1530,7 +1486,7 @@ function renderRackDisplay(shelf) {
     button.className = `rack-level ${range.short ? 'short-level' : ''} ${appState.activeRackLevel === level ? 'active' : ''}`;
     button.innerHTML = `
       <span>${escapeHtml(range.label)}</span>
-      <strong>${formatAreaCm2(rackLevelFreeAreaCm2(shelf, level))} free</strong>
+      <strong>${formatVolumeMm3(rackLevelFreeVolumeCm3(shelf, level))} free</strong>
       <small>${range.heightLabel || `${packages.length} positions`}</small>
       ${range.short ? '<i class="short-shelf-mark" aria-hidden="true"></i>' : ''}
     `;
@@ -1553,7 +1509,7 @@ function renderRackTools(shelf, level) {
   tools.className = 'rack-tools';
   const measurement = activeMeasurement(shelf, level);
   tools.append(renderMeasureButton(shelf, level, 'line', 'Measure', measurement));
-  tools.append(renderMeasureButton(shelf, level, 'area', 'mm²', measurement));
+  tools.append(renderMeasureButton(shelf, level, 'area', 'mm³', measurement));
 
   const label = document.createElement('span');
   label.className = 'measure-status';
@@ -1573,7 +1529,7 @@ function renderPlaceTools(shelf) {
   tools.className = 'rack-tools';
   const measurement = activeMeasurement(shelf);
   tools.append(renderMeasureButton(shelf, null, 'line', 'Measure', measurement));
-  tools.append(renderMeasureButton(shelf, null, 'area', 'mm²', measurement));
+  tools.append(renderMeasureButton(shelf, null, 'area', 'mm³', measurement));
 
   const label = document.createElement('span');
   label.className = 'measure-status';
@@ -2476,7 +2432,7 @@ function modelHeightSummary(shelf) {
   if (shelf.modelIsRackLevel) {
     return shelf.modelDimensionLabel;
   }
-  return 'max height 2.200 mm';
+  return `max height ${formatNumber(maxStackHeightForShelf(shelf) * 10)} mm`;
 }
 
 function modelViewState(id) {
@@ -2900,6 +2856,7 @@ function selectPlace(place) {
   els.placeName.value = displayAreaName(place.name);
   els.placeRows.value = inputCm(place.rows);
   els.placeColumns.value = inputCm(place.columns);
+  els.placeHeight.value = inputCm(areaMaxHeightCm(place, placeKind(place) === 'floor' ? 220 : 65));
   els.placeNotes.value = visiblePlaceNotes(place.notes);
   els.savePlaceButton.textContent = 'Update area';
   els.cancelPlaceButton.classList.remove('hidden');
@@ -2911,8 +2868,9 @@ function startSubRackCreation(parent) {
   els.placeParentId.value = parent.id;
   els.placeLocationType.value = 'shelf';
   els.placeName.value = `${displayAreaName(parent.label || parent.name)} - Sub-rack ${existingCount + 1}`;
-  els.placeRows.value = 90;
-  els.placeColumns.value = 150;
+  els.placeRows.value = '900';
+  els.placeColumns.value = '1.500';
+  els.placeHeight.value = '650';
   els.placeNotes.value = '';
   els.savePlaceButton.textContent = 'Create sub-rack';
   els.cancelPlaceButton.classList.remove('hidden');
@@ -2922,18 +2880,17 @@ function startSubRackCreation(parent) {
 }
 
 function renderOverview(shelves, shelfPlaces, floorPlaces) {
-  const freeArea = totalFreeArea(shelves);
   const freeVolume = totalFreeVolume(shelves);
   const percent = freePercent(shelves);
-  const usedArea = shelves.reduce((sum, shelf) => sum + itemAreaCm2(shelf), 0);
-  const zoneArea = shelves.reduce((sum, shelf) => sum + zoneAreaCm2(shelf), 0);
+  const totalVolume = shelves.reduce((sum, shelf) => sum + totalCapacityCm3(shelf), 0);
+  const occupiedVolume = Math.max(0, totalVolume - freeVolume);
+  const zoneCount = shelves.reduce((sum, shelf) => sum + shelf.packages.filter(isZoneItem).length, 0);
   const stackedCount = shelves.reduce((sum, shelf) => sum + shelf.packages.filter(isStackedItem).length, 0);
   const cards = [
-    ['Free footprint', formatAreaCm2(freeArea), 'available floor/rack footprint'],
-    ['Free volume', formatVolumeCm3(freeVolume), 'width × depth × actually usable height'],
+    ['Free volume', formatVolumeMm3(freeVolume), 'remaining width × depth × height'],
     ['Free', `${formatNumber(percent, 1)}%`, 'share of all usable storage volume'],
-    ['Item area', formatAreaCm2(usedArea), 'normal items only'],
-    ['Zone area', formatAreaCm2(zoneArea), 'red, yellow, columns and corridors'],
+    ['Occupied volume', formatVolumeMm3(occupiedVolume), 'items and full-height zones'],
+    ['Zones', formatNumber(zoneCount), 'red, yellow, columns and corridors'],
     ['Floor areas', formatNumber(floorPlaces.length), 'regular floor storage areas']
   ];
 
@@ -2963,12 +2920,12 @@ function renderWarehouseMap(shelfPlaces, floorPlaces) {
     const zone = document.createElement('button');
     zone.className = `map-zone ${places.length ? '' : 'empty-zone'}`;
     zone.type = 'button';
-    const free = totalFreeArea(places);
+    const free = totalFreeVolume(places);
     const percent = freePercent(places);
     const usedPercent = 100 - percent;
     zone.innerHTML = `
       <span>${escapeHtml(label)}</span>
-      <strong>${places.length ? `${formatAreaCm2(free)} · ${formatNumber(percent, 1)}% free` : 'available for planning'}</strong>
+      <strong>${places.length ? `${formatVolumeMm3(free)} · ${formatNumber(percent, 1)}% free` : 'available for planning'}</strong>
       <i class="zone-meter" aria-hidden="true"><b style="width: ${usedPercent}%"></b></i>
     `;
     els.warehouseMap.append(zone);
@@ -3026,6 +2983,7 @@ async function loadShelves() {
   const data = await apiFetch('/api/regale');
   appState.user = data.user;
   appState.shelves = data.shelves || [];
+  shelfVolumeCache = new WeakMap();
   render();
 }
 
@@ -3101,10 +3059,12 @@ async function submitPackage(event) {
 
 async function submitPlace(event) {
   event.preventDefault();
-  normalizeDecimalFields(els.placeRows, els.placeColumns);
+  normalizeDecimalFields(els.placeRows, els.placeColumns, els.placeHeight);
   const payload = Object.fromEntries(new FormData(els.placeForm).entries());
+  const maxHeightCm = cmInputToCm(payload.maxHeight, payload.locationType === 'floor' ? 220 : 65);
   payload.rows = cmInputToMeters(payload.rows, planPlaces.rack.rows);
   payload.columns = cmInputToMeters(payload.columns, 600);
+  payload.notes = notesWithAreaMaxHeight(payload.notes, maxHeightCm);
   if (payload.parentId) {
     payload.notes = payload.notes
       ? `${payload.notes}; parent-rack:${payload.parentId}`
@@ -3251,6 +3211,11 @@ els.placeForm.addEventListener('submit', event => {
   submitPlace(event).catch(error => showMessage(error.message, 'error'));
 });
 
+els.placeLocationType.addEventListener('change', () => {
+  if (els.placeId.value) return;
+  els.placeHeight.value = inputCm(els.placeLocationType.value === 'floor' ? 220 : 65);
+});
+
 els.cancelEditButton.addEventListener('click', () => {
   clearPackageForm();
   els.selectedCell.textContent = 'No area selected';
@@ -3329,19 +3294,20 @@ document.querySelectorAll('[data-zone-kind]').forEach(button => {
 
 document.querySelectorAll('[data-place-preset]').forEach(button => {
   button.addEventListener('click', () => {
-    const [name, type, rows, columns, notes] = button.dataset.placePreset.split('|');
+    const [name, type, rows, columns, notes, maxHeight] = button.dataset.placePreset.split('|');
     els.placeId.value = '';
     els.placeName.value = name;
     els.placeLocationType.value = type;
     els.placeRows.value = formatNumber(numberValue(rows, 4500));
     els.placeColumns.value = formatNumber(numberValue(columns, 6000));
+    els.placeHeight.value = formatNumber(numberValue(maxHeight, type === 'floor' ? 2200 : 650));
     els.placeNotes.value = notes;
     els.savePlaceButton.textContent = 'Save area';
     els.cancelPlaceButton.classList.add('hidden');
   });
 });
 
-[els.shelfRows, els.shelfColumns, els.widthUnits, els.depthUnits, els.heightUnits, els.placeRows, els.placeColumns, els.fitWidth, els.fitDepth, els.fitHeight].filter(Boolean).forEach(input => {
+[els.shelfRows, els.shelfColumns, els.widthUnits, els.depthUnits, els.heightUnits, els.placeRows, els.placeColumns, els.placeHeight, els.fitWidth, els.fitDepth, els.fitHeight].filter(Boolean).forEach(input => {
   input.addEventListener('input', () => normalizeDecimalInput(input));
 });
 els.widthUnits.addEventListener('input', updateDraftFromSizeInputs);

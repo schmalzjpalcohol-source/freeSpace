@@ -13,6 +13,17 @@ function numberValue(value, fallback) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function localizedNumberValue(value, fallback) {
+  const text = String(value ?? '').trim();
+  const normalized = text.includes(',')
+    ? text.replaceAll('.', '').replace(',', '.')
+    : /\.\d{3}(?:\D|$)/.test(text)
+      ? text.replaceAll('.', '')
+      : text;
+  const parsed = Number.parseFloat(normalized);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
 function formatMm(cm) {
   return new Intl.NumberFormat('de-DE', { maximumFractionDigits: 2 }).format((Number(cm) || 0) * 10);
 }
@@ -62,8 +73,20 @@ function noteWithHeight(note, height) {
   return `${clean ? `${clean}, ` : ''}height ${height} cm`;
 }
 
+function areaMaxHeightCm(shelf, fallback) {
+  const notes = String(shelf?.notes || '');
+  const mmMarker = notes.match(/max-height-mm\s*:\s*([0-9.,]+)/i);
+  if (mmMarker) return Math.max(0.1, localizedNumberValue(mmMarker[1], fallback * 10) / 10);
+  const visibleMm = notes.match(/max(?:imum)?\s*height\s*([0-9.,]+)\s*mm/i);
+  if (visibleMm) return Math.max(0.1, localizedNumberValue(visibleMm[1], fallback * 10) / 10);
+  const legacyCm = notes.match(/max(?:imum)?\s*height\s*([0-9.,]+)\s*cm/i);
+  return legacyCm ? Math.max(0.1, localizedNumberValue(legacyCm[1], fallback)) : fallback;
+}
+
 function maxStackHeightForShelf(shelf, candidate) {
-  if (shelf.location_type === 'floor') return 220;
+  if (shelf.location_type === 'floor') return areaMaxHeightCm(shelf, 220);
+  const structuredRack = Math.abs((shelf.rows || 0) - 450) <= 2 && Math.abs((shelf.columns || 0) - 600) <= 2;
+  if (!structuredRack) return areaMaxHeightCm(shelf, 65);
   const smallStart = 361;
   const smallColumnStart = Math.max(1, (shelf.columns || 600) - 149);
   if (
