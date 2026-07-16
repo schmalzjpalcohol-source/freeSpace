@@ -36,8 +36,6 @@ const els = {
   packageId: document.querySelector('#packageId'),
   selectedCell: document.querySelector('#selectedCell'),
   locationType: document.querySelector('#locationType'),
-  overviewCards: document.querySelector('#overviewCards'),
-  warehouseMap: document.querySelector('#warehouseMap'),
   model3d: document.querySelector('#model3d'),
   shelfName: document.querySelector('#shelfName'),
   shelfRows: document.querySelector('#shelfRows'),
@@ -376,9 +374,12 @@ function maxStackHeightForShelf(shelf, candidate = {}) {
 }
 
 function lengthSummary(shelf) {
+  return formatVolumeMm3(freeVolumeCm3(shelf));
+}
+
+function shelfFreePercent(shelf) {
   const capacity = totalCapacityCm3(shelf);
-  const percent = capacity ? (freeVolumeCm3(shelf) / capacity) * 100 : 0;
-  return `${formatVolumeMm3(freeVolumeCm3(shelf))} · ${formatNumber(percent, 1)}% free`;
+  return capacity ? (freeVolumeCm3(shelf) / capacity) * 100 : 0;
 }
 
 function rackLevelSpecs(shelf) {
@@ -671,10 +672,6 @@ function fitMatches(size) {
   return matches;
 }
 
-function totalFreeVolume(shelves) {
-  return shelves.reduce((sum, shelf) => sum + freeVolumeCm3(shelf), 0);
-}
-
 function isBlockedItem(item) {
   return zoneKind(item) === 'red';
 }
@@ -723,6 +720,29 @@ function placeDoorOutside(rectangle, item, shelf) {
   if (side === 'bottom') rectangle.style.top = '100%';
   if (side === 'left') rectangle.style.left = '0%';
   if (side === 'right') rectangle.style.left = '100%';
+}
+
+function draftSpecialKind() {
+  return specialKind({ package_name: els.packageName.value, note: els.note.value });
+}
+
+function draftAsItem(draft, kind = draftSpecialKind()) {
+  return {
+    row_index: draft.row,
+    column_index: draft.column,
+    width_units: draft.width,
+    depth_units: draft.depth,
+    package_name: kind === 'door' ? 'Door outside area' : kind,
+    note: kind ? `element:${kind}` : ''
+  };
+}
+
+function decorateDraftMarker(marker, draft, shelf) {
+  const kind = draftSpecialKind();
+  marker.classList.toggle('column-visual', kind === 'column');
+  marker.classList.toggle('corridor-visual', kind === 'corridor');
+  marker.classList.toggle('door-visual', kind === 'door');
+  if (kind === 'door') placeDoorOutside(marker, draftAsItem(draft, kind), shelf);
 }
 
 function usableRegions(shelf) {
@@ -789,21 +809,11 @@ function freeVolumeInBoundsCm3(shelf, bounds = null) {
   }, 0);
 }
 
-function occupiedVolumeCm3(shelf) {
-  return Math.max(0, totalCapacityCm3(shelf) - freeVolumeCm3(shelf));
-}
-
 function freeVolumeCm3(shelf) {
   if (shelfVolumeCache.has(shelf)) return shelfVolumeCache.get(shelf);
   const volume = freeVolumeInBoundsCm3(shelf);
   shelfVolumeCache.set(shelf, volume);
   return volume;
-}
-
-function freePercent(shelves) {
-  const total = shelves.reduce((sum, shelf) => sum + totalCapacityCm3(shelf), 0);
-  const free = shelves.reduce((sum, shelf) => sum + freeVolumeCm3(shelf), 0);
-  return total ? (free / total) * 100 : 0;
 }
 
 function isStackedItem(item) {
@@ -1146,8 +1156,6 @@ async function deletePackage(id) {
 function render() {
   setAuthUi();
   els.shelves.innerHTML = '';
-  els.overviewCards.innerHTML = '';
-  els.warehouseMap.innerHTML = '';
   els.placeList.innerHTML = '';
 
   if (!appState.token) {
@@ -1158,18 +1166,13 @@ function render() {
   const floorPlaces = appState.shelves.filter(shelf => placeKind(shelf) === 'floor');
   const shelfPlaces = appState.shelves.filter(shelf => placeKind(shelf) === 'shelf');
   const visibleShelves = appState.shelves;
-  const freeVolume = totalFreeVolume(visibleShelves);
-  const percentFree = freePercent(visibleShelves);
+  const selectedShelf = visibleShelves.find(shelf => String(shelf.id) === String(appState.activeAreaId))
+    || findPlanShelf(appState.activePlanRole, visibleShelves)
+    || visibleShelves[0];
   els.summaryText.textContent = visibleShelves.length
-    ? `${formatVolumeMm3(freeVolume)} true free volume · ${formatNumber(percentFree, 1)}% free across ${visibleShelves.length} area(s).`
+    ? 'Free volume in mm³ is shown only for the selected area below.'
     : 'No areas have been created yet.';
-
-  renderOverview(
-    visibleShelves,
-    shelfPlaces.filter(shelf => planPlaceRole(shelf) === 'rack'),
-    floorPlaces.filter(shelf => planPlaceRole(shelf))
-  );
-  renderModel3d(visibleShelves);
+  renderModel3d(selectedShelf ? [selectedShelf] : []);
   renderPlanDrawing(shelfPlaces, floorPlaces);
   renderPlaces();
   renderFitFinder();
@@ -1410,9 +1413,10 @@ function renderPlanSlot(role, shelf) {
       <h2>${escapeHtml(displayAreaName(displayShelf.label || displayShelf.name))}</h2>
     </div>
     <div class="stats">
-      <span class="stat">${formatSizeCm(displayShelf.columns, displayShelf.rows)}</span>
-      <span class="stat">${shelf ? lengthSummary(displayShelf) : 'not created yet'}</span>
-      <span class="stat">${escapeHtml(areaHeightLabel(displayShelf))}</span>
+      <span class="stat"><small>Area size</small>${formatSizeCm(displayShelf.columns, displayShelf.rows)}</span>
+      <span class="stat selected-volume"><small>Free volume</small>${shelf ? lengthSummary(displayShelf) : 'not created yet'}</span>
+      ${shelf ? `<span class="stat"><small>Free</small>${formatNumber(shelfFreePercent(displayShelf), 1)}%</span>` : ''}
+      <span class="stat"><small>Height</small>${escapeHtml(areaHeightLabel(displayShelf))}</span>
       ${shelf ? `
         <span class="plan-meta-actions">
           ${kind === 'shelf' ? '<button class="ghost add-sub-rack" type="button">Add sub-rack</button>' : ''}
@@ -1587,6 +1591,14 @@ function renderRackLevelDetail(shelf, level) {
     const clippedRight = Math.min(displayItem.column_index + (displayItem.width_units || 1) - 1, range.xEnd);
     const visibleDepth = Math.max(1, clippedBottom - clippedTop + 1);
     const visibleWidth = Math.max(1, clippedRight - clippedLeft + 1);
+    const localShelf = { columns: range.width, rows: range.height };
+    const localDisplayItem = {
+      ...displayItem,
+      row_index: clippedTop - range.start + 1,
+      column_index: clippedLeft - range.xStart + 1,
+      width_units: visibleWidth,
+      depth_units: visibleDepth
+    };
     rectangle.className = `package-rect rack-package ${selectedPackage ? 'selected' : ''}`;
     rectangle.classList.toggle('compact-label', !rackPackageLabelFits(visibleWidth, visibleDepth));
     rectangle.classList.toggle('blocked-zone', isBlockedItem(displayItem));
@@ -1594,7 +1606,10 @@ function renderRackLevelDetail(shelf, level) {
     rectangle.classList.toggle('column-element', specialKind(displayItem) === 'column');
     rectangle.classList.toggle('corridor-element', specialKind(displayItem) === 'corridor');
     rectangle.classList.toggle('door-element', isDoorItem(displayItem));
-    if (isDoorItem(displayItem)) rectangle.classList.add(`door-${doorSide(displayItem, shelf)}`);
+    rectangle.classList.toggle('column-visual', specialKind(displayItem) === 'column');
+    rectangle.classList.toggle('corridor-visual', specialKind(displayItem) === 'corridor');
+    rectangle.classList.toggle('door-visual', isDoorItem(displayItem));
+    if (isDoorItem(displayItem)) rectangle.classList.add(`door-${doorSide(localDisplayItem, localShelf)}`);
     rectangle.classList.toggle('stacked-zone', isStackedItem(displayItem));
     rectangle.classList.toggle('overlapping-item', renderedPackages.some(previous => (
       !isZoneItem(previous) && !isDoorItem(previous) && !isZoneItem(displayItem) && !isDoorItem(displayItem) && rectsOverlap(packageRect(previous), packageRect(displayItem))
@@ -1604,7 +1619,7 @@ function renderRackLevelDetail(shelf, level) {
     rectangle.style.top = `${((clippedTop - range.start) / range.height) * 100}%`;
     rectangle.style.width = `${(visibleWidth / range.width) * 100}%`;
     rectangle.style.height = `${(visibleDepth / range.height) * 100}%`;
-    placeDoorOutside(rectangle, displayItem, shelf);
+    placeDoorOutside(rectangle, localDisplayItem, localShelf);
     rectangle.dataset.tooltip = packageTooltip(displayItem);
     rectangle.setAttribute('aria-label', item.package_name);
     rectangle.innerHTML = packageHtml(displayItem, selectedPackage);
@@ -1635,6 +1650,7 @@ function renderRackLevelDetail(shelf, level) {
     const localDraft = rackLocalDraft(draft, range);
     marker.className = 'draft-marker rack-draft-marker';
     marker.innerHTML = draftMarkerHtml(draft);
+    decorateDraftMarker(marker, localDraft, { columns: range.width, rows: range.height });
     updateDragMarker({ columns: range.width, rows: range.height }, marker, localDraft);
     marker.addEventListener('pointerdown', event => startRackDraftEdit(event, canvas, shelf, range, marker, localDraft));
     canvas.append(marker);
@@ -1853,6 +1869,7 @@ function renderPlaceCanvas(shelf, kind, role = planRole(shelf)) {
     const marker = document.createElement('div');
     marker.className = 'draft-marker';
     marker.innerHTML = draftMarkerHtml(draft);
+    decorateDraftMarker(marker, draft, shelf);
     updateDragMarker(shelf, marker, draftAtCell(
       { row: draft.row, column: draft.column },
       shelf,
@@ -1882,6 +1899,9 @@ function renderPlaceCanvas(shelf, kind, role = planRole(shelf)) {
     rectangle.classList.toggle('column-element', specialKind(displayItem) === 'column');
     rectangle.classList.toggle('corridor-element', specialKind(displayItem) === 'corridor');
     rectangle.classList.toggle('door-element', isDoorItem(displayItem));
+    rectangle.classList.toggle('column-visual', specialKind(displayItem) === 'column');
+    rectangle.classList.toggle('corridor-visual', specialKind(displayItem) === 'corridor');
+    rectangle.classList.toggle('door-visual', isDoorItem(displayItem));
     if (isDoorItem(displayItem)) rectangle.classList.add(`door-${doorSide(displayItem, shelf)}`);
     rectangle.classList.toggle('stacked-zone', isStackedItem(displayItem));
     rectangle.classList.toggle('overlapping-item', renderedPackages.some(previous => (
@@ -2000,6 +2020,12 @@ function updateDragMarker(shelf, marker, draft) {
   marker.style.top = `${((draft.row - 1) / shelf.rows) * 100}%`;
   marker.style.width = `${(draft.width / shelf.columns) * 100}%`;
   marker.style.height = `${(draft.depth / shelf.rows) * 100}%`;
+  if (marker.classList.contains('door-visual')) {
+    marker.classList.remove('door-top', 'door-right', 'door-bottom', 'door-left');
+    const item = draftAsItem(draft, 'door');
+    marker.classList.add(`door-${doorSide(item, shelf)}`);
+    placeDoorOutside(marker, item, shelf);
+  }
 }
 
 function renderDimensionLabels(shelf, kind, role = planRole(shelf)) {
@@ -2833,7 +2859,7 @@ function renderPlaceGroup(title, places, muted = false) {
       <div>
         <span class="place-type">${placeLabel(kind)}</span>
         <h3>${escapeHtml(displayAreaName(place.label || place.name))}</h3>
-        <p>${formatSizeCm(place.columns, place.rows)} · ${lengthSummary(place)}</p>
+        <p>${formatSizeCm(place.columns, place.rows)}</p>
       </div>
       <div class="place-row-actions">
         <button class="ghost edit-place" type="button">Edit</button>
@@ -2877,59 +2903,6 @@ function startSubRackCreation(parent) {
   setActiveView('places');
   els.placeForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
   els.placeName.focus();
-}
-
-function renderOverview(shelves, shelfPlaces, floorPlaces) {
-  const freeVolume = totalFreeVolume(shelves);
-  const percent = freePercent(shelves);
-  const totalVolume = shelves.reduce((sum, shelf) => sum + totalCapacityCm3(shelf), 0);
-  const occupiedVolume = Math.max(0, totalVolume - freeVolume);
-  const zoneCount = shelves.reduce((sum, shelf) => sum + shelf.packages.filter(isZoneItem).length, 0);
-  const stackedCount = shelves.reduce((sum, shelf) => sum + shelf.packages.filter(isStackedItem).length, 0);
-  const cards = [
-    ['Free volume', formatVolumeMm3(freeVolume), 'remaining width × depth × height'],
-    ['Free', `${formatNumber(percent, 1)}%`, 'share of all usable storage volume'],
-    ['Occupied volume', formatVolumeMm3(occupiedVolume), 'items and full-height zones'],
-    ['Zones', formatNumber(zoneCount), 'red, yellow, columns and corridors'],
-    ['Floor areas', formatNumber(floorPlaces.length), 'regular floor storage areas']
-  ];
-
-  cards.forEach(([label, value, hint]) => {
-    const card = document.createElement('div');
-    card.className = 'overview-card';
-    card.innerHTML = `
-      <span>${escapeHtml(label)}</span>
-      <strong>${escapeHtml(value)}</strong>
-      <small>${escapeHtml(hint)}</small>
-    `;
-    els.overviewCards.append(card);
-  });
-  if (stackedCount) {
-    els.summaryText.textContent += ` ${stackedCount} stacked positions marked.`;
-  }
-}
-
-function renderWarehouseMap(shelfPlaces, floorPlaces) {
-  const zones = [
-    ['Rack 6.000 x 4.500 mm', shelfPlaces],
-    ['Floor area 1', floorPlaces.slice(0, 1)],
-    ['Floor area 2', floorPlaces.slice(1)]
-  ];
-
-  zones.forEach(([label, places]) => {
-    const zone = document.createElement('button');
-    zone.className = `map-zone ${places.length ? '' : 'empty-zone'}`;
-    zone.type = 'button';
-    const free = totalFreeVolume(places);
-    const percent = freePercent(places);
-    const usedPercent = 100 - percent;
-    zone.innerHTML = `
-      <span>${escapeHtml(label)}</span>
-      <strong>${places.length ? `${formatVolumeMm3(free)} · ${formatNumber(percent, 1)}% free` : 'available for planning'}</strong>
-      <i class="zone-meter" aria-hidden="true"><b style="width: ${usedPercent}%"></b></i>
-    `;
-    els.warehouseMap.append(zone);
-  });
 }
 
 function setupPresetButton(button) {
