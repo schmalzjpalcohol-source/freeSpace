@@ -13,6 +13,10 @@ function numberValue(value, fallback) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function formatMm(cm) {
+  return new Intl.NumberFormat('de-DE', { maximumFractionDigits: 2 }).format((Number(cm) || 0) * 10);
+}
+
 function metersToCm(value, fallbackMeters, maxMeters = 1000) {
   const meters = Math.max(0.01, Math.min(maxMeters, numberValue(value, fallbackMeters)));
   return Math.max(1, Number((meters * 100).toFixed(1)));
@@ -25,6 +29,7 @@ function cmBetween(value, min, max, fallback) {
 }
 
 function packageArea(item) {
+  if (decorationKind(item) === 'door') return 0;
   return Math.max(1, item.width_units || 1) * Math.max(1, item.depth_units || 1);
 }
 
@@ -41,13 +46,24 @@ function stackCount(value) {
 
 function zoneKind(item) {
   const text = `${item.package_name || ''} ${item.note || ''}`.toLowerCase();
-  if (text.includes('zone:red') || text.includes('red no-place') || text.includes('blocked') || text.includes('rot') || text.includes('verbot') || text.includes('nicht abstellen')) return 'red';
-  if (text.includes('zone:yellow') || text.includes('yellow reserve') || text.includes('gelb') || text.includes('reserve')) return 'yellow';
+  if (text.includes('element:door') || text.includes('door outside')) return '';
+  if (text.includes('element:column') || text.includes('column') || text.includes('zone:red') || text.includes('red no-place') || text.includes('blocked') || text.includes('rot') || text.includes('verbot') || text.includes('nicht abstellen')) return 'red';
+  if (text.includes('element:corridor') || text.includes('corridor') || text.includes('zone:yellow') || text.includes('yellow reserve') || text.includes('gelb') || text.includes('reserve')) return 'yellow';
   return '';
 }
 
+function decorationKind(item) {
+  const text = `${item.package_name || item.packageName || ''} ${item.note || ''}`.toLowerCase();
+  return text.includes('element:door') || text.includes('door outside') ? 'door' : '';
+}
+
+function noteWithHeight(note, height) {
+  const clean = String(note || '').replace(/(?:,\s*)?height\s*[0-9]+(?:[.,][0-9]+)?\s*cm/gi, '').replace(/^,\s*|\s*,$/g, '').trim();
+  return `${clean ? `${clean}, ` : ''}height ${height} cm`;
+}
+
 function maxStackHeightForShelf(shelf, candidate) {
-  if (shelf.location_type === 'floor') return 100;
+  if (shelf.location_type === 'floor') return 220;
   const smallStart = 361;
   const smallColumnStart = Math.max(1, (shelf.columns || 600) - 149);
   if (
@@ -64,6 +80,7 @@ function isZoneItem(item) {
 }
 
 function canOverlap(candidate, item) {
+  if (decorationKind(candidate) === 'door' || decorationKind(item) === 'door') return true;
   const candidateZone = zoneKind({
     package_name: candidate.packageName || '',
     note: candidate.note || ''
@@ -191,6 +208,7 @@ async function assertPlaceFree(shelf, candidate, excludeId) {
     item.id !== excludeId &&
     overlaps(candidate, packageRect(item))
   ));
+  if (decorationKind(candidate) === 'door') return;
   const candidateZone = zoneKind({ package_name: candidate.packageName, note: candidate.note });
   const collision = overlappingPackages.find(item => {
     if (!candidateZone && !isZoneItem(item)) return false;
@@ -206,11 +224,11 @@ async function assertPlaceFree(shelf, candidate, excludeId) {
     const totalHeight = stackCount(candidate.quantity) * itemHeightCm(candidate);
     const maxHeight = maxStackHeightForShelf(shelf, candidate);
     const overlapHeight = overlappingPackages
-      .filter(item => !isZoneItem(item))
+      .filter(item => !isZoneItem(item) && decorationKind(item) !== 'door')
       .reduce((sum, item) => sum + stackTotalHeightCm(item), 0);
     const combinedHeight = totalHeight + overlapHeight;
     if (combinedHeight > maxHeight) {
-      const error = new Error(`Stack is too high: ${combinedHeight} cm, max ${maxHeight} cm here.`);
+      const error = new Error(`Stack is too high: ${formatMm(combinedHeight)} mm, max ${formatMm(maxHeight)} mm here.`);
       error.status = 400;
       throw error;
     }
@@ -249,11 +267,15 @@ module.exports = async function handler(req, res) {
       const columnIndex = cmBetween(body.columnIndex, 1, Math.max(1, shelf.columns - widthUnits + 1), 1);
       const packageName = String(body.packageName || '').trim();
       const quantity = intBetween(body.quantity, 1, 9999, 1);
-      const note = String(body.note || '').trim();
+      let note = String(body.note || '').trim();
 
       if (!packageName) {
         json(res, 400, { error: 'packageName is required' });
         return;
+      }
+
+      if (zoneKind({ package_name: packageName, note })) {
+        note = noteWithHeight(note, maxStackHeightForShelf(shelf, { rowIndex, columnIndex }));
       }
 
       await assertPlaceFree(shelf, { rowIndex, columnIndex, widthUnits, depthUnits, packageName, quantity, note });
@@ -293,11 +315,16 @@ module.exports = async function handler(req, res) {
       const columnIndex = cmBetween(body.columnIndex, 1, Math.max(1, shelf.columns - widthUnits + 1), 1);
       const packageName = String(body.packageName || '').trim();
       const quantity = intBetween(body.quantity, 1, 9999, 1);
-      const note = String(body.note || '').trim();
+      let note = String(body.note || '').trim();
 
       if (!packageName) {
         json(res, 400, { error: 'packageName is required' });
         return;
+      }
+
+
+      if (zoneKind({ package_name: packageName, note })) {
+        note = noteWithHeight(note, maxStackHeightForShelf(shelf, { rowIndex, columnIndex }));
       }
 
       await assertPlaceFree(shelf, { rowIndex, columnIndex, widthUnits, depthUnits, packageName, quantity, note }, id);

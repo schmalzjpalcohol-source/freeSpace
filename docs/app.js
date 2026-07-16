@@ -51,7 +51,13 @@ const els = {
   note: document.querySelector('#note'),
   saveButton: document.querySelector('#saveButton'),
   deletePackageButton: document.querySelector('#deletePackageButton'),
-  cancelEditButton: document.querySelector('#cancelEditButton')
+  cancelEditButton: document.querySelector('#cancelEditButton'),
+  toggleFitFinderButton: document.querySelector('#toggleFitFinderButton'),
+  fitFinderForm: document.querySelector('#fitFinderForm'),
+  fitWidth: document.querySelector('#fitWidth'),
+  fitDepth: document.querySelector('#fitDepth'),
+  fitHeight: document.querySelector('#fitHeight'),
+  fitResults: document.querySelector('#fitResults')
 };
 
 let appState = {
@@ -64,6 +70,11 @@ let appState = {
   activePlanRole: 'floor-main',
   activeRackLevel: 1,
   measurement: null,
+  fitFinder: {
+    open: false,
+    searched: false,
+    matches: []
+  },
   model3d: {
     active: false,
     zoom: 1,
@@ -73,22 +84,22 @@ let appState = {
 
 const planPlaces = {
   'floor-main': {
-    title: 'Floor area 1 - 880 x 380',
+    title: 'Floor area 1 - 8.800 x 3.800 mm',
     rows: 380,
     columns: 880,
-    notes: 'Max height 220 cm'
+    notes: 'Max height 2.200 mm'
   },
   rack: {
-    title: 'Rack 600 x 450',
+    title: 'Rack 6.000 x 4.500 mm',
     rows: 450,
     columns: 600,
-    notes: 'Max height 220 cm'
+    notes: 'Max height 2.200 mm'
   },
   'floor-long': {
-    title: 'Floor area 2 - 380 x 740',
+    title: 'Floor area 2 - 3.800 x 7.400 mm',
     rows: 740,
     columns: 380,
-    notes: 'Max height 220 cm'
+    notes: 'Max height 2.200 mm'
   }
 };
 
@@ -158,18 +169,26 @@ function displayAreaName(value) {
     .replace(/bodenplatz/gi, 'Floor area')
     .replace(/lagerfl[aä]che/gi, 'Storage area')
     .replace(/fl[aä]che/gi, 'Area')
-    .replace(/regal/gi, 'Rack');
+    .replace(/regal/gi, 'Rack')
+    .replace(/\b880\s*x\s*380\b(?:\s*cm)?/g, '8.800 x 3.800 mm')
+    .replace(/\b380\s*x\s*740\b(?:\s*cm)?/g, '3.800 x 7.400 mm')
+    .replace(/\b600\s*x\s*450\b(?:\s*cm)?/g, '6.000 x 4.500 mm')
+    .replace(/\b600\s*x\s*90\b(?:\s*cm)?/g, '6.000 x 900 mm');
 }
 
 function packageTooltip(item) {
   const zone = zoneKind(item);
+  const kind = specialKind(item);
+  if (kind === 'door') {
+    return `${item.package_name || 'Door'}\nVisual marker outside the storage area\nDoes not reduce free space`;
+  }
   if (zone) {
     const isRed = zone === 'red';
     const purpose = zonePurposeNote(item.note) || (isRed ? 'Reserved restricted area' : 'Reserved area');
     return [
       item.package_name || (isRed ? 'Red no-place zone' : 'Yellow reserve zone'),
       `Size: ${formatSizeCm(item.width_units || 1, item.depth_units || 1)}`,
-      isRed ? 'No items allowed' : 'Only for defined items',
+      kind === 'column' ? 'Column: no items allowed' : kind === 'corridor' ? 'Corridor: reserved route' : isRed ? 'No items allowed' : 'Only for defined items',
       purpose
     ].join('\n');
   }
@@ -178,7 +197,7 @@ function packageTooltip(item) {
   const parts = [
     item.package_name,
     formatSizeCm(item.width_units || 1, item.depth_units || 1),
-    zone ? `${zone} zone` : `${count}x stacked, ${formatCm(height)} cm each, ${formatCm(count * height)} cm total`
+    zone ? `${zone} zone` : `${count}x stacked, ${formatNumber(height * 10)} mm each, ${formatNumber(count * height * 10)} mm total`
   ];
   if (isStackedItem(item)) parts.push('stacked');
   const note = displayItemNote(item.note || '');
@@ -189,6 +208,7 @@ function packageTooltip(item) {
 function zonePurposeNote(note) {
   return String(note || '')
     .replace(/zone\s*:\s*(red|yellow)/gi, '')
+    .replace(/element\s*:\s*(column|corridor|door)/gi, '')
     .replace(/height\s*[0-9]+(?:[.,][0-9]+)?\s*cm/gi, '')
     .replace(/^[\s|·,;:-]+|[\s|·,;:-]+$/g, '')
     .trim();
@@ -199,7 +219,13 @@ function clamp(value, min, max) {
 }
 
 function numberValue(value, fallback) {
-  const parsed = Number.parseFloat(String(value ?? '').replace(',', '.'));
+  const text = String(value ?? '').trim();
+  const normalized = text.includes(',')
+    ? text.replaceAll('.', '').replace(',', '.')
+    : /\.\d{3}(?:\D|$)/.test(text)
+      ? text.replaceAll('.', '')
+      : text;
+  const parsed = Number.parseFloat(normalized);
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
@@ -207,20 +233,27 @@ function formatDecimal(value) {
   return Number(value).toFixed(2).replace(/\.?0+$/, '');
 }
 
-function formatCm(cm) {
-  return formatDecimal(Math.max(1, Number(cm) || 1));
+function formatNumber(value, maximumFractionDigits = 2) {
+  return new Intl.NumberFormat('de-DE', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits
+  }).format(Number(value) || 0);
 }
 
 function formatSizeCm(width, depth) {
-  return `${formatCm(width)} x ${formatCm(depth)} cm`;
+  return `${formatNumber(width * 10)} x ${formatNumber(depth * 10)} mm`;
 }
 
 function formatMeasureCm(cm) {
-  return `${formatDecimal(cm)} cm`;
+  return `${formatNumber(cm * 10)} mm`;
 }
 
 function formatAreaCm2(area) {
-  return `${formatDecimal(Math.max(0, Number(area) || 0))} cm2`;
+  return `${formatNumber(Math.max(0, Number(area) || 0) * 100)} mm²`;
+}
+
+function formatVolumeCm3(volume) {
+  return `${formatNumber(Math.max(0, Number(volume) || 0))} cm³`;
 }
 
 function rectArea(rect) {
@@ -237,10 +270,14 @@ function rectIntersection(a, b) {
 }
 
 function inputCm(cm) {
-  return formatCm(cm);
+  return formatNumber(cm * 10);
 }
 
 function cmInputToCm(value, fallbackCm = 100) {
+  return Math.max(0.1, numberValue(value, fallbackCm * 10) / 10);
+}
+
+function internalCm(value, fallbackCm = 100) {
   return Math.max(1, numberValue(value, fallbackCm));
 }
 
@@ -248,10 +285,14 @@ function cmInputToMeters(value, fallbackCm = 100) {
   return formatDecimal(cmInputToCm(value, fallbackCm) / 100);
 }
 
+function internalCmToMeters(value, fallbackCm = 100) {
+  return formatDecimal(internalCm(value, fallbackCm) / 100);
+}
+
 function itemHeightCm(item, fallback = 45) {
   const note = String(item?.note || '');
   const match = note.match(/height\s*([0-9]+(?:[.,][0-9]+)?)\s*cm/i) || note.match(/höhe\s*([0-9]+(?:[.,][0-9]+)?)\s*cm/i);
-  return cmInputToCm(match?.[1], fallback);
+  return internalCm(match?.[1], fallback);
 }
 
 function cleanHeightFromNote(note) {
@@ -266,7 +307,7 @@ function cleanHeightFromNote(note) {
 
 function noteWithHeight(note, height) {
   const clean = cleanHeightFromNote(note);
-  const heightText = `height ${formatCm(height)} cm`;
+  const heightText = `height ${formatDecimal(height)} cm`;
   return clean ? `${clean}, ${heightText}` : heightText;
 }
 
@@ -307,7 +348,7 @@ function stackTotalHeightCm(item) {
 }
 
 function maxStackHeightForShelf(shelf, candidate = {}) {
-  if (placeKind(shelf) === 'floor') return 100;
+  if (placeKind(shelf) === 'floor') return 220;
   const row = candidate.row ?? candidate.rowIndex ?? 1;
   const column = candidate.column ?? candidate.columnIndex ?? 1;
   const smallColumnStart = Math.max(1, (shelf.columns || 600) - 149);
@@ -340,7 +381,9 @@ function maxFreeRunCm(shelf) {
 }
 
 function lengthSummary(shelf) {
-  return `${formatAreaCm2(freeAreaCm2(shelf))} free`;
+  const capacity = totalCapacityCm3(shelf);
+  const percent = capacity ? (freeVolumeCm3(shelf) / capacity) * 100 : 0;
+  return `${formatAreaCm2(freeAreaCm2(shelf))} · ${formatVolumeCm3(freeVolumeCm3(shelf))} · ${formatNumber(percent, 1)}% free`;
 }
 
 function rackLevelSpecs(shelf) {
@@ -354,10 +397,10 @@ function rackLevelSpecs(shelf) {
   };
   const small = levelRange(5);
   return [
-    { level: 1, label: 'Rack level 1', ...levelRange(1), xStart: 1, xEnd: width, short: false, heightLabel: '90 x 600 x 65 cm' },
-    { level: 2, label: 'Rack level 2', ...levelRange(2), xStart: 1, xEnd: width, short: false, heightLabel: '90 x 600 x 65 cm' },
-    { level: 3, label: 'Rack level 3', ...levelRange(3), xStart: 1, xEnd: width, short: false, heightLabel: '90 x 600 x 65 cm' },
-    { level: 5, label: 'Small rack', ...small, xStart: Math.max(1, width - 149), xEnd: width, short: true, heightLabel: '16 x 150 x 90 cm' }
+    { level: 1, label: 'Rack level 1', ...levelRange(1), xStart: 1, xEnd: width, short: false, heightLabel: '900 x 6.000 x 650 mm' },
+    { level: 2, label: 'Rack level 2', ...levelRange(2), xStart: 1, xEnd: width, short: false, heightLabel: '900 x 6.000 x 650 mm' },
+    { level: 3, label: 'Rack level 3', ...levelRange(3), xStart: 1, xEnd: width, short: false, heightLabel: '900 x 6.000 x 650 mm' },
+    { level: 5, label: 'Small rack', ...small, xStart: Math.max(1, width - 149), xEnd: width, short: true, heightLabel: '160 x 1.500 x 900 mm' }
   ];
 }
 
@@ -439,6 +482,7 @@ function rackLevelFreeAreaCm2(shelf, level) {
   const range = rackLevelRange(shelf, level);
   return freeAreaCm2({
     ...shelf,
+    isRackLevelSlice: true,
     rows: range.height,
     columns: range.width,
     packages: shelf.packages
@@ -566,7 +610,7 @@ function measureSummary(measurement) {
   const width = end.column - measurement.start.column;
   const depth = end.row - measurement.start.row;
   if (measurement.mode === 'area') {
-    return `${formatCm(Math.abs(width))} x ${formatCm(Math.abs(depth))} cm = ${formatAreaCm2(Math.abs(width * depth))}`;
+    return `${formatNumber(Math.abs(width) * 10)} x ${formatNumber(Math.abs(depth) * 10)} mm = ${formatAreaCm2(Math.abs(width * depth))}`;
   }
   return formatMeasureCm(Math.hypot(width, depth));
 }
@@ -579,13 +623,13 @@ function findFreeRackDraft(shelf, range, size) {
   for (let row = range.start; row <= range.end - depth + 1; row += step) {
     for (let column = range.xStart; column <= range.xEnd - width + 1; column += step) {
       const draft = { row, column, width, depth };
-      const collision = shelf.packages.some(item => !isYellowZone(item) && rectsOverlap(draftRect(draft), packageRect(item)));
+      const collision = shelf.packages.some(item => !isDoorItem(item) && !isYellowZone(item) && rectsOverlap(draftRect(draft), packageRect(item)));
       if (!collision) return draft;
     }
   }
 
   const fallback = { row: range.start, column: range.xStart, width, depth };
-  return shelf.packages.some(item => !isYellowZone(item) && rectsOverlap(draftRect(fallback), packageRect(item))) ? null : fallback;
+  return shelf.packages.some(item => !isDoorItem(item) && !isYellowZone(item) && rectsOverlap(draftRect(fallback), packageRect(item))) ? null : fallback;
 }
 
 function findFreeDraft(shelf, size) {
@@ -596,13 +640,51 @@ function findFreeDraft(shelf, size) {
   for (let row = 1; row <= shelf.rows - depth + 1; row += step) {
     for (let column = 1; column <= shelf.columns - width + 1; column += step) {
       const draft = { row, column, width, depth };
-      const collision = shelf.packages.some(item => !isYellowZone(item) && rectsOverlap(draftRect(draft), packageRect(item)));
+      const collision = shelf.packages.some(item => !isDoorItem(item) && !isYellowZone(item) && rectsOverlap(draftRect(draft), packageRect(item)));
       if (!collision) return draft;
     }
   }
 
   const fallback = { row: 1, column: 1, width, depth };
-  return shelf.packages.some(item => !isYellowZone(item) && rectsOverlap(draftRect(fallback), packageRect(item))) ? null : fallback;
+  return shelf.packages.some(item => !isDoorItem(item) && !isYellowZone(item) && rectsOverlap(draftRect(fallback), packageRect(item))) ? null : fallback;
+}
+
+function randomFreeDraft(shelf, range, size) {
+  const width = Math.min(size.width, range.width);
+  const depth = Math.min(size.depth, range.height || range.depth);
+  const maxColumn = Math.floor(range.xEnd - width + 1);
+  const maxRow = Math.floor(range.end - depth + 1);
+  if (maxColumn < range.xStart || maxRow < range.start) return null;
+  for (let attempt = 0; attempt < 120; attempt += 1) {
+    const column = range.xStart + Math.floor(Math.random() * (maxColumn - range.xStart + 1));
+    const row = range.start + Math.floor(Math.random() * (maxRow - range.start + 1));
+    const draft = { row, column, width, depth };
+    const blocked = shelf.packages.some(item => !isDoorItem(item) && !isYellowZone(item) && rectsOverlap(draftRect(draft), packageRect(item)));
+    if (!blocked) return draft;
+  }
+  return planPlaceRole(shelf) === 'rack'
+    ? findFreeRackDraft(shelf, range, size)
+    : findFreeDraft(shelf, size);
+}
+
+function fitMatches(size) {
+  const matches = [];
+  appState.shelves.forEach(shelf => {
+    if (planPlaceRole(shelf) === 'rack') {
+      rackLevelSpecs(shelf).forEach(spec => {
+        const range = rackLevelRange(shelf, spec.level);
+        if (size.height > (range.short ? 16 : 65)) return;
+        const draft = randomFreeDraft(shelf, range, size);
+        if (draft) matches.push({ shelf, level: spec.level, levelLabel: range.label, draft });
+      });
+      return;
+    }
+    if (size.height > maxStackHeightForShelf(shelf)) return;
+    const range = { xStart: 1, xEnd: shelf.columns, start: 1, end: shelf.rows, width: shelf.columns, height: shelf.rows };
+    const draft = randomFreeDraft(shelf, range, size);
+    if (draft) matches.push({ shelf, level: null, levelLabel: '', draft });
+  });
+  return matches;
 }
 
 function totalFreeRun(shelves) {
@@ -613,15 +695,37 @@ function totalFreeArea(shelves) {
   return shelves.reduce((sum, shelf) => sum + freeAreaCm2(shelf), 0);
 }
 
+function totalUsableArea(shelves) {
+  return shelves.reduce((sum, shelf) => sum + usableRegions(shelf).reduce((area, region) => area + rectArea(region), 0), 0);
+}
+
+function totalFreeVolume(shelves) {
+  return shelves.reduce((sum, shelf) => sum + freeVolumeCm3(shelf), 0);
+}
+
 function isBlockedItem(item) {
   return zoneKind(item) === 'red';
 }
 
+function specialKind(item) {
+  const text = `${item?.package_name || ''} ${item?.note || ''}`.toLowerCase();
+  if (text.includes('element:door') || text.includes('door outside')) return 'door';
+  if (text.includes('element:column') || text.includes('column')) return 'column';
+  if (text.includes('element:corridor') || text.includes('corridor')) return 'corridor';
+  const zone = zoneKind(item);
+  return zone || '';
+}
+
 function zoneKind(item) {
   const text = `${item.package_name || ''} ${item.note || ''}`.toLowerCase();
-  if (text.includes('zone:red') || text.includes('red no-place') || text.includes('blocked') || text.includes('rot') || text.includes('verbot') || text.includes('nicht abstellen')) return 'red';
-  if (text.includes('zone:yellow') || text.includes('yellow reserve') || text.includes('gelb') || text.includes('reserve')) return 'yellow';
+  if (text.includes('element:door') || text.includes('door outside')) return '';
+  if (text.includes('element:column') || text.includes('column') || text.includes('zone:red') || text.includes('red no-place') || text.includes('blocked') || text.includes('rot') || text.includes('verbot') || text.includes('nicht abstellen')) return 'red';
+  if (text.includes('element:corridor') || text.includes('corridor') || text.includes('zone:yellow') || text.includes('yellow reserve') || text.includes('gelb') || text.includes('reserve')) return 'yellow';
   return '';
+}
+
+function isDoorItem(item) {
+  return specialKind(item) === 'door';
 }
 
 function isZoneItem(item) {
@@ -632,25 +736,76 @@ function isYellowZone(item) {
   return zoneKind(item) === 'yellow';
 }
 
-function occupiedAreaCm2(shelf, predicate = () => true) {
-  const bounds = { column: 1, row: 1, width: shelf.columns || 1, depth: effectiveRowsForShelf(shelf) || shelf.rows || 1 };
-  const rects = shelf.packages
-    .filter(predicate)
-    .map(item => rectIntersection(bounds, packageRect(item)))
-    .filter(Boolean);
+function doorSide(item, shelf) {
+  const left = (item.column_index || 1) - 1;
+  const right = Math.max(0, (shelf.columns || 1) - ((item.column_index || 1) + (item.width_units || 1) - 1));
+  const top = (item.row_index || 1) - 1;
+  const bottom = Math.max(0, (shelf.rows || 1) - ((item.row_index || 1) + (item.depth_units || 1) - 1));
+  return [['left', left], ['right', right], ['top', top], ['bottom', bottom]].sort((a, b) => a[1] - b[1])[0][0];
+}
 
-  return rects.reduce((sum, rect, index) => {
-    let visible = rectArea(rect);
-    for (let previous = 0; previous < index; previous += 1) {
-      const overlap = rectIntersection(rect, rects[previous]);
-      if (overlap) visible -= rectArea(overlap);
-    }
-    return sum + Math.max(0, visible);
-  }, 0);
+function placeDoorOutside(rectangle, item, shelf) {
+  if (!isDoorItem(item)) return;
+  const side = doorSide(item, shelf);
+  if (side === 'top') rectangle.style.top = '0%';
+  if (side === 'bottom') rectangle.style.top = '100%';
+  if (side === 'left') rectangle.style.left = '0%';
+  if (side === 'right') rectangle.style.left = '100%';
+}
+
+function usableRegions(shelf) {
+  if (shelf.isRackLevelSlice || planPlaceRole(shelf) !== 'rack') {
+    return [{ column: 1, row: 1, width: shelf.columns || 1, depth: shelf.rows || 1, maxHeight: maxStackHeightForShelf(shelf) }];
+  }
+  return rackLevelSpecs(shelf).map(spec => ({
+    column: spec.xStart,
+    row: spec.start,
+    width: Math.max(1, spec.xEnd - spec.xStart + 1),
+    depth: Math.max(1, spec.end - spec.start + 1),
+    maxHeight: spec.short ? 16 : 65
+  }));
+}
+
+function unionAreaInBounds(rects, bounds) {
+  const clipped = rects.map(rect => rectIntersection(bounds, rect)).filter(Boolean);
+  const xEdges = [...new Set(clipped.flatMap(rect => [rect.column, rect.column + rect.width]))].sort((a, b) => a - b);
+  let area = 0;
+  for (let index = 0; index < xEdges.length - 1; index += 1) {
+    const left = xEdges[index];
+    const right = xEdges[index + 1];
+    if (right <= left) continue;
+    const intervals = clipped
+      .filter(rect => rect.column < right && rect.column + rect.width > left)
+      .map(rect => [rect.row, rect.row + rect.depth])
+      .sort((a, b) => a[0] - b[0]);
+    let coveredDepth = 0;
+    let start = null;
+    let end = null;
+    intervals.forEach(([nextStart, nextEnd]) => {
+      if (start === null) {
+        start = nextStart;
+        end = nextEnd;
+      } else if (nextStart <= end) {
+        end = Math.max(end, nextEnd);
+      } else {
+        coveredDepth += end - start;
+        start = nextStart;
+        end = nextEnd;
+      }
+    });
+    if (start !== null) coveredDepth += end - start;
+    area += (right - left) * coveredDepth;
+  }
+  return area;
+}
+
+function occupiedAreaCm2(shelf, predicate = () => true) {
+  const rects = shelf.packages.filter(item => !isDoorItem(item) && predicate(item)).map(packageRect);
+  return usableRegions(shelf).reduce((sum, region) => sum + unionAreaInBounds(rects, region), 0);
 }
 
 function freeAreaCm2(shelf) {
-  const total = (shelf.columns || 0) * (effectiveRowsForShelf(shelf) || shelf.rows || 0);
+  const total = usableRegions(shelf).reduce((sum, region) => sum + rectArea(region), 0);
   return Math.max(0, total - occupiedAreaCm2(shelf));
 }
 
@@ -662,17 +817,52 @@ function zoneAreaCm2(shelf) {
   return occupiedAreaCm2(shelf, isZoneItem);
 }
 
+function totalCapacityCm3(shelf) {
+  return usableRegions(shelf).reduce((sum, region) => sum + (rectArea(region) * region.maxHeight), 0);
+}
+
+function occupiedVolumeCm3(shelf) {
+  const zones = shelf.packages.filter(item => isZoneItem(item));
+  const zoneRects = zones.map(packageRect);
+  const zoneVolume = usableRegions(shelf).reduce((sum, region) => (
+    sum + (unionAreaInBounds(zoneRects, region) * region.maxHeight)
+  ), 0);
+  const itemVolume = shelf.packages
+    .filter(item => !isZoneItem(item) && !isDoorItem(item))
+    .reduce((sum, item) => {
+      const itemRect = packageRect(item);
+      const visibleArea = usableRegions(shelf).reduce((area, region) => {
+        const clippedItem = rectIntersection(region, itemRect);
+        if (!clippedItem) return area;
+        const coveredByZone = unionAreaInBounds(zoneRects, clippedItem);
+        return area + Math.max(0, rectArea(clippedItem) - coveredByZone);
+      }, 0);
+      return sum + (visibleArea * stackTotalHeightCm(item));
+    }, 0);
+  return Math.min(totalCapacityCm3(shelf), zoneVolume + itemVolume);
+}
+
+function freeVolumeCm3(shelf) {
+  return Math.max(0, totalCapacityCm3(shelf) - occupiedVolumeCm3(shelf));
+}
+
+function freePercent(shelves) {
+  const total = shelves.reduce((sum, shelf) => sum + totalCapacityCm3(shelf), 0);
+  const free = shelves.reduce((sum, shelf) => sum + freeVolumeCm3(shelf), 0);
+  return total ? (free / total) * 100 : 0;
+}
+
 function isStackedItem(item) {
   return stackCount(item) > 1 || String(item.note || '').toLowerCase().includes('gestap');
 }
 
 function normalizeDecimalInput(input) {
-  input.value = input.value.replace(',', '.');
+  input.value = input.value.replace(/\s/g, '');
 }
 
 function hasCompleteDecimalValue(input) {
   const value = input.value.trim();
-  return value !== '' && value !== '0' && value !== '.' && !value.endsWith('.');
+  return value !== '' && value !== '0' && value !== '.' && value !== ',' && !/[.,]$/.test(value);
 }
 
 function normalizeDecimalFields(...fields) {
@@ -746,7 +936,7 @@ function stackOverlapHeight(shelf, candidate, excludeId = '') {
   if (!shelf) return 0;
   const rect = draftRect(candidate);
   return shelf.packages
-    .filter(item => String(item.id) !== String(excludeId || '') && !isZoneItem(item) && rectsOverlap(rect, packageRect(item)))
+    .filter(item => String(item.id) !== String(excludeId || '') && !isZoneItem(item) && !isDoorItem(item) && rectsOverlap(rect, packageRect(item)))
     .reduce((sum, item) => sum + stackTotalHeightCm(item), 0);
 }
 
@@ -755,7 +945,7 @@ function overlappingNormalItems(shelf, candidate, excludeId = '') {
   const rect = draftRect(candidate);
   return shelf.packages.filter(item => (
     String(item.id) !== String(excludeId || '') &&
-    !isZoneItem(item) &&
+    !isZoneItem(item) && !isDoorItem(item) &&
     rectsOverlap(rect, packageRect(item))
   ));
 }
@@ -858,6 +1048,10 @@ function applyDraftSelection(shelf, draft) {
   els.shelfRows.value = inputCm(effectiveRowsForShelf(shelf));
   els.shelfColumns.value = inputCm(shelf.columns);
   setDraftFormValues(shelf, draft);
+  const currentSpecial = specialKind({ package_name: els.packageName.value, note: els.note.value });
+  if (currentSpecial && currentSpecial !== 'door') {
+    els.heightUnits.value = inputCm(maxStackHeightForShelf(shelf, draft));
+  }
   if (!els.packageName.value.trim()) {
     els.packageName.value = 'Item';
   }
@@ -878,9 +1072,9 @@ function selectCell(shelf, row, column, item) {
   els.shelfColumns.value = inputCm(shelf.columns);
   els.rowIndex.value = row;
   els.columnIndex.value = column;
-  els.widthUnits.value = item ? inputCm(item.width_units || 120) : 120;
-  els.depthUnits.value = item ? inputCm(item.depth_units || 80) : 80;
-  els.heightUnits.value = item ? inputCm(itemHeightCm(item)) : 45;
+  els.widthUnits.value = item ? inputCm(item.width_units || 120) : '1.200';
+  els.depthUnits.value = item ? inputCm(item.depth_units || 80) : '800';
+  els.heightUnits.value = item ? inputCm(itemHeightCm(item)) : '450';
   els.packageName.value = item ? item.package_name : '';
   els.quantity.value = item ? item.quantity : 1;
   els.note.value = item ? cleanHeightFromNote(item.note || '') : '';
@@ -901,9 +1095,9 @@ function clearPackageForm() {
   els.packageName.value = '';
   els.quantity.value = 1;
   els.note.value = '';
-  els.widthUnits.value = 120;
-  els.depthUnits.value = 80;
-  els.heightUnits.value = 45;
+  els.widthUnits.value = '1.200';
+  els.depthUnits.value = '800';
+  els.heightUnits.value = '450';
   els.formTitle.textContent = 'Add item';
   els.saveButton.textContent = 'Save item';
   els.deletePackageButton.classList.add('hidden');
@@ -961,8 +1155,8 @@ function clearPlaceForm() {
   els.placeParentId.value = '';
   els.placeLocationType.value = 'shelf';
   els.placeName.value = '';
-  els.placeRows.value = planPlaces.rack.rows;
-  els.placeColumns.value = 600;
+  els.placeRows.value = inputCm(planPlaces.rack.rows);
+  els.placeColumns.value = inputCm(600);
   els.placeNotes.value = '';
   els.savePlaceButton.textContent = 'Save area';
   els.cancelPlaceButton.classList.add('hidden');
@@ -981,9 +1175,9 @@ function visiblePlaceNotes(notes) {
 }
 
 function areaHeightLabel(shelf) {
-  if (placeKind(shelf) === 'floor') return 'max height 100 cm';
-  if (parentRackId(shelf)) return 'max height 65 cm';
-  return planPlaceRole(shelf) === 'rack' ? 'levels 65 cm · small 16 cm' : 'max height 65 cm';
+  if (placeKind(shelf) === 'floor') return 'max height 2.200 mm';
+  if (parentRackId(shelf)) return 'max height 650 mm';
+  return planPlaceRole(shelf) === 'rack' ? 'levels 650 mm · small 160 mm' : 'max height 650 mm';
 }
 
 async function deletePackage(id) {
@@ -1008,8 +1202,10 @@ function render() {
   const shelfPlaces = appState.shelves.filter(shelf => placeKind(shelf) === 'shelf');
   const visibleShelves = appState.shelves;
   const freeArea = totalFreeArea(visibleShelves);
+  const freeVolume = totalFreeVolume(visibleShelves);
+  const percentFree = freePercent(visibleShelves);
   els.summaryText.textContent = visibleShelves.length
-    ? `${formatAreaCm2(freeArea)} free area across ${visibleShelves.length} area(s).`
+    ? `${formatAreaCm2(freeArea)} footprint · ${formatVolumeCm3(freeVolume)} true free volume · ${formatNumber(percentFree, 1)}% free across ${visibleShelves.length} area(s).`
     : 'No areas have been created yet.';
 
   renderOverview(
@@ -1020,6 +1216,57 @@ function render() {
   renderModel3d(visibleShelves);
   renderPlanDrawing(shelfPlaces, floorPlaces);
   renderPlaces();
+  renderFitFinder();
+}
+
+function renderFitFinder() {
+  if (!els.fitFinderForm || !els.fitResults) return;
+  els.fitFinderForm.classList.toggle('hidden', !appState.fitFinder.open);
+  els.toggleFitFinderButton.textContent = appState.fitFinder.open ? 'Close size search' : 'Enter element size';
+  els.fitResults.classList.toggle('hidden', !appState.fitFinder.searched);
+  els.fitResults.innerHTML = '';
+  if (!appState.fitFinder.searched) return;
+  if (!appState.fitFinder.matches.length) {
+    els.fitResults.innerHTML = '<p class="fit-empty">No current area has a completely free position for this size.</p>';
+    return;
+  }
+  const intro = document.createElement('p');
+  intro.className = 'fit-result-intro';
+  intro.textContent = `${appState.fitFinder.matches.length} matching position(s). Click one to open the area with an unsaved random placement.`;
+  els.fitResults.append(intro);
+  appState.fitFinder.matches.forEach(match => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'fit-result';
+    button.innerHTML = `
+      <span>${escapeHtml(displayAreaName(match.shelf.label || match.shelf.name))}${match.levelLabel ? ` · ${escapeHtml(match.levelLabel)}` : ''}</span>
+      <strong>${formatSizeCm(match.draft.width, match.draft.depth)} · max h ${formatNumber(maxStackHeightForShelf(match.shelf, match.draft) * 10)} mm</strong>
+      <small>Open with random unsaved placement →</small>
+    `;
+    button.addEventListener('click', () => openFitMatch(match));
+    els.fitResults.append(button);
+  });
+}
+
+function openFitMatch(match) {
+  const width = cmInputToCm(els.fitWidth.value, 120);
+  const depth = cmInputToCm(els.fitDepth.value, 80);
+  const height = cmInputToCm(els.fitHeight.value, 45);
+  const range = match.level
+    ? rackLevelRange(match.shelf, match.level)
+    : { xStart: 1, xEnd: match.shelf.columns, start: 1, end: match.shelf.rows, width: match.shelf.columns, height: match.shelf.rows };
+  const draft = randomFreeDraft(match.shelf, range, { width, depth, height }) || match.draft;
+  clearPackageForm();
+  els.widthUnits.value = inputCm(width);
+  els.depthUnits.value = inputCm(depth);
+  els.heightUnits.value = inputCm(height);
+  els.packageName.value = 'Unsaved element';
+  appState.activeAreaId = match.shelf.id;
+  appState.activePlanRole = planPlaceRole(match.shelf) || 'other';
+  if (match.level) appState.activeRackLevel = match.level;
+  applyDraftSelection(match.shelf, draft);
+  render();
+  window.requestAnimationFrame(() => document.querySelector('.plan-slot')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
 }
 
 function isNearSize(shelf, role) {
@@ -1061,8 +1308,8 @@ function defaultPlacePayload(role) {
   return {
     locationType: role === 'rack' ? 'shelf' : 'floor',
     name: place.title,
-    rows: cmInputToMeters(place.rows, place.rows),
-    columns: cmInputToMeters(place.columns, place.columns),
+    rows: internalCmToMeters(place.rows, place.rows),
+    columns: internalCmToMeters(place.columns, place.columns),
     notes: place.notes
   };
 }
@@ -1306,7 +1553,7 @@ function renderRackTools(shelf, level) {
   tools.className = 'rack-tools';
   const measurement = activeMeasurement(shelf, level);
   tools.append(renderMeasureButton(shelf, level, 'line', 'Measure', measurement));
-  tools.append(renderMeasureButton(shelf, level, 'area', 'cm2', measurement));
+  tools.append(renderMeasureButton(shelf, level, 'area', 'mm²', measurement));
 
   const label = document.createElement('span');
   label.className = 'measure-status';
@@ -1326,7 +1573,7 @@ function renderPlaceTools(shelf) {
   tools.className = 'rack-tools';
   const measurement = activeMeasurement(shelf);
   tools.append(renderMeasureButton(shelf, null, 'line', 'Measure', measurement));
-  tools.append(renderMeasureButton(shelf, null, 'area', 'cm2', measurement));
+  tools.append(renderMeasureButton(shelf, null, 'area', 'mm²', measurement));
 
   const label = document.createElement('span');
   label.className = 'measure-status';
@@ -1388,15 +1635,20 @@ function renderRackLevelDetail(shelf, level) {
     rectangle.classList.toggle('compact-label', !rackPackageLabelFits(visibleWidth, visibleDepth));
     rectangle.classList.toggle('blocked-zone', isBlockedItem(displayItem));
     rectangle.classList.toggle('reserve-zone', isYellowZone(displayItem));
+    rectangle.classList.toggle('column-element', specialKind(displayItem) === 'column');
+    rectangle.classList.toggle('corridor-element', specialKind(displayItem) === 'corridor');
+    rectangle.classList.toggle('door-element', isDoorItem(displayItem));
+    if (isDoorItem(displayItem)) rectangle.classList.add(`door-${doorSide(displayItem, shelf)}`);
     rectangle.classList.toggle('stacked-zone', isStackedItem(displayItem));
     rectangle.classList.toggle('overlapping-item', renderedPackages.some(previous => (
-      !isZoneItem(previous) && !isZoneItem(displayItem) && rectsOverlap(packageRect(previous), packageRect(displayItem))
+      !isZoneItem(previous) && !isDoorItem(previous) && !isZoneItem(displayItem) && !isDoorItem(displayItem) && rectsOverlap(packageRect(previous), packageRect(displayItem))
     )));
     rectangle.type = 'button';
     rectangle.style.left = `${((clippedLeft - range.xStart) / range.width) * 100}%`;
     rectangle.style.top = `${((clippedTop - range.start) / range.height) * 100}%`;
     rectangle.style.width = `${(visibleWidth / range.width) * 100}%`;
     rectangle.style.height = `${(visibleDepth / range.height) * 100}%`;
+    placeDoorOutside(rectangle, displayItem, shelf);
     rectangle.dataset.tooltip = packageTooltip(displayItem);
     rectangle.setAttribute('aria-label', item.package_name);
     rectangle.innerHTML = packageHtml(displayItem, selectedPackage);
@@ -1671,15 +1923,20 @@ function renderPlaceCanvas(shelf, kind, role = planRole(shelf)) {
     rectangle.className = `package-rect ${selectedPackage ? 'selected' : ''}`;
     rectangle.classList.toggle('blocked-zone', isBlockedItem(displayItem));
     rectangle.classList.toggle('reserve-zone', isYellowZone(displayItem));
+    rectangle.classList.toggle('column-element', specialKind(displayItem) === 'column');
+    rectangle.classList.toggle('corridor-element', specialKind(displayItem) === 'corridor');
+    rectangle.classList.toggle('door-element', isDoorItem(displayItem));
+    if (isDoorItem(displayItem)) rectangle.classList.add(`door-${doorSide(displayItem, shelf)}`);
     rectangle.classList.toggle('stacked-zone', isStackedItem(displayItem));
     rectangle.classList.toggle('overlapping-item', renderedPackages.some(previous => (
-      !isZoneItem(previous) && !isZoneItem(displayItem) && rectsOverlap(packageRect(previous), packageRect(displayItem))
+      !isZoneItem(previous) && !isDoorItem(previous) && !isZoneItem(displayItem) && !isDoorItem(displayItem) && rectsOverlap(packageRect(previous), packageRect(displayItem))
     )));
     rectangle.type = 'button';
     rectangle.style.left = `${((displayItem.column_index - 1) / shelf.columns) * 100}%`;
     rectangle.style.top = `${((displayItem.row_index - 1) / shelf.rows) * 100}%`;
     rectangle.style.width = `${((displayItem.width_units || 1) / shelf.columns) * 100}%`;
     rectangle.style.height = `${((displayItem.depth_units || 1) / shelf.rows) * 100}%`;
+    placeDoorOutside(rectangle, displayItem, shelf);
     rectangle.dataset.tooltip = packageTooltip(displayItem);
     rectangle.setAttribute('aria-label', item.package_name);
     rectangle.innerHTML = packageHtml(displayItem, selectedPackage);
@@ -1710,7 +1967,7 @@ function renderPlaceCanvas(shelf, kind, role = planRole(shelf)) {
 
 function selectOverlappingItem(shelf, clickedItem, previouslyRendered) {
   const overlapping = previouslyRendered
-    .filter(item => String(item.id) !== String(clickedItem.id) && !isZoneItem(item) && rectsOverlap(packageRect(item), packageRect(clickedItem)))
+    .filter(item => String(item.id) !== String(clickedItem.id) && !isZoneItem(item) && !isDoorItem(item) && rectsOverlap(packageRect(item), packageRect(clickedItem)))
     .reverse();
   const choices = [clickedItem, ...overlapping];
   const selectedId = els.packageId.value;
@@ -1720,7 +1977,7 @@ function selectOverlappingItem(shelf, clickedItem, previouslyRendered) {
 }
 
 function findFloorStackGroups(shelf) {
-  const packages = (shelf.packages || []).filter(item => !isZoneItem(item));
+  const packages = (shelf.packages || []).filter(item => !isZoneItem(item) && !isDoorItem(item));
   const groups = [];
   const seen = new Set();
 
@@ -1767,9 +2024,9 @@ function renderFloorStackGroup(canvas, shelf, group) {
   button.setAttribute('aria-label', group.map(item => item.package_name).join(', '));
   const totalHeight = group.reduce((sum, item) => sum + stackTotalHeightCm(item), 0);
   button.innerHTML = `
-    <span class="measure">${formatSizeCm(rect.width, rect.depth)} · h ${formatCm(totalHeight)} cm</span>
+    <span class="measure">${formatSizeCm(rect.width, rect.depth)} · h ${formatNumber(totalHeight * 10)} mm</span>
     <span class="pkg">${group.map(item => escapeHtml(item.package_name)).join('<br>')}</span>
-    <span class="note">${group.map(item => `${escapeHtml(stackCount(item))}x ${formatCm(stackTotalHeightCm(item))} cm`).join(' · ')}</span>
+    <span class="note">${group.map(item => `${escapeHtml(stackCount(item))}x ${formatNumber(stackTotalHeightCm(item) * 10)} mm`).join(' · ')}</span>
   `;
   button.addEventListener('click', () => {
     const first = group[0];
@@ -1793,9 +2050,9 @@ function renderDimensionLabels(shelf, kind, role = planRole(shelf)) {
   const labels = document.createElement('div');
   labels.className = 'dimension-labels';
   labels.innerHTML = `
-    <span class="dim dim-top">${formatCm(shelf.columns)} cm</span>
-    <span class="dim dim-left">${formatCm(shelf.rows)} cm</span>
-    ${kind === 'shelf' ? '<span class="dim dim-bays">600 cm length</span>' : ''}
+    <span class="dim dim-top">${formatNumber(shelf.columns * 10)} mm</span>
+    <span class="dim dim-left">${formatNumber(shelf.rows * 10)} mm</span>
+    ${kind === 'shelf' ? '<span class="dim dim-bays">6.000 mm length</span>' : ''}
   `;
   return labels;
 }
@@ -2096,12 +2353,12 @@ async function movePackage(shelf, item, draft) {
     packageId: item.id,
     locationType: placeKind(shelf),
     shelfName: shelf.name,
-    shelfRows: cmInputToMeters(savingShelf.rows, savingShelf.rows),
-    shelfColumns: cmInputToMeters(savingShelf.columns, savingShelf.columns),
+    shelfRows: internalCmToMeters(savingShelf.rows, savingShelf.rows),
+    shelfColumns: internalCmToMeters(savingShelf.columns, savingShelf.columns),
     rowIndex: draft.row,
     columnIndex: draft.column,
-    widthUnits: cmInputToMeters(item.width_units || 1, item.width_units || 1),
-    depthUnits: cmInputToMeters(item.depth_units || 1, item.depth_units || 1),
+    widthUnits: internalCmToMeters(item.width_units || 1, item.width_units || 1),
+    depthUnits: internalCmToMeters(item.depth_units || 1, item.depth_units || 1),
     heightUnits: itemHeightCm(item),
     packageName: item.package_name,
     quantity: item.quantity,
@@ -2196,7 +2453,7 @@ function model3dDisplayShelf(shelf) {
     columns: 600,
     packages: modelPackages,
     modelHeightCm: 211,
-    modelDimensionLabel: '600 x 90 cm · 3 levels x 65 cm · small rack below bottom-right 150 x 90 x 16 cm',
+    modelDimensionLabel: '6.000 x 900 mm · 3 levels x 650 mm · small rack below bottom-right 1.500 x 900 x 160 mm',
     modelIsRackLevel: true,
     modelShowsAllLevels: true,
     notes: 'Complete rack'
@@ -2219,7 +2476,7 @@ function modelHeightSummary(shelf) {
   if (shelf.modelIsRackLevel) {
     return shelf.modelDimensionLabel;
   }
-  return 'max height 220 cm';
+  return 'max height 2.200 mm';
 }
 
 function modelViewState(id) {
@@ -2406,16 +2663,24 @@ function createThreeAreaScene(viewport, shelf, view) {
 
 function renderThreeItem(root, item, scale, heightScale, widthCm, depthCm, options = {}) {
   const zone = zoneKind(item);
-  const count = zone ? 1 : Math.min(stackCount(item), 12);
-  const height = zone ? 3 : itemHeightCm(item);
+  const kind = specialKind(item);
+  const count = zone || kind === 'door' ? 1 : Math.min(stackCount(item), 12);
+  const height = kind === 'column' ? itemHeightCm(item) : kind === 'door' ? 210 : zone ? 3 : itemHeightCm(item);
   const baseHeight = Math.max(0, options.baseHeightCm || 0) * heightScale;
   const boxWidth = Math.max(0.06, (item.width_units || 1) * scale);
   const boxDepth = Math.max(0.06, (item.depth_units || 1) * scale);
   const layerHeight = Math.max(0.06, height * heightScale);
-  const x = (((item.column_index || 1) - 1) + ((item.width_units || 1) / 2) - (widthCm / 2)) * scale;
-  const z = (((item.row_index || 1) - 1) + ((item.depth_units || 1) / 2) - (depthCm / 2)) * scale;
-  const color = zone === 'red' ? 0xea8a96 : zone === 'yellow' ? 0xf2d16d : 0xe6a447;
-  const opacity = zone ? 0.65 : options.rackItem ? 0.9 : 1;
+  let x = (((item.column_index || 1) - 1) + ((item.width_units || 1) / 2) - (widthCm / 2)) * scale;
+  let z = (((item.row_index || 1) - 1) + ((item.depth_units || 1) / 2) - (depthCm / 2)) * scale;
+  if (kind === 'door') {
+    const side = doorSide(item, { columns: widthCm, rows: depthCm });
+    if (side === 'left') x = (-widthCm / 2 - 5) * scale;
+    if (side === 'right') x = (widthCm / 2 + 5) * scale;
+    if (side === 'top') z = (-depthCm / 2 - 5) * scale;
+    if (side === 'bottom') z = (depthCm / 2 + 5) * scale;
+  }
+  const color = kind === 'door' ? 0xb7793e : kind === 'column' ? 0x9f2331 : zone === 'red' ? 0xea8a96 : zone === 'yellow' ? 0xf2d16d : 0xe6a447;
+  const opacity = zone && kind !== 'column' ? 0.65 : options.rackItem ? 0.9 : 1;
   const material = new THREE.MeshStandardMaterial({
     color,
     roughness: 0.64,
@@ -2426,7 +2691,10 @@ function renderThreeItem(root, item, scale, heightScale, widthCm, depthCm, optio
   const edgeMaterial = new THREE.LineBasicMaterial({ color: zone === 'red' ? 0x9f2331 : 0x5f4327, transparent: true, opacity: 0.55 });
 
   for (let index = 0; index < count; index += 1) {
-    const mesh = new THREE.Mesh(new THREE.BoxGeometry(boxWidth, layerHeight, boxDepth), material);
+    const geometry = kind === 'column'
+      ? new THREE.CylinderGeometry(Math.min(boxWidth, boxDepth) / 2, Math.min(boxWidth, boxDepth) / 2, layerHeight, 24)
+      : new THREE.BoxGeometry(boxWidth, layerHeight, boxDepth);
+    const mesh = new THREE.Mesh(geometry, material);
     mesh.position.set(x, baseHeight + (layerHeight / 2) + (index * layerHeight), z);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
@@ -2444,15 +2712,15 @@ function buildModel3dLabels(shelf) {
   labels.innerHTML = `
     <span class="model3d-area-label">${escapeHtml(displayAreaName(shelf.label || shelf.name))}</span>
     ${shelf.modelShowsAllLevels ? `
-      <span>Level 1 · 16–81 cm</span>
-      <span>Level 2 · 81–146 cm</span>
-      <span>Level 3 · 146–211 cm</span>
-      <span>Small rack · below bottom-right · 0–16 cm</span>
+      <span>Level 1 · 160–810 mm</span>
+      <span>Level 2 · 810–1.460 mm</span>
+      <span>Level 3 · 1.460–2.110 mm</span>
+      <span>Small rack · below bottom-right · 0–160 mm</span>
     ` : ''}
     ${(shelf.packages || []).slice(0, 10).map(item => `
       <span class="${zoneKind(item) ? 'zone-label' : ''}">
         ${escapeHtml(item.package_name)}
-        ${zoneKind(item) ? escapeHtml(zoneKind(item)) : `${formatCm(stackTotalHeightCm(item))} cm`}
+        ${zoneKind(item) ? escapeHtml(specialKind(item)) : `${formatNumber(stackTotalHeightCm(item) * 10)} mm`}
       </span>
     `).join('')}
   `;
@@ -2655,14 +2923,18 @@ function startSubRackCreation(parent) {
 
 function renderOverview(shelves, shelfPlaces, floorPlaces) {
   const freeArea = totalFreeArea(shelves);
+  const freeVolume = totalFreeVolume(shelves);
+  const percent = freePercent(shelves);
   const usedArea = shelves.reduce((sum, shelf) => sum + itemAreaCm2(shelf), 0);
   const zoneArea = shelves.reduce((sum, shelf) => sum + zoneAreaCm2(shelf), 0);
   const stackedCount = shelves.reduce((sum, shelf) => sum + shelf.packages.filter(isStackedItem).length, 0);
   const cards = [
-    ['Free area', formatAreaCm2(freeArea), 'available floor/rack footprint'],
+    ['Free footprint', formatAreaCm2(freeArea), 'available floor/rack footprint'],
+    ['Free volume', formatVolumeCm3(freeVolume), 'width × depth × actually usable height'],
+    ['Free', `${formatNumber(percent, 1)}%`, 'share of all usable storage volume'],
     ['Item area', formatAreaCm2(usedArea), 'normal items only'],
-    ['Zone area', formatAreaCm2(zoneArea), 'red and yellow subtracted from free area'],
-    ['Floor areas', floorPlaces.length, 'regular floor storage areas']
+    ['Zone area', formatAreaCm2(zoneArea), 'red, yellow, columns and corridors'],
+    ['Floor areas', formatNumber(floorPlaces.length), 'regular floor storage areas']
   ];
 
   cards.forEach(([label, value, hint]) => {
@@ -2682,7 +2954,7 @@ function renderOverview(shelves, shelfPlaces, floorPlaces) {
 
 function renderWarehouseMap(shelfPlaces, floorPlaces) {
   const zones = [
-    ['Rack 600 x 450', shelfPlaces],
+    ['Rack 6.000 x 4.500 mm', shelfPlaces],
     ['Floor area 1', floorPlaces.slice(0, 1)],
     ['Floor area 2', floorPlaces.slice(1)]
   ];
@@ -2692,11 +2964,11 @@ function renderWarehouseMap(shelfPlaces, floorPlaces) {
     zone.className = `map-zone ${places.length ? '' : 'empty-zone'}`;
     zone.type = 'button';
     const free = totalFreeArea(places);
-    const total = places.reduce((sum, shelf) => sum + ((shelf.columns || 0) * (effectiveRowsForShelf(shelf) || shelf.rows || 0)), 0);
-    const usedPercent = total ? Math.round(((total - free) / total) * 100) : 0;
+    const percent = freePercent(places);
+    const usedPercent = 100 - percent;
     zone.innerHTML = `
       <span>${escapeHtml(label)}</span>
-      <strong>${places.length ? `${formatAreaCm2(free)} free` : 'available for planning'}</strong>
+      <strong>${places.length ? `${formatAreaCm2(free)} · ${formatNumber(percent, 1)}% free` : 'available for planning'}</strong>
       <i class="zone-meter" aria-hidden="true"><b style="width: ${usedPercent}%"></b></i>
     `;
     els.warehouseMap.append(zone);
@@ -2722,13 +2994,14 @@ function setupPresetButton(button) {
 
 function packageHtml(item, selected = false) {
   const zone = zoneKind(item);
+  const kind = specialKind(item);
   const count = stackCount(item);
   const height = itemHeightCm(item);
   const note = displayItemNote(item.note || '');
   return `
-    <span class="measure">${formatSizeCm(item.width_units || 1, item.depth_units || 1)} · h ${formatCm(count * height)} cm</span>
+    <span class="measure">${formatSizeCm(item.width_units || 1, item.depth_units || 1)} · h ${formatNumber(count * height * 10)} mm</span>
     <span class="pkg">${escapeHtml(item.package_name)}</span>
-    <span class="note">${zone ? `${zone} zone, no item area` : `${escapeHtml(count)}x stacked${note ? ` · ${escapeHtml(note)}` : ''}`}</span>
+    <span class="note">${kind === 'door' ? 'visual marker · outside area · no space deducted' : zone ? `${escapeHtml(kind)} · full available height` : `${escapeHtml(count)}x stacked${note ? ` · ${escapeHtml(note)}` : ''}`}</span>
     ${selected ? draftMarkerHtml({
       width: item.width_units || 1,
       depth: item.depth_units || 1
@@ -2764,16 +3037,21 @@ async function submitPackage(event) {
   const selectedShelf = appState.selected?.shelf;
   if (selectedShelf?.id) payload.shelfId = selectedShelf.id;
   const payloadZone = zoneKind({ package_name: payload.packageName, note: payload.note });
-  const height = cmInputToCm(payload.heightUnits, 45);
+  const payloadSpecial = specialKind({ package_name: payload.packageName, note: payload.note });
+  let height = cmInputToCm(payload.heightUnits, 45);
   const quantity = stackCount(payload.quantity);
   const totalHeight = height * quantity;
   const candidateRect = {
-    row: cmInputToCm(payload.rowIndex, 1),
-    column: cmInputToCm(payload.columnIndex, 1),
+    row: internalCm(payload.rowIndex, 1),
+    column: internalCm(payload.columnIndex, 1),
     width: cmInputToCm(payload.widthUnits, 100),
     depth: cmInputToCm(payload.depthUnits, 100)
   };
-  if (selectedShelf && payloadZone !== 'red' && touchesForbiddenArea(selectedShelf, {
+  if (selectedShelf && payloadZone) {
+    height = maxStackHeightForShelf(selectedShelf, candidateRect);
+    payload.heightUnits = inputCm(height);
+  }
+  if (selectedShelf && payloadSpecial !== 'door' && payloadZone !== 'red' && touchesForbiddenArea(selectedShelf, {
     row: candidateRect.row,
     column: candidateRect.column,
     width: candidateRect.width,
@@ -2782,7 +3060,7 @@ async function submitPackage(event) {
     showMessage('This red zone is blocked. Do not place items there.', 'error');
     return;
   }
-  if (selectedShelf && !payloadZone) {
+  if (selectedShelf && !payloadZone && payloadSpecial !== 'door') {
     const maxHeight = maxStackHeightForShelf(selectedShelf, {
       row: candidateRect.row,
       column: candidateRect.column
@@ -2790,7 +3068,7 @@ async function submitPackage(event) {
     const existingOverlapHeight = stackOverlapHeight(selectedShelf, candidateRect, payload.packageId);
     const combinedHeight = totalHeight + existingOverlapHeight;
     if (combinedHeight > maxHeight) {
-      showMessage(`Stack is too high: ${formatCm(combinedHeight)} cm total, max ${formatCm(maxHeight)} cm here.`, 'error');
+      showMessage(`Stack is too high: ${formatNumber(combinedHeight * 10)} mm total, max ${formatNumber(maxHeight * 10)} mm here.`, 'error');
       return;
     }
     const overlappingItems = overlappingNormalItems(selectedShelf, candidateRect, payload.packageId);
@@ -2801,7 +3079,9 @@ async function submitPackage(event) {
     }
   }
   payload.quantity = quantity;
-  payload.note = payloadZone ? cleanHeightFromNote(payload.note) : noteWithHeight(payload.note, height);
+  payload.note = payloadSpecial === 'door'
+    ? cleanHeightFromNote(payload.note)
+    : noteWithHeight(payload.note, height);
   payload.shelfRows = cmInputToMeters(payload.shelfRows, planPlaces.rack.rows);
   payload.shelfColumns = cmInputToMeters(payload.shelfColumns, 600);
   payload.widthUnits = cmInputToMeters(payload.widthUnits, 100);
@@ -2929,6 +3209,27 @@ els.view3dButton?.addEventListener('click', () => {
   render();
 });
 
+els.toggleFitFinderButton?.addEventListener('click', () => {
+  appState.fitFinder.open = !appState.fitFinder.open;
+  renderFitFinder();
+  if (appState.fitFinder.open) els.fitWidth.focus();
+});
+
+els.fitFinderForm?.addEventListener('submit', event => {
+  event.preventDefault();
+  const size = {
+    width: cmInputToCm(els.fitWidth.value, 120),
+    depth: cmInputToCm(els.fitDepth.value, 80),
+    height: cmInputToCm(els.fitHeight.value, 45)
+  };
+  els.fitWidth.value = inputCm(size.width);
+  els.fitDepth.value = inputCm(size.depth);
+  els.fitHeight.value = inputCm(size.height);
+  appState.fitFinder.searched = true;
+  appState.fitFinder.matches = fitMatches(size);
+  renderFitFinder();
+});
+
 if (els.defaultPlanButton) {
   els.defaultPlanButton.addEventListener('click', () => {
     createDefaultPlanPlaces().catch(error => showMessage(error.message, 'error'));
@@ -2978,9 +3279,9 @@ document.querySelectorAll('[data-preset]').forEach(button => {
   setupPresetButton(button);
   button.addEventListener('click', () => {
     const [width, depth, height, name, quantity, note = ''] = button.dataset.preset.split('|');
-    els.widthUnits.value = width;
-    els.depthUnits.value = depth;
-    els.heightUnits.value = height && height !== '0' ? height : 1;
+    els.widthUnits.value = formatNumber(numberValue(width, 1200));
+    els.depthUnits.value = formatNumber(numberValue(depth, 800));
+    els.heightUnits.value = formatNumber(numberValue(height, 450));
     els.packageName.value = name;
     els.quantity.value = quantity;
     els.note.value = note;
@@ -2995,10 +3296,33 @@ document.querySelectorAll('[data-zone-kind]').forEach(button => {
     <span class="preset-label">${escapeHtml(button.textContent.trim())}</span>
   `;
   button.addEventListener('click', () => {
-    const kind = button.dataset.zoneKind === 'yellow' ? 'yellow' : 'red';
-    els.packageName.value = kind === 'red' ? 'Red no-place zone' : 'Yellow reserve zone';
+    const kind = button.dataset.zoneKind;
+    const definitions = {
+      red: ['Red no-place zone', 'zone:red'],
+      yellow: ['Yellow reserve zone', 'zone:yellow'],
+      column: ['Column', 'element:column, zone:red'],
+      corridor: ['Corridor', 'element:corridor, zone:yellow'],
+      door: ['Door outside area', 'element:door']
+    };
+    const [name, note] = definitions[kind] || definitions.red;
+    els.packageName.value = name;
     els.quantity.value = 1;
-    els.note.value = `zone:${kind}`;
+    els.note.value = note;
+    if (kind === 'column') {
+      els.widthUnits.value = '300';
+      els.depthUnits.value = '300';
+    }
+    if (kind === 'corridor') {
+      els.widthUnits.value = '1.200';
+      els.depthUnits.value = '1.000';
+    }
+    if (appState.selected?.shelf && kind !== 'door') {
+      els.heightUnits.value = inputCm(maxStackHeightForShelf(appState.selected.shelf, selectedDraft() || appState.selected));
+    } else if (kind === 'door') {
+      els.widthUnits.value = '900';
+      els.depthUnits.value = '100';
+      els.heightUnits.value = '2.100';
+    }
     updateDraftFromSizeInputs();
   });
 });
@@ -3009,15 +3333,15 @@ document.querySelectorAll('[data-place-preset]').forEach(button => {
     els.placeId.value = '';
     els.placeName.value = name;
     els.placeLocationType.value = type;
-    els.placeRows.value = rows;
-    els.placeColumns.value = columns;
+    els.placeRows.value = formatNumber(numberValue(rows, 4500));
+    els.placeColumns.value = formatNumber(numberValue(columns, 6000));
     els.placeNotes.value = notes;
     els.savePlaceButton.textContent = 'Save area';
     els.cancelPlaceButton.classList.add('hidden');
   });
 });
 
-[els.shelfRows, els.shelfColumns, els.widthUnits, els.depthUnits, els.heightUnits, els.placeRows, els.placeColumns].forEach(input => {
+[els.shelfRows, els.shelfColumns, els.widthUnits, els.depthUnits, els.heightUnits, els.placeRows, els.placeColumns, els.fitWidth, els.fitDepth, els.fitHeight].filter(Boolean).forEach(input => {
   input.addEventListener('input', () => normalizeDecimalInput(input));
 });
 els.widthUnits.addEventListener('input', updateDraftFromSizeInputs);

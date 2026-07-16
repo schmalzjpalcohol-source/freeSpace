@@ -20,9 +20,15 @@ function metersToCm(value, fallbackMeters, maxMeters = 1000) {
 
 function zoneKind(item) {
   const text = `${item.package_name || ''} ${item.note || ''}`.toLowerCase();
-  if (text.includes('zone:red') || text.includes('red no-place') || text.includes('blocked') || text.includes('rot') || text.includes('verbot') || text.includes('nicht abstellen')) return 'red';
-  if (text.includes('zone:yellow') || text.includes('yellow reserve') || text.includes('gelb') || text.includes('reserve')) return 'yellow';
+  if (text.includes('element:door') || text.includes('door outside')) return '';
+  if (text.includes('element:column') || text.includes('column') || text.includes('zone:red') || text.includes('red no-place') || text.includes('blocked') || text.includes('rot') || text.includes('verbot') || text.includes('nicht abstellen')) return 'red';
+  if (text.includes('element:corridor') || text.includes('corridor') || text.includes('zone:yellow') || text.includes('yellow reserve') || text.includes('gelb') || text.includes('reserve')) return 'yellow';
   return '';
+}
+
+function isDoor(item) {
+  const text = `${item.package_name || ''} ${item.note || ''}`.toLowerCase();
+  return text.includes('element:door') || text.includes('door outside');
 }
 
 function placePayload(body) {
@@ -81,9 +87,9 @@ module.exports = async function handler(req, res) {
       const enriched = places.map(place => {
         const placePackages = packages.filter(item => item.shelf_id === place.id);
         const usedPlaces = placePackages
-          .filter(item => !zoneKind(item))
+          .filter(item => !zoneKind(item) && !isDoor(item))
           .reduce((sum, item) => sum + (item.width_units || 1) * (item.depth_units || 1), 0);
-        const unavailablePlaces = placePackages.reduce((sum, item) => sum + (item.width_units || 1) * (item.depth_units || 1), 0);
+        const unavailablePlaces = placePackages.filter(item => !isDoor(item)).reduce((sum, item) => sum + (item.width_units || 1) * (item.depth_units || 1), 0);
         const totalPlaces = place.rows * place.columns;
         return {
           ...place,
