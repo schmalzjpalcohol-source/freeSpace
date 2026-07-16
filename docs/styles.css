@@ -1043,12 +1043,12 @@ select:hover {
 
 .plan-slot.floor-main,
 .plan-slot.floor-long {
-  padding: 28px 44px 52px 58px;
+  padding: 36px 54px 86px 68px;
 }
 
 .plan-slot.rack {
   overflow: visible;
-  padding-bottom: 18px;
+  padding-bottom: 66px;
 }
 
 .plan-meta {
@@ -1157,7 +1157,7 @@ select:hover {
   height: clamp(240px, 34vw, 380px);
   min-height: clamp(240px, 34vw, 380px);
   aspect-ratio: auto !important;
-  margin-top: 24px;
+  margin-top: 58px;
   margin-left: 34px;
   background-size: 48px 48px;
 }
@@ -1302,7 +1302,7 @@ select:hover {
 
 .floor-canvas {
   width: calc(100% - 34px);
-  margin-top: 32px;
+  margin-top: 64px;
   margin-left: 34px;
 }
 
@@ -1501,55 +1501,15 @@ select:hover {
 .package-rect.door-visual,
 .draft-marker.door-visual {
   z-index: 6;
-  min-width: 34px;
-  min-height: 34px;
-  border: 0;
-  border-radius: 0;
+  min-width: 0;
+  min-height: 0;
+  border: 2px solid #000;
+  border-radius: 6px;
   padding: 0;
-  background: transparent;
-  color: #392614;
-  box-shadow: none;
+  background: #151515;
+  color: #fff;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.24);
   overflow: visible;
-}
-
-.door-icon {
-  display: none;
-}
-
-.door-visual > .door-icon {
-  display: block;
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 32px;
-  height: 32px;
-  filter: drop-shadow(0 3px 4px rgba(57, 38, 20, 0.24));
-  transform: translate(-50%, -50%);
-  transform-origin: center;
-  pointer-events: none;
-}
-
-.door-visual.door-flipped > .door-icon {
-  transform: translate(-50%, -50%) scaleX(-1);
-}
-
-.door-icon svg {
-  display: block;
-  width: 100%;
-  height: 100%;
-}
-
-.door-icon-frame { fill: #4b3624; }
-.door-icon-panel { fill: #b7793e; }
-.door-icon-detail {
-  fill: none;
-  stroke: #e4bd8a;
-  stroke-width: 1.2;
-}
-.door-icon-knob { fill: #f5dfb7; }
-
-.door-visual.selected > .door-icon {
-  filter: drop-shadow(0 0 4px rgba(15, 118, 110, 0.8));
 }
 
 .door-visual.door-top { transform: translateY(calc(-100% - 16px)); }
@@ -1883,9 +1843,9 @@ select:hover {
 }
 
 .draft-marker.door-visual {
-  border: 0;
-  border-radius: 0;
-  background: transparent;
+  border: 2px solid #000;
+  border-radius: 6px;
+  background: #151515;
 }
 
 .draft-marker .draft-size {
@@ -2210,24 +2170,15 @@ select:hover {
 }
 
 .door-preset .preset-preview i {
-  position: relative;
-  width: 30px;
-  height: 22px;
-  border: 3px solid #4b3624;
-  border-bottom-width: 1px;
-  border-radius: 2px 2px 9px 2px;
-  background: linear-gradient(90deg, #d9aa6c, #f3d3a8);
+  width: 34px;
+  height: 12px;
+  border: 2px solid #000;
+  border-radius: 4px;
+  background: #151515;
 }
 
 .door-preset .preset-preview i::after {
-  content: "";
-  position: absolute;
-  right: 3px;
-  top: 9px;
-  width: 3px;
-  height: 3px;
-  border-radius: 50%;
-  background: #3b2a1c;
+  content: none;
 }
 
 .preset-label {
@@ -2246,6 +2197,36 @@ select:hover {
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 8px;
+}
+
+.door-side-controls {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+}
+
+.door-side-controls > span {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.door-side-controls > div {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.door-side-controls button {
+  min-width: 0;
+  min-height: 34px;
+  padding: 5px;
+}
+
+.door-side-controls button.active {
+  border-color: #111;
+  background: #111;
+  color: #fff;
 }
 
 .place-view {
@@ -2439,7 +2420,7 @@ select:hover {
   .plan-slot,
   .plan-slot.floor-main,
   .plan-slot.floor-long {
-    padding: 22px 28px 34px 42px;
+    padding: 34px 34px 66px 44px;
   }
 
   .shelf-meta {

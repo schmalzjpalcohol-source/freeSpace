@@ -52,7 +52,7 @@ const els = {
   note: document.querySelector('#note'),
   saveButton: document.querySelector('#saveButton'),
   deletePackageButton: document.querySelector('#deletePackageButton'),
-  flipDoorButton: document.querySelector('#flipDoorButton'),
+  doorSideControls: document.querySelector('#doorSideControls'),
   cancelEditButton: document.querySelector('#cancelEditButton'),
   toggleFitFinderButton: document.querySelector('#toggleFitFinderButton'),
   fitFinderForm: document.querySelector('#fitFinderForm'),
@@ -1111,7 +1111,7 @@ function clearPackageForm() {
   els.formTitle.textContent = 'Add item';
   els.saveButton.textContent = 'Save item';
   els.deletePackageButton.classList.add('hidden');
-  els.flipDoorButton.classList.add('hidden');
+  els.doorSideControls.classList.add('hidden');
   els.cancelEditButton.classList.add('hidden');
 }
 
@@ -1119,7 +1119,10 @@ function syncDraftActionButtons() {
   const hasDraft = Boolean(appState.selected);
   const isDoor = hasDraft && draftSpecialKind() === 'door';
   els.cancelEditButton.classList.toggle('hidden', !hasDraft);
-  els.flipDoorButton.classList.toggle('hidden', !isDoor);
+  els.doorSideControls.classList.toggle('hidden', !isDoor);
+  els.doorSideControls.querySelectorAll('[data-door-side]').forEach(button => {
+    button.classList.toggle('active', button.dataset.doorSide === els.doorSideValue.value);
+  });
 }
 
 function updateDraftFromSizeInputs(event) {
@@ -2100,7 +2103,6 @@ function renderDimensionLabels(shelf, kind, role = planRole(shelf)) {
 
 function draftMarkerHtml(draft) {
   return `
-    ${doorIconHtml()}
     <span class="draft-size">${formatSizeCm(draft.width, draft.depth)}</span>
     <b data-handle="n"></b>
     <b data-handle="e"></b>
@@ -2110,19 +2112,6 @@ function draftMarkerHtml(draft) {
     <b data-handle="se"></b>
     <b data-handle="sw"></b>
     <b data-handle="nw"></b>
-  `;
-}
-
-function doorIconHtml() {
-  return `
-    <span class="door-icon" aria-hidden="true">
-      <svg viewBox="0 0 32 32" focusable="false">
-        <rect class="door-icon-frame" x="4" y="2" width="24" height="28" rx="2"></rect>
-        <rect class="door-icon-panel" x="8" y="6" width="16" height="22" rx="1"></rect>
-        <path class="door-icon-detail" d="M10 9h12M10 24h12"></path>
-        <circle class="door-icon-knob" cx="20.5" cy="17" r="1.6"></circle>
-      </svg>
-    </span>
   `;
 }
 
@@ -2735,7 +2724,7 @@ function renderThreeItem(root, item, scale, heightScale, widthCm, depthCm, optio
     if (side === 'bottom') z = (depthCm / 2 + 5) * scale;
   }
   const color = kind === 'door'
-    ? 0x9a6335
+    ? 0x151515
     : kind === 'column'
       ? 0x343b3f
       : kind === 'corridor'
@@ -3011,7 +3000,6 @@ function packageHtml(item, selected = false) {
   const height = itemHeightCm(item);
   const note = displayItemNote(item.note || '');
   return `
-    ${kind === 'door' && !selected ? doorIconHtml() : ''}
     <span class="measure">${formatSizeCm(item.width_units || 1, item.depth_units || 1)} · h ${formatNumber(count * height * 10)} mm</span>
     <span class="pkg">${escapeHtml(item.package_name)}</span>
     <span class="note">${kind === 'door' ? 'visual marker · outside area · no space deducted' : zone ? `${escapeHtml(kind)} · full available height` : `${escapeHtml(count)}x stacked${note ? ` · ${escapeHtml(note)}` : ''}`}</span>
@@ -3288,18 +3276,21 @@ els.cancelEditButton.addEventListener('click', () => {
   render();
 });
 
-els.flipDoorButton.addEventListener('click', () => {
-  if (!appState.selected?.shelf || draftSpecialKind() !== 'door') return;
-  const shelf = shelfForSaving(appState.selected.shelf);
-  const draft = {
-    row: Number.parseInt(els.rowIndex.value, 10) || appState.selected.row,
-    column: Number.parseInt(els.columnIndex.value, 10) || appState.selected.column,
-    width: cmInputToCm(els.widthUnits.value, 90),
-    depth: cmInputToCm(els.depthUnits.value, 10)
-  };
-  els.doorSideValue.value = els.doorSideValue.value || nearestDoorSide(draftAsItem(draft, 'door'), shelf);
-  els.doorFlippedValue.value = els.doorFlippedValue.value === '1' ? '0' : '1';
-  render();
+els.doorSideControls.addEventListener('click', event => {
+  const button = event.target.closest('[data-door-side]');
+  if (!button || !appState.selected?.shelf || draftSpecialKind() !== 'door') return;
+  const side = button.dataset.doorSide;
+  let width = cmInputToCm(els.widthUnits.value, 90);
+  let depth = cmInputToCm(els.depthUnits.value, 10);
+  const needsHorizontal = side === 'top' || side === 'bottom';
+  if ((needsHorizontal && depth > width) || (!needsHorizontal && width > depth)) {
+    [width, depth] = [depth, width];
+  }
+  els.doorSideValue.value = side;
+  els.doorFlippedValue.value = '0';
+  els.widthUnits.value = inputCm(width);
+  els.depthUnits.value = inputCm(depth);
+  updateDraftFromSizeInputs();
 });
 
 els.deletePackageButton.addEventListener('click', async () => {
