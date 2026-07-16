@@ -678,7 +678,7 @@ function isBlockedItem(item) {
 
 function specialKind(item) {
   const text = `${item?.package_name || ''} ${item?.note || ''}`.toLowerCase();
-  if (text.includes('element:door') || text.includes('door outside')) return 'door';
+  if (text.includes('element:door') || text.includes('door outside') || /\bdoor\b/.test(text)) return 'door';
   if (text.includes('element:column') || text.includes('column')) return 'column';
   if (text.includes('element:corridor') || text.includes('corridor')) return 'corridor';
   const zone = zoneKind(item);
@@ -687,7 +687,7 @@ function specialKind(item) {
 
 function zoneKind(item) {
   const text = `${item.package_name || ''} ${item.note || ''}`.toLowerCase();
-  if (text.includes('element:door') || text.includes('door outside')) return '';
+  if (text.includes('element:door') || text.includes('door outside') || /\bdoor\b/.test(text)) return '';
   if (text.includes('element:column') || text.includes('column') || text.includes('zone:red') || text.includes('red no-place') || text.includes('blocked') || text.includes('rot') || text.includes('verbot') || text.includes('nicht abstellen')) return 'red';
   if (text.includes('element:corridor') || text.includes('corridor') || text.includes('zone:yellow') || text.includes('yellow reserve') || text.includes('gelb') || text.includes('reserve')) return 'yellow';
   return '';
@@ -2041,6 +2041,7 @@ function renderDimensionLabels(shelf, kind, role = planRole(shelf)) {
 
 function draftMarkerHtml(draft) {
   return `
+    <i class="door-swing" aria-hidden="true"></i>
     <span class="draft-size">${formatSizeCm(draft.width, draft.depth)}</span>
     <b data-handle="n"></b>
     <b data-handle="e"></b>
@@ -2929,6 +2930,7 @@ function packageHtml(item, selected = false) {
   const height = itemHeightCm(item);
   const note = displayItemNote(item.note || '');
   return `
+    ${kind === 'door' && !selected ? '<i class="door-swing" aria-hidden="true"></i>' : ''}
     <span class="measure">${formatSizeCm(item.width_units || 1, item.depth_units || 1)} · h ${formatNumber(count * height * 10)} mm</span>
     <span class="pkg">${escapeHtml(item.package_name)}</span>
     <span class="note">${kind === 'door' ? 'visual marker · outside area · no space deducted' : zone ? `${escapeHtml(kind)} · full available height` : `${escapeHtml(count)}x stacked${note ? ` · ${escapeHtml(note)}` : ''}`}</span>

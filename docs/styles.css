@@ -1455,12 +1455,13 @@ select:hover {
   color: #5b3a08;
 }
 
-.column-visual {
-  border: 3px solid #8f1728;
+.package-rect.column-visual,
+.draft-marker.column-visual {
+  border: 3px solid #202629;
   border-radius: 999px;
-  background: radial-gradient(circle at 35% 30%, #fff4f4 0 10%, #c83d50 42%, #741323 100%);
+  background: radial-gradient(circle at 35% 30%, #f4f6f6 0 9%, #626a6e 40%, #242a2d 100%);
   color: #fff;
-  box-shadow: inset -10px -10px 18px rgba(71, 5, 15, 0.32), 0 8px 18px rgba(92, 13, 26, 0.28);
+  box-shadow: inset -10px -10px 18px rgba(0, 0, 0, 0.34), 0 8px 18px rgba(24, 29, 31, 0.26);
 }
 
 .column-visual::before {
@@ -1472,12 +1473,13 @@ select:hover {
   pointer-events: none;
 }
 
-.corridor-visual {
-  border: 2px dashed #b7791f;
+.package-rect.corridor-visual,
+.draft-marker.corridor-visual {
+  border: 2px dashed #737b7f;
   background:
-    linear-gradient(90deg, rgba(255, 255, 255, 0.7), transparent 18% 82%, rgba(255, 255, 255, 0.7)),
-    #fff2bf;
-  color: #533507;
+    linear-gradient(90deg, rgba(255, 255, 255, 0.92), transparent 18% 82%, rgba(255, 255, 255, 0.92)),
+    #e8ecee;
+  color: #343a3d;
 }
 
 .corridor-visual::before {
@@ -1486,8 +1488,8 @@ select:hover {
   left: 8%;
   right: 8%;
   top: 50%;
-  border-top: 2px dashed rgba(142, 91, 17, 0.72);
-  color: rgba(112, 70, 12, 0.88);
+  border-top: 2px dashed rgba(103, 112, 116, 0.78);
+  color: #4e575b;
   font-size: clamp(12px, 3cqw, 22px);
   font-weight: 950;
   line-height: 1;
@@ -1496,7 +1498,8 @@ select:hover {
   pointer-events: none;
 }
 
-.door-visual {
+.package-rect.door-visual,
+.draft-marker.door-visual {
   z-index: 6;
   min-height: 18px;
   border: 4px solid #4b3624;
@@ -1506,7 +1509,28 @@ select:hover {
   background: linear-gradient(90deg, #d9aa6c, #f3d3a8);
   color: #392614;
   box-shadow: 0 4px 12px rgba(57, 38, 20, 0.25);
-  overflow: hidden;
+  overflow: visible;
+}
+
+.door-swing {
+  display: none;
+}
+
+.door-visual > .door-swing {
+  display: block;
+  position: absolute;
+  right: -68%;
+  top: 7%;
+  width: 72%;
+  height: 86%;
+  border: 3px solid #60401f;
+  border-left-width: 5px;
+  border-radius: 2px 10px 10px 2px;
+  background: linear-gradient(90deg, rgba(135, 85, 42, 0.88), rgba(199, 147, 92, 0.78));
+  box-shadow: 3px 5px 9px rgba(57, 38, 20, 0.2);
+  transform: rotate(-24deg);
+  transform-origin: left center;
+  pointer-events: none;
 }
 
 .door-visual::before {
@@ -1536,6 +1560,8 @@ select:hover {
 
 .door-visual .pkg,
 .door-visual .draft-size {
+  position: relative;
+  z-index: 1;
   align-self: center;
   width: 100%;
   max-width: 100%;
@@ -1551,7 +1577,7 @@ select:hover {
 .column-visual .pkg,
 .column-visual .note {
   color: #fff;
-  text-shadow: 0 1px 2px rgba(55, 4, 12, 0.72);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.72);
 }
 
 .package-rect.blocked-zone,
@@ -1848,14 +1874,14 @@ select:hover {
 }
 
 .draft-marker.column-visual {
-  border: 3px solid #8f1728;
+  border: 3px solid #202629;
   border-radius: 999px;
-  background: radial-gradient(circle at 35% 30%, #fff4f4 0 10%, #c83d50 42%, #741323 100%);
+  background: radial-gradient(circle at 35% 30%, #f4f6f6 0 9%, #626a6e 40%, #242a2d 100%);
 }
 
 .draft-marker.corridor-visual {
-  border: 2px dashed #b7791f;
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0.7), transparent 18% 82%, rgba(255, 255, 255, 0.7)), #fff2bf;
+  border: 2px dashed #737b7f;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.92), transparent 18% 82%, rgba(255, 255, 255, 0.92)), #e8ecee;
 }
 
 .draft-marker.door-visual {
@@ -2173,17 +2199,17 @@ select:hover {
 .column-preset .preset-preview i {
   width: 20px;
   height: 20px;
-  border: 2px solid #8f1728;
+  border: 2px solid #202629;
   border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, #fff4f4 0 10%, #c83d50 44%, #741323 100%);
+  background: radial-gradient(circle at 35% 30%, #f4f6f6 0 9%, #626a6e 42%, #242a2d 100%);
 }
 
 .corridor-preset .preset-preview i {
   width: 78%;
   height: 14px;
-  border: 1px dashed #b7791f;
+  border: 1px dashed #737b7f;
   border-radius: 2px;
-  background: linear-gradient(#fff2bf 0 44%, #9d681b 44% 56%, #fff2bf 56%);
+  background: linear-gradient(#eef1f2 0 44%, #7c8589 44% 56%, #eef1f2 56%);
 }
 
 .door-preset .preset-preview i {

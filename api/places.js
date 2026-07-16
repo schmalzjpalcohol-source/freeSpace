@@ -31,7 +31,7 @@ function metersToCm(value, fallbackMeters, maxMeters = 1000) {
 
 function zoneKind(item) {
   const text = `${item.package_name || ''} ${item.note || ''}`.toLowerCase();
-  if (text.includes('element:door') || text.includes('door outside')) return '';
+  if (text.includes('element:door') || text.includes('door outside') || /\bdoor\b/.test(text)) return '';
   if (text.includes('element:column') || text.includes('column') || text.includes('zone:red') || text.includes('red no-place') || text.includes('blocked') || text.includes('rot') || text.includes('verbot') || text.includes('nicht abstellen')) return 'red';
   if (text.includes('element:corridor') || text.includes('corridor') || text.includes('zone:yellow') || text.includes('yellow reserve') || text.includes('gelb') || text.includes('reserve')) return 'yellow';
   return '';
@@ -39,7 +39,7 @@ function zoneKind(item) {
 
 function isDoor(item) {
   const text = `${item.package_name || ''} ${item.note || ''}`.toLowerCase();
-  return text.includes('element:door') || text.includes('door outside');
+  return text.includes('element:door') || text.includes('door outside') || /\bdoor\b/.test(text);
 }
 
 function placePayload(body) {
