@@ -189,9 +189,9 @@ function packageTooltip(item) {
     const isRed = zone === 'red';
     const purpose = zonePurposeNote(item.note) || (isRed ? 'Reserved restricted area' : 'Reserved area');
     return [
-      item.package_name || (isRed ? 'Red no-place zone' : 'Yellow reserve zone'),
+      displayPackageName(item) || (isRed ? 'Red no-place zone' : 'Yellow reserve zone'),
       `Size: ${formatSizeCm(item.width_units || 1, item.depth_units || 1)}`,
-      kind === 'column' ? 'Column: no items allowed' : kind === 'corridor' ? 'Corridor: reserved route' : isRed ? 'No items allowed' : 'Only for defined items',
+      kind === 'column' ? 'Pillar: no items allowed' : kind === 'corridor' ? 'Corridor: reserved route' : isRed ? 'No items allowed' : 'Only for defined items',
       purpose
     ].join('\n');
   }
@@ -206,6 +206,10 @@ function packageTooltip(item) {
   const note = displayItemNote(item.note || '');
   if (note) parts.push(note);
   return parts.filter(Boolean).join(' | ');
+}
+
+function displayPackageName(item) {
+  return specialKind(item) === 'column' ? 'Pillar' : (item?.package_name || '');
 }
 
 function zonePurposeNote(note) {
@@ -1081,7 +1085,7 @@ function selectCell(shelf, row, column, item) {
   els.widthUnits.value = item ? inputCm(item.width_units || 120) : '1.200';
   els.depthUnits.value = item ? inputCm(item.depth_units || 80) : '800';
   els.heightUnits.value = item ? inputCm(itemHeightCm(item)) : '450';
-  els.packageName.value = item ? item.package_name : '';
+  els.packageName.value = item ? displayPackageName(item) : '';
   els.quantity.value = item ? item.quantity : 1;
   els.note.value = item ? cleanDoorStateFromNote(cleanHeightFromNote(item.note || '')) : '';
   els.doorSideValue.value = item && isDoorItem(item) ? (doorSideFromNote(item.note) || nearestDoorSide(item, shelf)) : '';
@@ -1681,7 +1685,7 @@ function renderRackLevelDetail(shelf, level) {
     rectangle.style.height = `${(visibleDepth / range.height) * 100}%`;
     placeDoorOutside(rectangle, localDisplayItem, localShelf);
     rectangle.dataset.tooltip = packageTooltip(displayItem);
-    rectangle.setAttribute('aria-label', item.package_name);
+    rectangle.setAttribute('aria-label', displayPackageName(item));
     rectangle.innerHTML = packageHtml(displayItem, selectedPackage);
     rectangle.addEventListener('pointerdown', event => {
       if (isMeasuring(shelf, level)) return;
@@ -1978,7 +1982,7 @@ function renderPlaceCanvas(shelf, kind, role = planRole(shelf)) {
     rectangle.style.height = `${((displayItem.depth_units || 1) / shelf.rows) * 100}%`;
     placeDoorOutside(rectangle, displayItem, shelf);
     rectangle.dataset.tooltip = packageTooltip(displayItem);
-    rectangle.setAttribute('aria-label', item.package_name);
+    rectangle.setAttribute('aria-label', displayPackageName(item));
     rectangle.innerHTML = packageHtml(displayItem, selectedPackage);
     rectangle.addEventListener('pointerdown', event => {
       if (!selectedPackage) return;
@@ -2660,7 +2664,7 @@ function createThreeAreaScene(viewport, shelf, view) {
   root.add(grid);
 
   const renderedItems = [];
-  orderedForStacking(shelf.packages).forEach(item => {
+  orderedForStacking(shelf.packages).filter(item => !isDoorItem(item)).forEach(item => {
     const overlaps = renderedItems.filter(previous => (
       previous.modelRackLevel === item.modelRackLevel && rectsOverlap(packageRect(previous), packageRect(item))
     ));
@@ -2728,6 +2732,7 @@ function createThreeAreaScene(viewport, shelf, view) {
 }
 
 function renderThreeItem(root, item, scale, heightScale, widthCm, depthCm, options = {}) {
+  if (isDoorItem(item)) return;
   const zone = zoneKind(item);
   const kind = specialKind(item);
   const count = zone || kind === 'door' ? 1 : Math.min(stackCount(item), 12);
@@ -2792,10 +2797,10 @@ function buildModel3dLabels(shelf) {
       <span>Level 3 · 1.460–2.110 mm</span>
       <span>Small rack · below bottom-right · 0–160 mm</span>
     ` : ''}
-    ${(shelf.packages || []).slice(0, 10).map(item => `
+    ${(shelf.packages || []).filter(item => !isDoorItem(item)).slice(0, 10).map(item => `
       <span class="${zoneKind(item) ? 'zone-label' : ''}">
-        ${escapeHtml(isDoorItem(item) ? 'Door' : item.package_name)}
-        ${zoneKind(item) ? escapeHtml(specialKind(item)) : `${formatNumber(stackTotalHeightCm(item) * 10)} mm`}
+        ${escapeHtml(displayPackageName(item))}
+        ${zoneKind(item) ? escapeHtml(specialKind(item) === 'column' ? 'pillar' : specialKind(item)) : `${formatNumber(stackTotalHeightCm(item) * 10)} mm`}
       </span>
     `).join('')}
   `;
@@ -3023,8 +3028,8 @@ function packageHtml(item, selected = false) {
   const note = displayItemNote(item.note || '');
   return `
     <span class="measure">${formatSizeCm(item.width_units || 1, item.depth_units || 1)} · h ${formatNumber(count * height * 10)} mm</span>
-    <span class="pkg">${escapeHtml(item.package_name)}</span>
-    <span class="note">${kind === 'door' ? 'visual marker · outside area · no space deducted' : zone ? `${escapeHtml(kind)} · full available height` : `${escapeHtml(count)}x stacked${note ? ` · ${escapeHtml(note)}` : ''}`}</span>
+    <span class="pkg">${escapeHtml(displayPackageName(item))}</span>
+    <span class="note">${kind === 'door' ? 'visual marker · outside area · no space deducted' : zone ? `${kind === 'column' ? 'pillar' : escapeHtml(kind)} · full available height` : `${escapeHtml(count)}x stacked${note ? ` · ${escapeHtml(note)}` : ''}`}</span>
     ${selected ? draftMarkerHtml({
       width: item.width_units || 1,
       depth: item.depth_units || 1
@@ -3351,7 +3356,7 @@ document.querySelectorAll('[data-zone-kind]').forEach(button => {
     const definitions = {
       red: ['Red no-place zone', 'zone:red'],
       yellow: ['Yellow reserve zone', 'zone:yellow'],
-      column: ['Column', 'element:column, zone:red'],
+      column: ['Pillar', 'element:column, zone:red'],
       corridor: ['Corridor', 'element:corridor, zone:yellow'],
       door: ['Door', 'element:door']
     };
