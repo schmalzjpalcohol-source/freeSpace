@@ -218,7 +218,12 @@ function packageTooltip(item) {
 }
 
 function displayPackageName(item) {
-  return specialKind(item) === 'column' ? 'Pillar' : readableThousands(item?.package_name || '');
+  if (specialKind(item) === 'column') return 'Pillar';
+  const name = String(item?.package_name || '');
+  if (/^pallet\s+[0-9.,]+\s*x\s*[0-9.,]+(?:\s*x\s*[0-9.,]+)?\s*mm$/i.test(name)) {
+    return `Pallet ${formatNumber((item.width_units || 1) * 10)} x ${formatNumber((item.depth_units || 1) * 10)} x ${formatNumber(itemHeightCm(item) * 10)} mm`;
+  }
+  return readableThousands(name);
 }
 
 function zonePurposeNote(note) {

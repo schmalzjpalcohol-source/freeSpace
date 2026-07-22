@@ -1678,7 +1678,7 @@ select:hover {
   display: none;
 }
 
-.door-visual .pkg,
+.package-rect.door-visual .pkg,
 .door-visual .draft-size {
   display: none;
 }
