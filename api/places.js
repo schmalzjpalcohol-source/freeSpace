@@ -119,12 +119,13 @@ function assertPackagesHeightFit(packages, place) {
 }
 
 async function syncZoneHeights(packages, place) {
-  if (place.location_type !== 'floor') return;
-  const maxHeight = areaMaxHeightCm(place.notes, 220);
   for (const item of packages.filter(zoneKind)) {
+    const structuredRack = place.location_type !== 'floor' && Math.abs((place.rows || 0) - 450) <= 2 && Math.abs((place.columns || 0) - 600) <= 2;
+    const smallRack = structuredRack && item.row_index >= 361 && item.column_index >= Math.max(1, place.columns - 149);
+    const maxHeight = smallRack ? 16 : areaMaxHeightCm(place.notes, place.location_type === 'floor' ? 220 : 65);
     await supabaseFetch(`packages?id=eq.${encodeURIComponent(item.id)}`, {
       method: 'PATCH',
-      body: JSON.stringify({ note: noteWithHeight(item.note, maxHeight) })
+      body: JSON.stringify({ note: noteWithHeight(item.note, Math.min(itemHeightCm(item, maxHeight), maxHeight)) })
     });
   }
 }

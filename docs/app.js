@@ -879,10 +879,11 @@ function freeVolumeInBoundsCm3(shelf, bounds = null) {
         const midpointX = (left + right) / 2;
         const midpointY = (top + bottom) / 2;
         const covering = relevant.filter(entry => pointInsideRect(midpointX, midpointY, entry.rect));
-        const blockedToTop = covering.some(entry => isZoneItem(entry.item));
-        const occupiedHeight = blockedToTop ? region.maxHeight : covering
-          .filter(entry => !isZoneItem(entry.item))
-          .reduce((sum, entry) => sum + stackTotalHeightCm(entry.item), 0);
+        const occupiedHeight = covering.reduce((sum, entry) => (
+          sum + (isZoneItem(entry.item)
+            ? Math.min(region.maxHeight, itemHeightCm(entry.item, region.maxHeight))
+            : stackTotalHeightCm(entry.item))
+        ), 0);
         const remainingHeight = Math.max(0, region.maxHeight - occupiedHeight);
         regionFree += (right - left) * (bottom - top) * remainingHeight;
       }
@@ -1288,8 +1289,29 @@ function clearPlaceForm() {
   els.placeColumns.value = inputCm(600);
   els.placeHeight.value = inputCm(65);
   els.placeNotes.value = '';
-  els.savePlaceButton.textContent = 'Save area';
+  els.savePlaceButton.textContent = 'Create area';
   els.cancelPlaceButton.classList.add('hidden');
+}
+
+function startAreaCreation(kind) {
+  clearPlaceForm();
+  const isFloor = kind === 'floor';
+  const baseName = isFloor ? 'Floor area' : 'Rack';
+  let nextNumber = appState.shelves.filter(place => placeKind(place) === kind && !parentRackId(place)).length + 1;
+  while (appState.shelves.some(place => String(place.name || '').trim().toLowerCase() === `${baseName} ${nextNumber}`.toLowerCase())) {
+    nextNumber += 1;
+  }
+  els.placeLocationType.value = isFloor ? 'floor' : 'shelf';
+  els.placeName.value = `${baseName} ${nextNumber}`;
+  els.placeRows.value = inputCm(isFloor ? 400 : planPlaces.rack.rows);
+  els.placeColumns.value = inputCm(600);
+  els.placeHeight.value = inputCm(isFloor ? 220 : 65);
+  els.savePlaceButton.textContent = 'Create area';
+  els.cancelPlaceButton.classList.remove('hidden');
+  setActiveView('places');
+  els.placeForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  els.placeName.focus();
+  els.placeName.select();
 }
 
 function parentRackId(placeOrNotes) {
@@ -1510,7 +1532,24 @@ function renderAreaSwitcher(places, selected) {
     });
     nav.append(button);
   });
+  nav.append(renderAddAreaControl());
   return nav;
+}
+
+function renderAddAreaControl() {
+  const control = document.createElement('details');
+  control.className = 'add-area-control';
+  control.innerHTML = `
+    <summary>+ Add area</summary>
+    <div class="add-area-options">
+      <button type="button" data-new-area="shelf"><strong>New rack</strong><small>Storage with rack levels</small></button>
+      <button type="button" data-new-area="floor"><strong>New floor area</strong><small>Open storage floor</small></button>
+    </div>
+  `;
+  control.querySelectorAll('[data-new-area]').forEach(button => {
+    button.addEventListener('click', () => startAreaCreation(button.dataset.newArea));
+  });
+  return control;
 }
 
 function orderAreasWithChildren(places) {
@@ -1549,6 +1588,7 @@ function renderPlanSwitcher() {
     button.addEventListener('click', () => setActivePlanRole(role));
     nav.append(button);
   });
+  nav.append(renderAddAreaControl());
   return nav;
 }
 
@@ -3191,7 +3231,7 @@ async function submitPackage(event) {
     depth: cmInputToCm(payload.depthUnits, 100)
   };
   if (selectedShelf && payloadZone) {
-    height = maxStackHeightForShelf(selectedShelf, candidateRect);
+    height = Math.min(height, maxStackHeightForShelf(selectedShelf, candidateRect));
     payload.heightUnits = inputCm(height);
   }
   if (selectedShelf && payloadSpecial !== 'door' && payloadZone !== 'red' && touchesForbiddenArea(selectedShelf, {
@@ -3266,10 +3306,14 @@ async function submitPlace(event) {
       : `parent-rack:${payload.parentId}`;
   }
   const isEdit = Boolean(payload.id);
-  await apiFetch('/api/places', {
+  const result = await apiFetch('/api/places', {
     method: isEdit ? 'PATCH' : 'POST',
     body: JSON.stringify(payload)
   });
+  if (!isEdit && result.place?.id) {
+    appState.activeAreaId = result.place.id;
+    appState.activePlanRole = planPlaceRole(result.place) || 'other';
+  }
   clearPlaceForm();
   appState.activeView = 'packages';
   showMessage(isEdit ? 'Area updated.' : 'Area created.');
@@ -3509,7 +3553,7 @@ document.querySelectorAll('[data-place-preset]').forEach(button => {
     els.placeColumns.value = formatNumber(numberValue(columns, 6000));
     els.placeHeight.value = formatNumber(numberValue(maxHeight, type === 'floor' ? 2200 : 650));
     els.placeNotes.value = notes;
-    els.savePlaceButton.textContent = 'Save area';
+    els.savePlaceButton.textContent = 'Create area';
     els.cancelPlaceButton.classList.add('hidden');
   });
 });

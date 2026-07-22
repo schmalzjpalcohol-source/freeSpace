@@ -977,7 +977,7 @@ select:hover {
 
 .plan-switcher {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 8px;
 }
 
@@ -1030,6 +1030,74 @@ select:hover {
   background: #edf7f5;
   color: var(--primary-dark);
   box-shadow: inset 0 0 0 1px rgba(15, 118, 110, 0.12);
+}
+
+.add-area-control {
+  position: relative;
+  min-width: 0;
+}
+
+.add-area-control summary {
+  display: grid;
+  min-height: 52px;
+  place-items: center;
+  border: 1px dashed rgba(15, 118, 110, 0.55);
+  border-radius: 8px;
+  padding: 7px 10px;
+  background: #f7fbfa;
+  color: var(--primary-dark);
+  font-size: 0.84rem;
+  font-weight: 900;
+  cursor: pointer;
+  list-style: none;
+}
+
+.add-area-control summary::-webkit-details-marker {
+  display: none;
+}
+
+.add-area-control[open] summary,
+.add-area-control summary:hover {
+  border-style: solid;
+  border-color: var(--primary);
+  background: #edf7f5;
+}
+
+.add-area-options {
+  position: absolute;
+  top: calc(100% + 7px);
+  right: 0;
+  z-index: 60;
+  display: grid;
+  gap: 6px;
+  width: min(260px, calc(100vw - 32px));
+  padding: 7px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface);
+  box-shadow: 0 14px 34px rgba(20, 32, 34, 0.16);
+}
+
+.add-area-options button {
+  display: grid;
+  gap: 2px;
+  min-height: 50px;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  background: var(--surface-soft);
+  color: var(--ink);
+  text-align: left;
+}
+
+.add-area-options button:hover {
+  border-color: var(--line-strong);
+  background: #edf7f5;
+}
+
+.add-area-options small {
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 750;
 }
 
 .plan-slot {
@@ -1152,19 +1220,19 @@ select:hover {
 }
 
 .rack-level-detail {
-  width: calc(100% - 34px);
-  max-width: calc(100% - 34px);
+  width: calc(100% - 56px);
+  max-width: calc(100% - 56px);
   height: clamp(240px, 34vw, 380px);
   min-height: clamp(240px, 34vw, 380px);
   aspect-ratio: auto !important;
   margin-top: 58px;
-  margin-left: 34px;
+  margin-left: 56px;
   background-size: 48px 48px;
 }
 
 .rack-level-detail.short-rack-detail {
-  width: calc(100% - 34px);
-  max-width: calc(100% - 34px);
+  width: calc(100% - 56px);
+  max-width: calc(100% - 56px);
   height: clamp(220px, 30vw, 340px);
   min-height: clamp(220px, 30vw, 340px);
   aspect-ratio: auto !important;
@@ -1338,17 +1406,17 @@ select:hover {
 
 /* Keep a clear outside band around every area for dimensions and controls. */
 .plan-slot .place-canvas {
-  margin-top: 68px;
-  margin-bottom: 68px;
+  margin-top: 112px;
+  margin-bottom: 96px;
 }
 
 .floor-canvas {
-  width: calc(100% - 34px);
-  margin-left: 34px;
+  width: calc(100% - 56px);
+  margin-left: 56px;
 }
 
 .floor-long .floor-canvas {
-  width: min(calc(100% - 34px), 520px);
+  width: min(calc(100% - 56px), 520px);
 }
 
 .measure-overlay {
@@ -1566,11 +1634,8 @@ select:hover {
 }
 
 .package-rect.door-visual::after {
-  max-width: 90px;
-  padding: 3px 5px;
-  font-size: 0.66rem;
-  line-height: 1;
-  white-space: nowrap;
+  content: none;
+  display: none;
 }
 
 .door-visual::before {
@@ -1580,7 +1645,7 @@ select:hover {
   top: 50%;
   z-index: 2;
   color: #fff;
-  font-size: clamp(2px, 48cqmin, 13px);
+  font-size: clamp(4px, 58cqh, 14px);
   font-weight: 850;
   line-height: 1;
   letter-spacing: 0.01em;
@@ -1592,17 +1657,18 @@ select:hover {
 
 .door-visual.door-left::before,
 .door-visual.door-right::before {
+  font-size: clamp(4px, 58cqw, 14px);
   transform: translate(-50%, -50%) rotate(-90deg);
 }
 
-.door-visual.door-top { transform: translateY(calc(-100% - 16px)); }
-.door-visual.door-bottom { transform: translateY(16px); }
-.door-visual.door-left { transform: translateX(calc(-100% - 16px)); }
-.door-visual.door-right { transform: translateX(16px); }
-.door-visual.door-top:hover { transform: translateY(calc(-100% - 16px)); }
-.door-visual.door-bottom:hover { transform: translateY(16px); }
-.door-visual.door-left:hover { transform: translateX(calc(-100% - 16px)); }
-.door-visual.door-right:hover { transform: translateX(16px); }
+.door-visual.door-top { transform: translateY(calc(-100% - 24px)); }
+.door-visual.door-bottom { transform: translateY(24px); }
+.door-visual.door-left { transform: translateX(calc(-100% - 24px)); }
+.door-visual.door-right { transform: translateX(24px); }
+.door-visual.door-top:hover { transform: translateY(calc(-100% - 24px)); }
+.door-visual.door-bottom:hover { transform: translateY(24px); }
+.door-visual.door-left:hover { transform: translateX(calc(-100% - 24px)); }
+.door-visual.door-right:hover { transform: translateX(24px); }
 
 .door-visual .measure,
 .door-visual .note {
@@ -2127,12 +2193,12 @@ select:hover {
 }
 
 .plan-slot .place-canvas .dimension-labels {
-  z-index: 6;
+  z-index: 20;
   overflow: visible;
 }
 
 .plan-slot .place-canvas .dim {
-  z-index: 6;
+  z-index: 20;
   padding: 5px 8px;
   background: rgba(255, 255, 255, 0.96);
   font-size: 0.74rem;
@@ -2140,7 +2206,7 @@ select:hover {
 }
 
 .plan-slot .place-canvas .dim-top {
-  top: -58px;
+  top: -94px;
   max-width: min(70%, calc(100% - 18px));
 }
 
@@ -2464,7 +2530,7 @@ select:hover {
   }
 
   .floor-long .floor-canvas {
-    width: min(calc(100% - 34px), 420px);
+    width: min(calc(100% - 56px), 420px);
   }
 
   .place-item {

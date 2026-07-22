@@ -73,6 +73,12 @@ function noteWithHeight(note, height) {
   return `${clean ? `${clean}, ` : ''}height ${height} cm`;
 }
 
+function noteWithZoneHeight(note, shelf, candidate) {
+  const maxHeight = maxStackHeightForShelf(shelf, candidate);
+  const requestedHeight = itemHeightCm({ note }, maxHeight);
+  return noteWithHeight(note, Math.min(requestedHeight, maxHeight));
+}
+
 function areaMaxHeightCm(shelf, fallback) {
   const notes = String(shelf?.notes || '');
   const mmMarker = notes.match(/max-height-mm\s*:\s*([0-9.,]+)/i);
@@ -298,7 +304,7 @@ module.exports = async function handler(req, res) {
       }
 
       if (zoneKind({ package_name: packageName, note })) {
-        note = noteWithHeight(note, maxStackHeightForShelf(shelf, { rowIndex, columnIndex }));
+        note = noteWithZoneHeight(note, shelf, { rowIndex, columnIndex });
       }
 
       await assertPlaceFree(shelf, { rowIndex, columnIndex, widthUnits, depthUnits, packageName, quantity, note });
@@ -347,7 +353,7 @@ module.exports = async function handler(req, res) {
 
 
       if (zoneKind({ package_name: packageName, note })) {
-        note = noteWithHeight(note, maxStackHeightForShelf(shelf, { rowIndex, columnIndex }));
+        note = noteWithZoneHeight(note, shelf, { rowIndex, columnIndex });
       }
 
       await assertPlaceFree(shelf, { rowIndex, columnIndex, widthUnits, depthUnits, packageName, quantity, note }, id);
