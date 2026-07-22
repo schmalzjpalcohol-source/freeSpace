@@ -89,8 +89,36 @@ function areaMaxHeightCm(shelf, fallback) {
   return legacyCm ? Math.max(0.1, localizedNumberValue(legacyCm[1], fallback)) : fallback;
 }
 
+function rackLayoutFromNotes(notes) {
+  const encoded = String(notes || '').match(/rack-layout\s*:\s*([^;,\s]+)/i)?.[1];
+  if (!encoded) return [];
+  try {
+    const levels = JSON.parse(decodeURIComponent(encoded));
+    let nextRow = 1;
+    return [...levels].sort((a, b) => (Number(a.slot) || 0) - (Number(b.slot) || 0)).map(level => {
+      const depth = Math.max(0.1, numberValue(level.depth, 90));
+      const start = Math.max(1, numberValue(level.start, nextRow));
+      const range = {
+        start,
+        end: start + depth - 1,
+        width: Math.max(0.1, numberValue(level.width, 600)),
+        height: Math.max(0.1, numberValue(level.height, 65))
+      };
+      nextRow = Math.max(nextRow, range.end + 1);
+      return range;
+    });
+  } catch (error) {
+    return [];
+  }
+}
+
 function maxStackHeightForShelf(shelf, candidate) {
   if (shelf.location_type === 'floor') return areaMaxHeightCm(shelf, 220);
+  const customLevels = rackLayoutFromNotes(shelf.notes);
+  if (customLevels.length) {
+    const level = customLevels.find(item => candidate.rowIndex >= item.start && candidate.rowIndex <= item.end && candidate.columnIndex <= item.width);
+    return level?.height || 0.1;
+  }
   const structuredRack = Math.abs((shelf.rows || 0) - 450) <= 2 && Math.abs((shelf.columns || 0) - 600) <= 2;
   if (!structuredRack) return areaMaxHeightCm(shelf, 65);
   const smallStart = 361;
@@ -230,6 +258,16 @@ async function assertPlaceFree(shelf, candidate, excludeId) {
     const error = new Error('The item does not fit in this area.');
     error.status = 400;
     throw error;
+  }
+  const customLevels = rackLayoutFromNotes(shelf.notes);
+  if (customLevels.length) {
+    const level = customLevels.find(item => candidate.rowIndex >= item.start && candidate.rowIndex <= item.end);
+    const outsideLevel = !level || candidate.rowIndex + candidate.depthUnits - 1 > level.end || candidate.columnIndex + candidate.widthUnits - 1 > level.width;
+    if (outsideLevel) {
+      const error = new Error('The item does not fit inside the selected sub-rack.');
+      error.status = 400;
+      throw error;
+    }
   }
 
   const shelfPackages = await supabaseFetch(`packages?shelf_id=eq.${shelf.id}&select=id,row_index,column_index,width_units,depth_units,package_name,quantity,note`);

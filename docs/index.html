@@ -5,7 +5,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>freeSpace Storage Layout</title>
-    <link rel="stylesheet" href="./styles.css?v=20260722-auto-stack">
+    <link rel="stylesheet" href="./styles.css?v=20260722-internal-subracks">
 </head>
 
 <body>
@@ -210,12 +210,12 @@
               <input id="placeName" name="name" autocomplete="off" placeholder="Floor area 1 - 8,800 x 3,800 mm" required>
             </label>
             <div class="split">
-              <label>
+              <label id="placeDepthControl">
                 Area depth (mm)
                 <input id="placeRows" name="rows" inputmode="decimal" pattern="[0-9.,]*" step="0.1"
                   value="4,500">
               </label>
-              <label>
+              <label id="placeWidthControl">
                 Area width (mm)
                 <input id="placeColumns" name="columns" inputmode="decimal" pattern="[0-9.,]*" step="0.1"
                   value="6,000">
@@ -227,17 +227,16 @@
                 value="650">
             </label>
             <input id="rackModeValue" name="rackMode" type="hidden">
-            <section id="rackStructureHint" class="rack-structure-hint hidden">
-              <strong>Custom rack structure</strong>
-              <span>This rack starts empty. Save it first, then add and arrange its sub-racks.</span>
-            </section>
-            <label id="subRackPositionControls" class="hidden">
-              3D position (bottom to top)
-              <input id="subRackPosition" name="subRackPosition" type="number" min="1" step="1" value="1">
-            </label>
+            <input id="rackLayoutValue" name="rackLayout" type="hidden" value="[]">
+            <fieldset id="rackStructureControls" class="rack-structure-controls hidden">
+              <legend>Sub-racks inside this rack</legend>
+              <p>Define each internal rack level and arrange them from bottom to top for 3D.</p>
+              <div id="rackStructureList" class="rack-structure-list"></div>
+              <button id="addRackLevelButton" class="ghost" type="button">+ Add sub-rack</button>
+            </fieldset>
             <div class="examples">
               <button type="button"
-                data-place-preset="Rack 6000 x 900|shelf|900|6000|Custom rack frame; add sub-racks after creation|650">Rack 6,000 x
+                data-place-preset="Rack 6000 x 900|shelf|900|6000|Custom rack with internal sub-racks|650">Rack 6,000 x
                 900</button>
               <button type="button" data-place-preset="Floor area 1 - 8800 x 3800|floor|3800|8800||2200">Floor
                 8,800 x 3,800</button>
@@ -262,7 +261,7 @@
 
   <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
   <script src="./config.js"></script>
-    <script src="./app.js?v=20260722-auto-stack"></script>
+    <script src="./app.js?v=20260722-internal-subracks"></script>
 </body>
 
 </html>
