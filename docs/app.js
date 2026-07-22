@@ -625,10 +625,45 @@ function rackVisualMeasurement(measurement, range) {
   };
 }
 
+function physicalToVisualSide(side, range) {
+  if (!rackLevelRotated(range)) return side;
+  return ({ left: 'top', right: 'bottom', top: 'left', bottom: 'right' })[side] || side;
+}
+
+function visualToPhysicalSide(side, range) {
+  if (!rackLevelRotated(range)) return side;
+  return ({ top: 'left', bottom: 'right', left: 'top', right: 'bottom' })[side] || side;
+}
+
 function updateRackDoorSideFromPointer(event, canvas, range) {
-  updateDoorSideFromPointer(event, canvas);
-  if (draftSpecialKind() !== 'door' || !rackLevelRotated(range)) return;
-  els.doorSideValue.value = ({ top: 'left', bottom: 'right', left: 'top', right: 'bottom' })[els.doorSideValue.value] || els.doorSideValue.value;
+  if (draftSpecialKind() !== 'door') return false;
+  const rect = canvas.getBoundingClientRect();
+  const [visualSide, distance] = [
+    ['top', rect.top - event.clientY],
+    ['right', event.clientX - rect.right],
+    ['bottom', event.clientY - rect.bottom],
+    ['left', rect.left - event.clientX]
+  ].sort((a, b) => b[1] - a[1])[0];
+  const currentVisualSide = physicalToVisualSide(els.doorSideValue.value, range);
+  if (distance < 8 || visualSide === currentVisualSide) return false;
+  els.doorSideValue.value = visualToPhysicalSide(visualSide, range);
+  els.doorFlippedValue.value = '0';
+  return true;
+}
+
+function updateOrientedDragMarker(visualShelf, marker, visualDraft, range) {
+  marker.style.left = `${((visualDraft.column - 1) / visualShelf.columns) * 100}%`;
+  marker.style.top = `${((visualDraft.row - 1) / visualShelf.rows) * 100}%`;
+  marker.style.width = `${(visualDraft.width / visualShelf.columns) * 100}%`;
+  marker.style.height = `${(visualDraft.depth / visualShelf.rows) * 100}%`;
+  if (!marker.classList.contains('door-visual')) return;
+  marker.classList.remove('door-top', 'door-right', 'door-bottom', 'door-left');
+  const visualSide = physicalToVisualSide(els.doorSideValue.value || 'left', range);
+  marker.classList.add(`door-${visualSide}`);
+  if (visualSide === 'top') marker.style.top = '0%';
+  if (visualSide === 'bottom') marker.style.top = '100%';
+  if (visualSide === 'left') marker.style.left = '0%';
+  if (visualSide === 'right') marker.style.left = '100%';
 }
 
 function rackPackageLabelFits(width, depth) {
@@ -1298,13 +1333,28 @@ function clearPackageForm() {
   els.cancelEditButton.classList.add('hidden');
 }
 
+function selectedDraftViewRange() {
+  const shelf = appState.selected?.shelf;
+  if (!shelf) return null;
+  if (planPlaceRole(shelf) === 'rack') return rackLevelRange(shelf, appState.activeRackLevel);
+  return {
+    width: shelf.columns,
+    height: shelf.rows,
+    rotated: placeKind(shelf) === 'floor' && shelf.columns > shelf.rows
+  };
+}
+
 function syncDraftActionButtons() {
   const hasDraft = Boolean(appState.selected);
   const isDoor = hasDraft && draftSpecialKind() === 'door';
   els.cancelEditButton.classList.toggle('hidden', !hasDraft);
   els.doorSideControls.classList.toggle('hidden', !isDoor);
+  const viewRange = selectedDraftViewRange();
+  const visibleDoorSide = viewRange
+    ? physicalToVisualSide(els.doorSideValue.value, viewRange)
+    : els.doorSideValue.value;
   els.doorSideControls.querySelectorAll('[data-door-side]').forEach(button => {
-    button.classList.toggle('active', button.dataset.doorSide === els.doorSideValue.value);
+    button.classList.toggle('active', button.dataset.doorSide === visibleDoorSide);
   });
 }
 
@@ -2150,7 +2200,7 @@ function renderRackLevelDetail(shelf, level) {
     marker.className = 'draft-marker rack-draft-marker';
     marker.innerHTML = draftMarkerHtml(draft);
     decorateDraftMarker(marker, visualDraft, visualShelf);
-    updateDragMarker(visualShelf, marker, visualDraft);
+    updateOrientedDragMarker(visualShelf, marker, visualDraft, range);
     marker.addEventListener('pointerdown', event => startRackDraftEdit(event, canvas, shelf, range, marker, localDraft));
     canvas.append(marker);
   }
@@ -2184,7 +2234,7 @@ function renderRackLevelDetail(shelf, level) {
     dragMarker.className = 'drag-marker rack-draft-marker';
     dragMarker.innerHTML = draftMarkerHtml(dragDraft);
     decorateDraftMarker(dragMarker, dragDraft, visualShelf);
-    updateDragMarker(visualShelf, dragMarker, dragDraft);
+    updateOrientedDragMarker(visualShelf, dragMarker, dragDraft, range);
     canvas.append(dragMarker);
     canvas.setPointerCapture(event.pointerId);
   }, true);
@@ -2208,7 +2258,7 @@ function renderRackLevelDetail(shelf, level) {
     updateRackDoorSideFromPointer(event, canvas, range);
     dragDraft = draftFromCorners(dragStart, canvasCellFromEvent(event, canvas, visualShelf), visualShelf);
     decorateDraftMarker(dragMarker, dragDraft, visualShelf);
-    updateDragMarker(visualShelf, dragMarker, dragDraft);
+    updateOrientedDragMarker(visualShelf, dragMarker, dragDraft, range);
     const physicalDraft = rackVisualToLocal(dragDraft, range);
     dragMarker.querySelector('.draft-size').textContent = formatSizeCm(physicalDraft.width, physicalDraft.depth);
   });
@@ -2378,7 +2428,7 @@ function renderPlaceCanvas(shelf, kind, role = planRole(shelf)) {
     decorateDraftMarker(dragMarker, dragDraft, visualShelf);
     canvas.append(dragMarker);
     canvas.setPointerCapture(event.pointerId);
-    updateDragMarker(visualShelf, dragMarker, dragDraft);
+    updateOrientedDragMarker(visualShelf, dragMarker, dragDraft, viewRange);
   }, true);
 
   canvas.addEventListener('pointermove', event => {
@@ -2391,7 +2441,7 @@ function renderPlaceCanvas(shelf, kind, role = planRole(shelf)) {
     if (!dragDraft || !dragMarker) return;
     updateRackDoorSideFromPointer(event, canvas, viewRange);
     dragDraft = draftFromCorners(dragStart, canvasCellFromEvent(event, canvas, visualShelf), visualShelf);
-    updateDragMarker(visualShelf, dragMarker, dragDraft);
+    updateOrientedDragMarker(visualShelf, dragMarker, dragDraft, viewRange);
   });
 
   canvas.addEventListener('pointerup', event => {
@@ -2435,7 +2485,7 @@ function renderPlaceCanvas(shelf, kind, role = planRole(shelf)) {
     marker.className = 'draft-marker';
     marker.innerHTML = draftMarkerHtml(draft);
     decorateDraftMarker(marker, visualDraft, visualShelf);
-    updateDragMarker(visualShelf, marker, visualDraft);
+    updateOrientedDragMarker(visualShelf, marker, visualDraft, viewRange);
     marker.addEventListener('pointerdown', event => startDraftEdit(event, canvas, shelf, marker, draft, viewRange));
     canvas.append(marker);
   }
@@ -2699,7 +2749,7 @@ function startDraftEdit(event, canvas, shelf, marker, draft, viewRange = { width
       : resizeDraftFromPointer(visualDraft, handle, startPointer, moveEvent, canvas, visualShelf);
 
     const adjusted = setDraftFormValues(shelf, rackVisualToLocal(nextVisualDraft, viewRange));
-    updateDragMarker(visualShelf, marker, rackLocalToVisual(adjusted, viewRange));
+    updateOrientedDragMarker(visualShelf, marker, rackLocalToVisual(adjusted, viewRange), viewRange);
     marker.querySelector('.draft-size').textContent = formatSizeCm(adjusted.width, adjusted.depth);
   };
 
@@ -2748,7 +2798,7 @@ function startRackDraftEdit(event, canvas, shelf, range, marker, localDraft) {
       width: adjusted.width,
       depth: adjusted.depth
     }, range);
-    updateDragMarker(visualShelf, marker, rackLocalToVisual(adjustedLocal, range));
+    updateOrientedDragMarker(visualShelf, marker, rackLocalToVisual(adjustedLocal, range), range);
     marker.querySelector('.draft-size').textContent = formatSizeCm(adjusted.width, adjusted.depth);
   };
 
@@ -2808,7 +2858,7 @@ function startRackPackageEdit(event, canvas, shelf, range, item, rectangle, disp
       depth: adjusted.depth
     }, range);
     const adjustedVisual = rackLocalToVisual(adjustedLocal, range);
-    updateDragMarker(visualShelf, rectangle, adjustedVisual);
+    updateOrientedDragMarker(visualShelf, rectangle, adjustedVisual, range);
     rectangle.classList.toggle('compact-label', !rackPackageLabelFits(adjustedVisual.width, adjustedVisual.depth));
     rectangle.querySelector('.measure').textContent = formatSizeCm(adjusted.width, adjusted.depth);
   };
@@ -2869,7 +2919,7 @@ function startPackageEdit(event, canvas, shelf, item, rectangle, displayItem, vi
     displayItem.column_index = adjusted.column;
     displayItem.width_units = adjusted.width;
     displayItem.depth_units = adjusted.depth;
-    updateDragMarker(visualShelf, rectangle, rackLocalToVisual(adjusted, viewRange));
+    updateOrientedDragMarker(visualShelf, rectangle, rackLocalToVisual(adjusted, viewRange), viewRange);
     rectangle.querySelector('.measure').textContent = formatSizeCm(adjusted.width, adjusted.depth);
   };
 
@@ -3958,7 +4008,10 @@ els.cancelEditButton.addEventListener('click', () => {
 els.doorSideControls.addEventListener('click', event => {
   const button = event.target.closest('[data-door-side]');
   if (!button || !appState.selected?.shelf || draftSpecialKind() !== 'door') return;
-  els.doorSideValue.value = button.dataset.doorSide;
+  const viewRange = selectedDraftViewRange();
+  els.doorSideValue.value = viewRange
+    ? visualToPhysicalSide(button.dataset.doorSide, viewRange)
+    : button.dataset.doorSide;
   els.doorFlippedValue.value = '0';
   updateDraftFromSizeInputs();
 });
