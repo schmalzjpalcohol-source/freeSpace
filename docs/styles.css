@@ -47,7 +47,7 @@ p {
 }
 
 .shell {
-  width: 84%;
+  width: 80%;
   margin: 0 auto;
   padding: 20px 0 44px;
 }
@@ -2510,7 +2510,7 @@ select:hover {
 
 @media (max-width: 900px) {
   .shell {
-    width: 88%;
+    width: 84%;
     padding-top: 14px;
   }
 
@@ -2609,7 +2609,7 @@ select:hover {
 
 @media (max-width: 560px) {
   .shell {
-    width: 92%;
+    width: 90%;
   }
 
   h1 {
