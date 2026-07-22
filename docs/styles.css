@@ -1191,20 +1191,18 @@ select:hover {
 .rack-level-detail {
   width: calc(100% - 56px);
   max-width: calc(100% - 56px);
-  height: clamp(240px, 34vw, 380px);
-  min-height: clamp(240px, 34vw, 380px);
-  aspect-ratio: auto !important;
+  height: auto;
+  min-height: 0;
   margin-top: 58px;
   margin-left: 56px;
-  background-size: 48px 48px;
+  background-size: clamp(18px, 4vw, 48px) clamp(18px, 4vw, 48px);
 }
 
 .rack-level-detail.short-rack-detail {
   width: calc(100% - 56px);
   max-width: calc(100% - 56px);
-  height: clamp(220px, 30vw, 340px);
-  min-height: clamp(220px, 30vw, 340px);
-  aspect-ratio: auto !important;
+  height: auto;
+  min-height: 0;
 }
 
 .rack-tools {
@@ -1292,12 +1290,12 @@ select:hover {
 }
 
 .floor-main .place-canvas {
-  min-height: 460px;
+  min-height: 0;
 }
 
 .floor-long .place-canvas {
   width: min(100%, 520px);
-  min-height: 720px;
+  min-height: 0;
   justify-self: center;
 }
 
@@ -1357,7 +1355,7 @@ select:hover {
 .place-canvas {
   position: relative;
   width: 100%;
-  min-height: 240px;
+  min-height: 0;
   margin: 0;
   border: 2px solid var(--line-strong);
   border-radius: 8px;
@@ -1367,7 +1365,7 @@ select:hover {
   background-image:
     linear-gradient(to right, rgba(20, 32, 34, 0.022) 1px, transparent 1px),
     linear-gradient(to bottom, rgba(20, 32, 34, 0.022) 1px, transparent 1px);
-  background-size: 64px 64px;
+  background-size: clamp(18px, 5vw, 64px) clamp(18px, 5vw, 64px);
   cursor: crosshair;
   touch-action: none;
   user-select: none;
@@ -2571,8 +2569,16 @@ select:hover {
 
   .rack-level-detail.place-canvas,
   .rack-level-detail.short-rack-detail {
-    height: 220px;
-    min-height: 220px;
+    width: calc(100% - 44px);
+    max-width: calc(100% - 44px);
+    margin-left: 44px;
+    height: auto;
+    min-height: 0;
+  }
+
+  .floor-canvas {
+    width: calc(100% - 44px);
+    margin-left: 44px;
   }
 
   .plan-slot.rack .plan-meta {
@@ -2598,7 +2604,7 @@ select:hover {
   }
 
   .floor-long .floor-canvas {
-    width: min(calc(100% - 56px), 420px);
+    width: min(calc(100% - 44px), 420px);
   }
 
   .place-item {
@@ -2633,7 +2639,7 @@ select:hover {
   .plan-slot,
   .plan-slot.floor-main,
   .plan-slot.floor-long {
-    padding: 34px 34px 66px 44px;
+    padding: 28px 22px 58px 34px;
   }
 
   .shelf-meta {
@@ -2660,6 +2666,18 @@ select:hover {
   .plan-slot .place-canvas {
     margin-top: 58px;
     margin-bottom: 58px;
+  }
+
+  .floor-canvas,
+  .rack-level-detail,
+  .rack-level-detail.short-rack-detail {
+    width: calc(100% - 40px);
+    max-width: calc(100% - 40px);
+    margin-left: 40px;
+  }
+
+  .floor-long .floor-canvas {
+    width: min(calc(100% - 40px), 420px);
   }
 
   .plan-slot .place-canvas .dim-left {
