@@ -5,7 +5,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>freeSpace Storage Layout</title>
-    <link rel="stylesheet" href="./styles.css?v=20260716-door-outside-lanes">
+    <link rel="stylesheet" href="./styles.css?v=20260722-release-polish">
 </head>
 
 <body>
@@ -69,21 +69,21 @@
             <input id="shelfName" name="shelfName" autocomplete="off" list="placeExamples" placeholder="Rack area 1"
               required>
             <datalist id="placeExamples">
-              <option value="Rack 6.000 x 900 mm"></option>
-              <option value="Floor area 1 - 8.800 x 3.800 mm"></option>
-              <option value="Floor area 2 - 3.800 x 7.400 mm"></option>
+              <option value="Rack 6,000 x 900 mm"></option>
+              <option value="Floor area 1 - 8,800 x 3,800 mm"></option>
+              <option value="Floor area 2 - 3,800 x 7,400 mm"></option>
             </datalist>
           </label>
           <div class="split">
             <label>
               Area depth (mm)
               <input id="shelfRows" name="shelfRows" inputmode="decimal" pattern="[0-9.,]*" step="0.1"
-                value="4.500">
+                value="4,500">
             </label>
             <label>
               Area width (mm)
               <input id="shelfColumns" name="shelfColumns" inputmode="decimal" pattern="[0-9.,]*" step="0.1"
-                value="6.000">
+                value="6,000">
             </label>
           </div>
           <input id="rowIndex" name="rowIndex" type="hidden" value="1">
@@ -92,7 +92,7 @@
             <label>
               Item width (mm)
               <input id="widthUnits" name="widthUnits" inputmode="decimal" pattern="[0-9.,]*" step="0.1"
-                value="1.200">
+                value="1,200">
             </label>
             <label>
               Item depth (mm)
@@ -120,18 +120,18 @@
             </label>
           </div>
           <div class="examples">
-            <button type="button" data-preset="1200|800|1100|Pallet 1.200 x 800 x 1.100 mm|1">1.200 x 800</button>
-            <button type="button" data-preset="6000|800|600|Pallet 6.000 x 800 x 600 mm|1">6.000 x 800</button>
-            <button type="button" data-preset="6000|800|400|Pallet 6.000 x 800 x 400 mm|1">6.000 x 800 low</button>
-            <button type="button" data-preset="5400|750|400|Pallet 5.400 x 750 x 400 mm|1">5.400 x 750</button>
-            <button type="button" data-preset="3000|350|500|Pallet 3.000 x 350 x 500 mm|1">3.000 x 350</button>
-            <button type="button" data-preset="4100|350|400|Pallet 4.100 x 350 x 400 mm|1">4.100 x 350</button>
-            <button type="button" data-preset="3100|350|500|Pallet 3.100 x 350 x 500 mm|1">3.100 x 350</button>
-            <button type="button" data-preset="3400|450|450|Pallet 3.400 x 450 x 450 mm|4|stacked">4x 3.400 x 450</button>
-            <button type="button" data-preset="2700|450|450|Pallet 2.700 x 450 x 450 mm|1">2.700 x 450</button>
-            <button type="button" data-preset="8000|350|450|Pallet 8.000 x 350 x 450 mm|1">8.000 x 350</button>
-            <button type="button" data-preset="3100|800|350|Pallet 3.100 x 800 x 350 mm|1">3.100 x 800</button>
-            <button type="button" data-preset="4100|800|350|Pallet 4.100 x 800 x 350 mm|1">4.100 x 800</button>
+            <button type="button" data-preset="1200|800|1100|Pallet 1,200 x 800 x 1,100 mm|1">1,200 x 800</button>
+            <button type="button" data-preset="6000|800|600|Pallet 6,000 x 800 x 600 mm|1">6,000 x 800</button>
+            <button type="button" data-preset="6000|800|400|Pallet 6,000 x 800 x 400 mm|1">6,000 x 800 low</button>
+            <button type="button" data-preset="5400|750|400|Pallet 5,400 x 750 x 400 mm|1">5,400 x 750</button>
+            <button type="button" data-preset="3000|350|500|Pallet 3,000 x 350 x 500 mm|1">3,000 x 350</button>
+            <button type="button" data-preset="4100|350|400|Pallet 4,100 x 350 x 400 mm|1">4,100 x 350</button>
+            <button type="button" data-preset="3100|350|500|Pallet 3,100 x 350 x 500 mm|1">3,100 x 350</button>
+            <button type="button" data-preset="3400|450|450|Pallet 3,400 x 450 x 450 mm|4|stacked">4x 3,400 x 450</button>
+            <button type="button" data-preset="2700|450|450|Pallet 2,700 x 450 x 450 mm|1">2,700 x 450</button>
+            <button type="button" data-preset="8000|350|450|Pallet 8,000 x 350 x 450 mm|1">8,000 x 350</button>
+            <button type="button" data-preset="3100|800|350|Pallet 3,100 x 800 x 350 mm|1">3,100 x 800</button>
+            <button type="button" data-preset="4100|800|350|Pallet 4,100 x 800 x 350 mm|1">4,100 x 800</button>
             <button type="button" data-zone-kind="red">Red no-place zone</button>
             <button type="button" data-zone-kind="yellow">Yellow reserve zone</button>
             <button type="button" data-zone-kind="column">Pillar</button>
@@ -176,7 +176,7 @@
             <button id="toggleFitFinderButton" class="primary" type="button">Enter element size</button>
           </div>
           <form id="fitFinderForm" class="fit-finder-form hidden">
-            <label>Width (mm)<input id="fitWidth" inputmode="decimal" value="1.200" required></label>
+            <label>Width (mm)<input id="fitWidth" inputmode="decimal" value="1,200" required></label>
             <label>Depth (mm)<input id="fitDepth" inputmode="decimal" value="800" required></label>
             <label>Height (mm)<input id="fitHeight" inputmode="decimal" value="450" required></label>
             <button class="primary" type="submit">Show matching areas</button>
@@ -207,18 +207,18 @@
             </label>
             <label>
               Name
-              <input id="placeName" name="name" autocomplete="off" placeholder="Floor area 1 - 8.800 x 3.800 mm" required>
+              <input id="placeName" name="name" autocomplete="off" placeholder="Floor area 1 - 8,800 x 3,800 mm" required>
             </label>
             <div class="split">
               <label>
                 Area depth (mm)
                 <input id="placeRows" name="rows" inputmode="decimal" pattern="[0-9.,]*" step="0.1"
-                  value="4.500">
+                  value="4,500">
               </label>
               <label>
                 Area width (mm)
                 <input id="placeColumns" name="columns" inputmode="decimal" pattern="[0-9.,]*" step="0.1"
-                  value="6.000">
+                  value="6,000">
               </label>
             </div>
             <label>
@@ -228,12 +228,12 @@
             </label>
             <div class="examples">
               <button type="button"
-                data-place-preset="Rack 6000 x 900|shelf|4500|6000|4 levels, each 6.000 x 900 mm|650">Rack 6.000 x
+                data-place-preset="Rack 6000 x 900|shelf|4500|6000|4 levels, each 6,000 x 900 mm|650">Rack 6,000 x
                 900</button>
               <button type="button" data-place-preset="Floor area 1 - 8800 x 3800|floor|3800|8800||2200">Floor
-                8.800 x 3.800</button>
+                8,800 x 3,800</button>
               <button type="button" data-place-preset="Floor area 2 - 3800 x 7400|floor|7400|3800||2200">Floor
-                3.800 x 7.400</button>
+                3,800 x 7,400</button>
             </div>
             <label>
               Note
@@ -253,7 +253,7 @@
 
   <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
   <script src="./config.js"></script>
-    <script src="./app.js?v=20260716-door-outside-lanes"></script>
+    <script src="./app.js?v=20260722-release-polish"></script>
 </body>
 
 </html>

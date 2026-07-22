@@ -25,7 +25,7 @@ function localizedNumberValue(value, fallback) {
 }
 
 function formatMm(cm) {
-  return new Intl.NumberFormat('de-DE', { maximumFractionDigits: 2 }).format((Number(cm) || 0) * 10);
+  return new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format((Number(cm) || 0) * 10);
 }
 
 function metersToCm(value, fallbackMeters, maxMeters = 1000) {

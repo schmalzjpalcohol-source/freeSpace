@@ -87,19 +87,19 @@ let shelfVolumeCache = new WeakMap();
 
 const planPlaces = {
   'floor-main': {
-    title: 'Floor area 1 - 8.800 x 3.800 mm',
+    title: 'Floor area 1 - 8,800 x 3,800 mm',
     rows: 380,
     columns: 880,
     notes: 'max-height-mm:2200'
   },
   rack: {
-    title: 'Rack 6.000 x 4.500 mm',
+    title: 'Rack 6,000 x 4,500 mm',
     rows: 450,
     columns: 600,
     notes: 'max-height-mm:650'
   },
   'floor-long': {
-    title: 'Floor area 2 - 3.800 x 7.400 mm',
+    title: 'Floor area 2 - 3,800 x 7,400 mm',
     rows: 740,
     columns: 380,
     notes: 'max-height-mm:2200'
@@ -167,16 +167,20 @@ function placeLabel(kind) {
   return kind === 'floor' ? 'Floor area' : 'Rack';
 }
 
+function readableThousands(value) {
+  return String(value || '').replace(/(\d)\.(?=\d{3}\b)/g, '$1,');
+}
+
 function displayAreaName(value) {
-  return String(value || '')
+  return readableThousands(String(value || '')
     .replace(/bodenplatz/gi, 'Floor area')
     .replace(/lagerfl[aä]che/gi, 'Storage area')
     .replace(/fl[aä]che/gi, 'Area')
     .replace(/regal/gi, 'Rack')
-    .replace(/\b880\s*x\s*380\b(?:\s*cm)?/g, '8.800 x 3.800 mm')
-    .replace(/\b380\s*x\s*740\b(?:\s*cm)?/g, '3.800 x 7.400 mm')
-    .replace(/\b600\s*x\s*450\b(?:\s*cm)?/g, '6.000 x 4.500 mm')
-    .replace(/\b600\s*x\s*90\b(?:\s*cm)?/g, '6.000 x 900 mm');
+    .replace(/\b880\s*x\s*380\b(?:\s*cm)?/g, '8,800 x 3,800 mm')
+    .replace(/\b380\s*x\s*740\b(?:\s*cm)?/g, '3,800 x 7,400 mm')
+    .replace(/\b600\s*x\s*450\b(?:\s*cm)?/g, '6,000 x 4,500 mm')
+    .replace(/\b600\s*x\s*90\b(?:\s*cm)?/g, '6,000 x 900 mm'));
 }
 
 function packageTooltip(item) {
@@ -198,7 +202,7 @@ function packageTooltip(item) {
   const height = itemHeightCm(item);
   const count = stackCount(item);
   const parts = [
-    item.package_name,
+    displayPackageName(item),
     formatSizeCm(item.width_units || 1, item.depth_units || 1),
     zone ? `${zone} zone` : `${count}x stacked, ${formatNumber(height * 10)} mm each, ${formatNumber(count * height * 10)} mm total`
   ];
@@ -209,7 +213,7 @@ function packageTooltip(item) {
 }
 
 function displayPackageName(item) {
-  return specialKind(item) === 'column' ? 'Pillar' : (item?.package_name || '');
+  return specialKind(item) === 'column' ? 'Pillar' : readableThousands(item?.package_name || '');
 }
 
 function zonePurposeNote(note) {
@@ -227,11 +231,19 @@ function clamp(value, min, max) {
 
 function numberValue(value, fallback) {
   const text = String(value ?? '').trim();
-  const normalized = text.includes(',')
-    ? text.replaceAll('.', '').replace(',', '.')
-    : /\.\d{3}(?:\D|$)/.test(text)
-      ? text.replaceAll('.', '')
-      : text;
+  let normalized = text;
+  if (text.includes(',') && text.includes('.')) {
+    const decimalSeparator = text.lastIndexOf(',') > text.lastIndexOf('.') ? ',' : '.';
+    normalized = decimalSeparator === ','
+      ? text.replaceAll('.', '').replace(',', '.')
+      : text.replaceAll(',', '');
+  } else if (/^[+-]?[1-9]\d{0,2}(?:,\d{3})+$/.test(text)) {
+    normalized = text.replaceAll(',', '');
+  } else if (/^[+-]?[1-9]\d{0,2}(?:\.\d{3})+$/.test(text)) {
+    normalized = text.replaceAll('.', '');
+  } else if (text.includes(',')) {
+    normalized = text.replace(',', '.');
+  }
   const parsed = Number.parseFloat(normalized);
   return Number.isFinite(parsed) ? parsed : fallback;
 }
@@ -241,7 +253,7 @@ function formatDecimal(value) {
 }
 
 function formatNumber(value, maximumFractionDigits = 2) {
-  return new Intl.NumberFormat('de-DE', {
+  return new Intl.NumberFormat('en-US', {
     minimumFractionDigits: 0,
     maximumFractionDigits
   }).format(Number(value) || 0);
@@ -257,6 +269,10 @@ function formatMeasureCm(cm) {
 
 function formatVolumeMm3(volumeCm3) {
   return `${formatNumber(Math.max(0, Number(volumeCm3) || 0) * 1000)} mm³`;
+}
+
+function formatAreaMm2(areaCm2) {
+  return `${formatNumber(Math.max(0, Number(areaCm2) || 0) * 100)} mm²`;
 }
 
 function rectArea(rect) {
@@ -329,10 +345,10 @@ function noteWithStackPlacement(note, placement) {
 }
 
 function displayItemNote(note) {
-  return cleanHeightFromNote(note)
+  return readableThousands(cleanHeightFromNote(note)
     .replace(/(?:,\s*)?stack-order\s*:\s*(below|above)/gi, '')
     .replace(/^,\s*|\s*,$/g, '')
-    .trim();
+    .trim());
 }
 
 function orderedForStacking(items) {
@@ -400,10 +416,10 @@ function rackLevelSpecs(shelf) {
   };
   const small = levelRange(5);
   return [
-    { level: 1, label: 'Rack level 1', ...levelRange(1), xStart: 1, xEnd: width, short: false, heightLabel: '900 x 6.000 x 650 mm' },
-    { level: 2, label: 'Rack level 2', ...levelRange(2), xStart: 1, xEnd: width, short: false, heightLabel: '900 x 6.000 x 650 mm' },
-    { level: 3, label: 'Rack level 3', ...levelRange(3), xStart: 1, xEnd: width, short: false, heightLabel: '900 x 6.000 x 650 mm' },
-    { level: 5, label: 'Small rack', ...small, xStart: Math.max(1, width - 149), xEnd: width, short: true, heightLabel: '160 x 1.500 x 900 mm' }
+    { level: 1, label: 'Rack level 1', ...levelRange(1), xStart: 1, xEnd: width, short: false, heightLabel: '900 x 6,000 x 650 mm' },
+    { level: 2, label: 'Rack level 2', ...levelRange(2), xStart: 1, xEnd: width, short: false, heightLabel: '900 x 6,000 x 650 mm' },
+    { level: 3, label: 'Rack level 3', ...levelRange(3), xStart: 1, xEnd: width, short: false, heightLabel: '900 x 6,000 x 650 mm' },
+    { level: 5, label: 'Small rack', ...small, xStart: Math.max(1, width - 149), xEnd: width, short: true, heightLabel: '160 x 1,500 x 900 mm' }
   ];
 }
 
@@ -465,9 +481,9 @@ function packageRect(item) {
   };
 }
 
-function rackLevelFreeVolumeCm3(shelf, level) {
+function rackLevelSlice(shelf, level) {
   const range = rackLevelRange(shelf, level);
-  const slice = {
+  return {
     ...shelf,
     isRackLevelSlice: true,
     sliceMaxHeight: range.short ? 16 : 65,
@@ -475,7 +491,10 @@ function rackLevelFreeVolumeCm3(shelf, level) {
     columns: range.width,
     packages: rackLevelPackages(shelf, range)
   };
-  return freeVolumeCm3(slice);
+}
+
+function rackLevelFreeVolumeCm3(shelf, level) {
+  return freeVolumeCm3(rackLevelSlice(shelf, level));
 }
 
 function draftInRackRange(shelf, range, cell, size) {
@@ -754,6 +773,20 @@ function doorSide(item, shelf) {
   return doorSideFromNote(item?.note) || nearestDoorSide(item, shelf);
 }
 
+function orientDoorDraft(draft, shelf, side) {
+  const vertical = side === 'left' || side === 'right';
+  const shouldSwap = vertical ? draft.width > draft.depth : draft.depth > draft.width;
+  if (!shouldSwap) return draftAtCell(draft, shelf, draft);
+  const centerColumn = draft.column + ((draft.width - 1) / 2);
+  const centerRow = draft.row + ((draft.depth - 1) / 2);
+  const width = draft.depth;
+  const depth = draft.width;
+  return draftAtCell({
+    column: Math.round(centerColumn - ((width - 1) / 2)),
+    row: Math.round(centerRow - ((depth - 1) / 2))
+  }, shelf, { width, depth });
+}
+
 function placeDoorOutside(rectangle, item, shelf) {
   if (!isDoorItem(item)) return;
   const side = doorSide(item, shelf);
@@ -807,6 +840,13 @@ function totalCapacityCm3(shelf, bounds = null) {
   }, 0);
 }
 
+function totalUsableAreaCm2(shelf, bounds = null) {
+  return usableRegions(shelf).reduce((sum, region) => {
+    const visible = bounds ? rectIntersection(region, bounds) : region;
+    return sum + (visible ? rectArea(visible) : 0);
+  }, 0);
+}
+
 function pointInsideRect(x, y, rect) {
   return x >= rect.column && x < rect.column + rect.width && y >= rect.row && y < rect.row + rect.depth;
 }
@@ -851,11 +891,57 @@ function freeVolumeInBoundsCm3(shelf, bounds = null) {
   }, 0);
 }
 
+function freeAreaInBoundsCm2(shelf, bounds = null) {
+  const packages = (shelf.packages || []).filter(item => !isDoorItem(item));
+  return usableRegions(shelf).reduce((total, region) => {
+    const visibleRegion = bounds ? rectIntersection(region, bounds) : region;
+    if (!visibleRegion) return total;
+    const relevant = packages
+      .map(item => rectIntersection(visibleRegion, packageRect(item)))
+      .filter(Boolean);
+    if (!relevant.length) return total + rectArea(visibleRegion);
+    const xEdges = [...new Set([
+      visibleRegion.column,
+      visibleRegion.column + visibleRegion.width,
+      ...relevant.flatMap(rect => [rect.column, rect.column + rect.width])
+    ])].sort((a, b) => a - b);
+    const yEdges = [...new Set([
+      visibleRegion.row,
+      visibleRegion.row + visibleRegion.depth,
+      ...relevant.flatMap(rect => [rect.row, rect.row + rect.depth])
+    ])].sort((a, b) => a - b);
+    let regionFree = 0;
+    for (let xIndex = 0; xIndex < xEdges.length - 1; xIndex += 1) {
+      for (let yIndex = 0; yIndex < yEdges.length - 1; yIndex += 1) {
+        const left = xEdges[xIndex];
+        const right = xEdges[xIndex + 1];
+        const top = yEdges[yIndex];
+        const bottom = yEdges[yIndex + 1];
+        const midpointX = (left + right) / 2;
+        const midpointY = (top + bottom) / 2;
+        if (!relevant.some(rect => pointInsideRect(midpointX, midpointY, rect))) {
+          regionFree += (right - left) * (bottom - top);
+        }
+      }
+    }
+    return total + regionFree;
+  }, 0);
+}
+
 function freeVolumeCm3(shelf) {
   if (shelfVolumeCache.has(shelf)) return shelfVolumeCache.get(shelf);
   const volume = freeVolumeInBoundsCm3(shelf);
   shelfVolumeCache.set(shelf, volume);
   return volume;
+}
+
+function freeAreaCm2(shelf) {
+  return freeAreaInBoundsCm2(shelf);
+}
+
+function shelfFreeAreaPercent(shelf) {
+  const area = totalUsableAreaCm2(shelf);
+  return area ? (freeAreaCm2(shelf) / area) * 100 : 0;
 }
 
 function isStackedItem(item) {
@@ -1008,18 +1094,21 @@ function selectedPackageDraft(item) {
 
 function setDraftFormValues(shelf, draft) {
   const savingShelf = shelfForSaving(shelf);
+  if (draftSpecialKind() === 'door' && !els.doorSideValue.value) {
+    els.doorSideValue.value = nearestDoorSide(draftAsItem(draft, 'door'), savingShelf);
+  }
+  const oriented = draftSpecialKind() === 'door'
+    ? orientDoorDraft(draft, savingShelf, els.doorSideValue.value)
+    : draft;
   const adjusted = draftAtCell(
-    { row: draft.row, column: draft.column },
+    { row: oriented.row, column: oriented.column },
     savingShelf,
-    { width: draft.width, depth: draft.depth }
+    { width: oriented.width, depth: oriented.depth }
   );
   els.rowIndex.value = adjusted.row;
   els.columnIndex.value = adjusted.column;
   els.widthUnits.value = inputCm(adjusted.width);
   els.depthUnits.value = inputCm(adjusted.depth);
-  if (draftSpecialKind() === 'door' && !els.doorSideValue.value) {
-    els.doorSideValue.value = nearestDoorSide(draftAsItem(adjusted, 'door'), savingShelf);
-  }
   appState.selected = { shelf, row: adjusted.row, column: adjusted.column };
   els.selectedCell.textContent = `${displayAreaName(shelf.name)}: ${formatSizeCm(adjusted.width, adjusted.depth)} selected`;
   return adjusted;
@@ -1027,10 +1116,13 @@ function setDraftFormValues(shelf, draft) {
 
 function setPackageEditFormValues(shelf, draft) {
   const savingShelf = shelfForSaving(shelf);
+  const oriented = draftSpecialKind() === 'door' && els.doorSideValue.value
+    ? orientDoorDraft(draft, savingShelf, els.doorSideValue.value)
+    : draft;
   const adjusted = draftAtCell(
-    { row: draft.row, column: draft.column },
+    { row: oriented.row, column: oriented.column },
     savingShelf,
-    { width: draft.width, depth: draft.depth }
+    { width: oriented.width, depth: oriented.depth }
   );
   els.rowIndex.value = adjusted.row;
   els.columnIndex.value = adjusted.column;
@@ -1082,7 +1174,7 @@ function selectCell(shelf, row, column, item) {
   els.shelfColumns.value = inputCm(shelf.columns);
   els.rowIndex.value = row;
   els.columnIndex.value = column;
-  els.widthUnits.value = item ? inputCm(item.width_units || 120) : '1.200';
+  els.widthUnits.value = item ? inputCm(item.width_units || 120) : '1,200';
   els.depthUnits.value = item ? inputCm(item.depth_units || 80) : '800';
   els.heightUnits.value = item ? inputCm(itemHeightCm(item)) : '450';
   els.packageName.value = item ? displayPackageName(item) : '';
@@ -1090,6 +1182,18 @@ function selectCell(shelf, row, column, item) {
   els.note.value = item ? cleanDoorStateFromNote(cleanHeightFromNote(item.note || '')) : '';
   els.doorSideValue.value = item && isDoorItem(item) ? (doorSideFromNote(item.note) || nearestDoorSide(item, shelf)) : '';
   els.doorFlippedValue.value = item && isDoorItem(item) && doorIsFlipped(item) ? '1' : '0';
+  if (item && isDoorItem(item)) {
+    const oriented = orientDoorDraft({
+      row,
+      column,
+      width: item.width_units || 1,
+      depth: item.depth_units || 1
+    }, shelfForSaving(shelf), els.doorSideValue.value);
+    els.rowIndex.value = oriented.row;
+    els.columnIndex.value = oriented.column;
+    els.widthUnits.value = inputCm(oriented.width);
+    els.depthUnits.value = inputCm(oriented.depth);
+  }
   els.formTitle.textContent = item ? 'Edit item' : 'Add item';
   els.saveButton.textContent = item ? 'Save changes' : 'Save item';
   els.deletePackageButton.classList.toggle('hidden', !item);
@@ -1109,7 +1213,7 @@ function clearPackageForm() {
   els.packageName.value = '';
   els.quantity.value = 1;
   els.note.value = '';
-  els.widthUnits.value = '1.200';
+  els.widthUnits.value = '1,200';
   els.depthUnits.value = '800';
   els.heightUnits.value = '450';
   els.formTitle.textContent = 'Add item';
@@ -1232,7 +1336,7 @@ function render() {
     || findPlanShelf(appState.activePlanRole, visibleShelves)
     || visibleShelves[0];
   els.summaryText.textContent = visibleShelves.length
-    ? 'Free volume in mm³ is shown only for the selected area below.'
+    ? 'Free area, capacity, and volume are shown for the selected area below.'
     : 'No areas have been created yet.';
   renderModel3d(selectedShelf ? [selectedShelf] : []);
   renderPlanDrawing(shelfPlaces, floorPlaces);
@@ -1476,8 +1580,9 @@ function renderPlanSlot(role, shelf) {
     </div>
     <div class="stats">
       <span class="stat"><small>Area size</small>${formatSizeCm(displayShelf.columns, displayShelf.rows)}</span>
+      <span class="stat"><small>Free area</small>${shelf ? formatAreaMm2(freeAreaCm2(displayShelf)) : 'not created yet'}</span>
       <span class="stat selected-volume"><small>Free volume</small>${shelf ? lengthSummary(displayShelf) : 'not created yet'}</span>
-      ${shelf ? `<span class="stat"><small>Free</small>${formatNumber(shelfFreePercent(displayShelf), 1)}%</span>` : ''}
+      ${shelf ? `<span class="stat"><small>Free capacity</small>${formatNumber(shelfFreePercent(displayShelf), 1)}%</span>` : ''}
       <span class="stat"><small>Height</small>${escapeHtml(areaHeightLabel(displayShelf))}</span>
       ${shelf ? `
         <span class="plan-meta-actions">
@@ -1566,8 +1671,23 @@ function renderRackDisplay(shelf) {
 
   wrapper.append(levels);
   wrapper.append(renderRackTools(shelf, appState.activeRackLevel));
+  wrapper.append(renderRackSelectionStats(shelf, appState.activeRackLevel));
   wrapper.append(renderRackLevelDetail(shelf, appState.activeRackLevel));
   return wrapper;
+}
+
+function renderRackSelectionStats(shelf, level) {
+  const range = rackLevelRange(shelf, level);
+  const slice = rackLevelSlice(shelf, level);
+  const stats = document.createElement('div');
+  stats.className = 'rack-selection-stats';
+  stats.innerHTML = `
+    <strong>${escapeHtml(range.label)}</strong>
+    <span><small>Free area</small>${formatAreaMm2(freeAreaCm2(slice))}</span>
+    <span><small>Area free</small>${formatNumber(shelfFreeAreaPercent(slice), 1)}%</span>
+    <span><small>Free volume</small>${formatVolumeMm3(freeVolumeCm3(slice))}</span>
+  `;
+  return stats;
 }
 
 function renderRackTools(shelf, level) {
@@ -2118,7 +2238,7 @@ function renderDimensionLabels(shelf, kind, role = planRole(shelf)) {
   labels.innerHTML = `
     <span class="dim dim-top">${formatNumber(shelf.columns * 10)} mm</span>
     <span class="dim dim-left">${formatNumber(shelf.rows * 10)} mm</span>
-    ${kind === 'shelf' ? '<span class="dim dim-bays">6.000 mm length</span>' : ''}
+    ${kind === 'shelf' ? '<span class="dim dim-bays">6,000 mm length</span>' : ''}
   `;
   return labels;
 }
@@ -2523,7 +2643,7 @@ function model3dDisplayShelf(shelf) {
     columns: 600,
     packages: modelPackages,
     modelHeightCm: 211,
-    modelDimensionLabel: '6.000 x 900 mm · 3 levels x 650 mm · small rack below bottom-right 1.500 x 900 x 160 mm',
+    modelDimensionLabel: '6,000 x 900 mm · 3 levels x 650 mm · small rack below bottom-right 1,500 x 900 x 160 mm',
     modelIsRackLevel: true,
     modelShowsAllLevels: true,
     notes: 'Complete rack'
@@ -2793,16 +2913,10 @@ function buildModel3dLabels(shelf) {
     <span class="model3d-area-label">${escapeHtml(displayAreaName(shelf.label || shelf.name))}</span>
     ${shelf.modelShowsAllLevels ? `
       <span>Level 1 · 160–810 mm</span>
-      <span>Level 2 · 810–1.460 mm</span>
-      <span>Level 3 · 1.460–2.110 mm</span>
+      <span>Level 2 · 810–1,460 mm</span>
+      <span>Level 3 · 1,460–2,110 mm</span>
       <span>Small rack · below bottom-right · 0–160 mm</span>
     ` : ''}
-    ${(shelf.packages || []).filter(item => !isDoorItem(item)).slice(0, 10).map(item => `
-      <span class="${zoneKind(item) ? 'zone-label' : ''}">
-        ${escapeHtml(displayPackageName(item))}
-        ${zoneKind(item) ? escapeHtml(specialKind(item) === 'column' ? 'pillar' : specialKind(item)) : `${formatNumber(stackTotalHeightCm(item) * 10)} mm`}
-      </span>
-    `).join('')}
   `;
   return labels;
 }
@@ -2993,7 +3107,7 @@ function startSubRackCreation(parent) {
   els.placeLocationType.value = 'shelf';
   els.placeName.value = `${displayAreaName(parent.label || parent.name)} - Sub-rack ${existingCount + 1}`;
   els.placeRows.value = '900';
-  els.placeColumns.value = '1.500';
+  els.placeColumns.value = '1,500';
   els.placeHeight.value = '650';
   els.placeNotes.value = '';
   els.savePlaceButton.textContent = 'Create sub-rack';
@@ -3308,7 +3422,7 @@ els.doorSideControls.addEventListener('click', event => {
   if (!button || !appState.selected?.shelf || draftSpecialKind() !== 'door') return;
   els.doorSideValue.value = button.dataset.doorSide;
   els.doorFlippedValue.value = '0';
-  render();
+  updateDraftFromSizeInputs();
 });
 
 els.deletePackageButton.addEventListener('click', async () => {
@@ -3371,15 +3485,15 @@ document.querySelectorAll('[data-zone-kind]').forEach(button => {
       els.depthUnits.value = '300';
     }
     if (kind === 'corridor') {
-      els.widthUnits.value = '1.200';
-      els.depthUnits.value = '1.000';
+      els.widthUnits.value = '1,200';
+      els.depthUnits.value = '1,000';
     }
     if (appState.selected?.shelf && kind !== 'door') {
       els.heightUnits.value = inputCm(maxStackHeightForShelf(appState.selected.shelf, selectedDraft() || appState.selected));
     } else if (kind === 'door') {
       els.widthUnits.value = '900';
       els.depthUnits.value = '100';
-      els.heightUnits.value = '2.100';
+      els.heightUnits.value = '2,100';
     }
     updateDraftFromSizeInputs();
   });

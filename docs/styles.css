@@ -1179,6 +1179,42 @@ select:hover {
   min-width: 0;
 }
 
+.rack-selection-stats {
+  display: flex;
+  align-items: stretch;
+  gap: 7px;
+  flex-wrap: wrap;
+  padding: 8px 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.rack-selection-stats > strong,
+.rack-selection-stats > span {
+  display: grid;
+  align-content: center;
+  gap: 2px;
+  min-height: 38px;
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface-soft);
+}
+
+.rack-selection-stats > strong {
+  border-color: rgba(15, 118, 110, 0.25);
+  background: #edf7f5;
+  color: var(--primary-dark);
+}
+
+.rack-selection-stats small {
+  color: var(--quiet);
+  font-size: 0.6rem;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
 .measure-toggle {
   min-height: 34px;
   display: inline-flex;
@@ -1503,6 +1539,16 @@ select:hover {
   pointer-events: none;
 }
 
+.corridor-visual .pkg {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 1;
+  width: calc(100% - 12px);
+  text-align: center;
+  transform: translate(-50%, 7px);
+}
+
 .package-rect.door-visual,
 .draft-marker.door-visual,
 .drag-marker.door-visual {
@@ -1516,6 +1562,7 @@ select:hover {
   color: #fff;
   box-shadow: 0 3px 8px rgba(0, 0, 0, 0.24);
   overflow: visible;
+  container-type: size;
 }
 
 .package-rect.door-visual::after {
@@ -1524,6 +1571,28 @@ select:hover {
   font-size: 0.66rem;
   line-height: 1;
   white-space: nowrap;
+}
+
+.door-visual::before {
+  content: "Door";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 2;
+  color: #fff;
+  font-size: clamp(2px, 48cqmin, 13px);
+  font-weight: 850;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  transform-origin: center;
+}
+
+.door-visual.door-left::before,
+.door-visual.door-right::before {
+  transform: translate(-50%, -50%) rotate(-90deg);
 }
 
 .door-visual.door-top { transform: translateY(calc(-100% - 16px)); }
