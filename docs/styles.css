@@ -47,7 +47,7 @@ p {
 }
 
 .shell {
-  width: calc(100% - 36px);
+  width: 90%;
   margin: 0 auto;
   padding: 20px 0 44px;
 }
@@ -2355,6 +2355,12 @@ select:hover {
   background: var(--surface-soft);
 }
 
+.number-format-hint {
+  margin-top: -4px;
+  color: var(--muted);
+  font-size: 0.74rem;
+}
+
 .rack-structure-controls {
   display: grid;
   gap: 10px;
@@ -2504,7 +2510,7 @@ select:hover {
 
 @media (max-width: 900px) {
   .shell {
-    width: calc(100% - 20px);
+    width: 90%;
     padding-top: 14px;
   }
 
@@ -2603,7 +2609,7 @@ select:hover {
 
 @media (max-width: 560px) {
   .shell {
-    width: calc(100% - 16px);
+    width: 90%;
   }
 
   h1 {
