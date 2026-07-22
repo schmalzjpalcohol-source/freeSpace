@@ -363,14 +363,15 @@ select:hover {
 }
 
 .toolbar-actions {
-  display: flex;
+  display: inline-flex;
   gap: 6px;
-  flex-wrap: wrap;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
   justify-content: flex-end;
-  padding: 4px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--surface-strong);
+  width: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
 }
 
 .toolbar-actions .active {
@@ -2508,9 +2509,8 @@ select:hover {
     align-self: flex-start;
     justify-content: flex-start;
     gap: 3px;
-    padding: 2px;
-    border-radius: 7px;
-    background: rgba(237, 243, 242, 0.68);
+    padding: 0;
+    background: transparent;
   }
 
   .toolbar-actions button {
@@ -2586,6 +2586,9 @@ select:hover {
 
   .content {
     padding: 14px;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
   }
 
   .place-canvas {
@@ -2632,8 +2635,7 @@ select:hover {
 
   .toolbar-actions {
     gap: 2px;
-    padding: 1px;
-    border-color: rgba(195, 208, 207, 0.7);
+    padding: 0;
     background: transparent;
   }
 
