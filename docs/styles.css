@@ -47,7 +47,7 @@ p {
 }
 
 .shell {
-  width: min(1240px, calc(100% - 36px));
+  width: calc(100% - 36px);
   margin: 0 auto;
   padding: 20px 0 44px;
 }
@@ -206,40 +206,6 @@ select:focus-visible {
   color: var(--danger);
   background: #fff2f3;
   border-color: #f0bdc4;
-}
-
-.stack-dialog-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 2000;
-  display: grid;
-  place-items: center;
-  padding: 18px;
-  background: rgba(20, 32, 34, 0.42);
-  backdrop-filter: blur(3px);
-}
-
-.stack-dialog {
-  width: min(460px, 100%);
-  display: grid;
-  gap: 12px;
-  padding: 22px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--surface);
-  box-shadow: 0 26px 70px rgba(20, 32, 34, 0.3);
-}
-
-.stack-dialog p:not(.eyebrow) {
-  color: var(--muted);
-  line-height: 1.45;
-}
-
-.stack-dialog-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 4px;
 }
 
 .layout {
@@ -2534,7 +2500,7 @@ select:hover {
 
 @media (max-width: 900px) {
   .shell {
-    width: min(100% - 20px, 720px);
+    width: calc(100% - 20px);
     padding-top: 14px;
   }
 
@@ -2624,7 +2590,7 @@ select:hover {
 
 @media (max-width: 560px) {
   .shell {
-    width: min(100% - 16px, 520px);
+    width: calc(100% - 16px);
   }
 
   h1 {

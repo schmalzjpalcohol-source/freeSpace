@@ -347,20 +347,29 @@ function stackPlacement(itemOrNote) {
   return String(note || '').match(/stack-order\s*:\s*(below|above)/i)?.[1]?.toLowerCase() || '';
 }
 
-function noteWithStackPlacement(note, placement) {
-  const clean = String(note || '')
+function stackBaseHeightCm(itemOrNote) {
+  const note = typeof itemOrNote === 'object' ? itemOrNote?.note : itemOrNote;
+  const valueMm = numberValue(String(note || '').match(/stack-base-mm\s*:\s*([0-9.,]+)/i)?.[1], -1);
+  return valueMm >= 0 ? valueMm / 10 : null;
+}
+
+function cleanStackMetadata(note) {
+  return String(note || '')
     .replace(/(?:,\s*)?stack-order\s*:\s*(below|above)/gi, '')
+    .replace(/(?:,\s*)?stack-base-mm\s*:\s*[0-9.,]+/gi, '')
     .replace(/^,\s*|\s*,$/g, '')
     .trim();
-  const marker = `stack-order:${placement}`;
+}
+
+function noteWithStackPlacement(note, placement, baseHeightCm = null) {
+  const clean = cleanStackMetadata(note);
+  const baseMarker = baseHeightCm === null ? '' : `, stack-base-mm:${formatDecimal(baseHeightCm * 10)}`;
+  const marker = `stack-order:${placement}${baseMarker}`;
   return clean ? `${clean}, ${marker}` : marker;
 }
 
 function displayItemNote(note) {
-  return readableThousands(cleanHeightFromNote(note)
-    .replace(/(?:,\s*)?stack-order\s*:\s*(below|above)/gi, '')
-    .replace(/^,\s*|\s*,$/g, '')
-    .trim());
+  return readableThousands(cleanStackMetadata(cleanHeightFromNote(note)));
 }
 
 function orderedForStacking(items) {
@@ -1054,35 +1063,6 @@ function overlappingNormalItems(shelf, candidate, excludeId = '') {
     !isZoneItem(item) && !isDoorItem(item) &&
     rectsOverlap(rect, packageRect(item))
   ));
-}
-
-function askStackPlacement(items) {
-  return new Promise(resolve => {
-    const overlay = document.createElement('div');
-    overlay.className = 'stack-dialog-backdrop';
-    const names = items.map(item => item.package_name).filter(Boolean).slice(0, 3).join(', ');
-    overlay.innerHTML = `
-      <section class="stack-dialog" role="dialog" aria-modal="true" aria-labelledby="stackDialogTitle">
-        <p class="eyebrow">Stack position</p>
-        <h2 id="stackDialogTitle">Where should the new item go?</h2>
-        <p>It overlaps ${escapeHtml(names || 'an existing item')}.</p>
-        <div class="stack-dialog-actions">
-          <button class="primary" type="button" data-stack-choice="above">Place on top</button>
-          <button class="ghost" type="button" data-stack-choice="below">Place underneath</button>
-          <button class="ghost" type="button" data-stack-choice="cancel">Cancel</button>
-        </div>
-      </section>
-    `;
-    const finish = choice => {
-      overlay.remove();
-      resolve(choice === 'cancel' ? '' : choice);
-    };
-    overlay.querySelectorAll('[data-stack-choice]').forEach(button => {
-      button.addEventListener('click', () => finish(button.dataset.stackChoice));
-    });
-    document.body.append(overlay);
-    overlay.querySelector('[data-stack-choice="above"]').focus();
-  });
 }
 
 function selectedDraft() {
@@ -3074,7 +3054,11 @@ function createThreeAreaScene(viewport, shelf, view) {
     const overlaps = renderedItems.filter(previous => (
       previous.modelRackLevel === item.modelRackLevel && rectsOverlap(packageRect(previous), packageRect(item))
     ));
-    const baseHeightCm = (item.modelBaseHeightCm || 0) + overlaps.reduce((sum, previous) => sum + stackTotalHeightCm(previous), 0);
+    const storedStackBase = stackBaseHeightCm(item);
+    const localBaseHeight = storedStackBase === null
+      ? overlaps.reduce((sum, previous) => sum + stackTotalHeightCm(previous), 0)
+      : storedStackBase;
+    const baseHeightCm = (item.modelBaseHeightCm || 0) + localBaseHeight;
     renderThreeItem(root, item, scale, heightScale, widthCm, depthCm, {
       baseHeightCm,
       translucent: overlaps.length > 0,
@@ -3509,9 +3493,10 @@ async function submitPackage(event) {
     }
     const overlappingItems = overlappingNormalItems(selectedShelf, candidateRect, payload.packageId);
     if (overlappingItems.length) {
-      const placement = await askStackPlacement(overlappingItems);
-      if (!placement) return;
-      payload.note = noteWithStackPlacement(payload.note, placement);
+      // Overlapping normal items form one vertical stack. New or moved items always go on top.
+      payload.note = noteWithStackPlacement(payload.note, 'above', existingOverlapHeight);
+    } else {
+      payload.note = cleanStackMetadata(payload.note);
     }
   }
   payload.quantity = quantity;
