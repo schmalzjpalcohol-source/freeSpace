@@ -529,16 +529,28 @@ function rackLevelRange(shelf, level) {
 }
 
 function effectiveRowsForShelf(shelf) {
-  if (isCustomRack(shelf)) return Math.max(1, shelf.rows || 1);
+  if (isCustomRack(shelf)) {
+    const levels = rackLayoutFromNotes(shelf);
+    const layoutRows = levels.length ? Math.max(...levels.map(level => level.start + level.depth - 1)) : 1;
+    return Math.max(1, shelf.rows || 1, layoutRows);
+  }
   return planPlaceRole(shelf) === 'rack'
     ? Math.max(planPlaces.rack.rows, shelf.rows || planPlaces.rack.rows)
     : shelf.rows;
 }
 
+function effectiveColumnsForShelf(shelf) {
+  if (!isCustomRack(shelf)) return Math.max(1, shelf.columns || 1);
+  const levels = rackLayoutFromNotes(shelf);
+  const layoutColumns = levels.length ? Math.max(...levels.map(level => level.width)) : 1;
+  return Math.max(1, shelf.columns || 1, layoutColumns);
+}
+
 function shelfForSaving(shelf) {
   return {
     ...shelf,
-    rows: effectiveRowsForShelf(shelf)
+    rows: effectiveRowsForShelf(shelf),
+    columns: effectiveColumnsForShelf(shelf)
   };
 }
 
@@ -1320,7 +1332,7 @@ function applyDraftSelection(shelf, draft) {
   els.locationType.value = placeKind(shelf);
   els.shelfName.value = shelf.name;
   els.shelfRows.value = inputCm(effectiveRowsForShelf(shelf));
-  els.shelfColumns.value = inputCm(shelf.columns);
+  els.shelfColumns.value = inputCm(effectiveColumnsForShelf(shelf));
   setDraftFormValues(shelf, draft);
   const currentSpecial = specialKind({ package_name: els.packageName.value, note: els.note.value });
   if (planPlaceRole(shelf) === 'rack' && !currentSpecial) {
@@ -1356,7 +1368,7 @@ function selectCell(shelf, row, column, item, shouldRender = true) {
   els.locationType.value = placeKind(shelf);
   els.shelfName.value = shelf.name;
   els.shelfRows.value = inputCm(effectiveRowsForShelf(shelf));
-  els.shelfColumns.value = inputCm(shelf.columns);
+  els.shelfColumns.value = inputCm(effectiveColumnsForShelf(shelf));
   els.rowIndex.value = row;
   els.columnIndex.value = column;
   els.widthUnits.value = item ? inputCm(item.width_units || 120) : '1,200';
@@ -1537,16 +1549,17 @@ function normalizeRackLayout(levels) {
   const normalized = levels.map((level, index) => ({
     id: String(level.id || `level-${index + 1}`),
     slot: Math.max(1, Number.parseInt(level.slot, 10) || index + 1),
-    start: Math.max(0, numberValue(level.start, 0)),
+    start: 0,
     name: String(level.name || `Sub-rack ${index + 1}`).trim() || `Sub-rack ${index + 1}`,
     width: Math.max(0.1, numberValue(level.width, 600)),
     depth: Math.max(0.1, numberValue(level.depth, 90)),
     height: Math.max(0.1, numberValue(level.height, 65))
-  }));
+  })).sort((a, b) => a.slot - b.slot);
   let nextStart = 1;
-  [...normalized].sort((a, b) => a.slot - b.slot).forEach(level => {
-    if (level.start < 1) level.start = nextStart;
-    nextStart = Math.max(nextStart, level.start + level.depth);
+  normalized.forEach((level, index) => {
+    level.slot = index + 1;
+    level.start = nextStart;
+    nextStart += level.depth;
   });
   return normalized;
 }
@@ -1614,6 +1627,7 @@ function renderRackStructureEditor(levels = []) {
       const target = index + Number(button.dataset.levelMove);
       if (target < 0 || target >= layout.length) return;
       [layout[index], layout[target]] = [layout[target], layout[index]];
+      layout.forEach((item, itemIndex) => { item.slot = itemIndex + 1; });
       renderRackStructureEditor(layout);
     }));
     els.rackStructureList.append(row);

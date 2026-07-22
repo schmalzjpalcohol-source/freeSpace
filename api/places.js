@@ -82,14 +82,14 @@ function rackLayoutFromNotes(notes) {
     let nextRow = 1;
     return [...levels].sort((a, b) => (Number(a.slot) || 0) - (Number(b.slot) || 0)).map(level => {
       const depth = Math.max(0.1, numberValue(level.depth, 90));
-      const start = Math.max(1, numberValue(level.start, nextRow));
+      const start = nextRow;
       const range = {
         start,
         end: start + depth - 1,
         width: Math.max(0.1, numberValue(level.width, 600)),
         height: Math.max(0.1, numberValue(level.height, 65))
       };
-      nextRow = Math.max(nextRow, range.end + 1);
+      nextRow = range.end + 1;
       return range;
     });
   } catch (error) {

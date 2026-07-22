@@ -97,14 +97,14 @@ function rackLayoutFromNotes(notes) {
     let nextRow = 1;
     return [...levels].sort((a, b) => (Number(a.slot) || 0) - (Number(b.slot) || 0)).map(level => {
       const depth = Math.max(0.1, numberValue(level.depth, 90));
-      const start = Math.max(1, numberValue(level.start, nextRow));
+      const start = nextRow;
       const range = {
         start,
         end: start + depth - 1,
         width: Math.max(0.1, numberValue(level.width, 600)),
         height: Math.max(0.1, numberValue(level.height, 65))
       };
-      nextRow = Math.max(nextRow, range.end + 1);
+      nextRow = range.end + 1;
       return range;
     });
   } catch (error) {
@@ -190,6 +190,20 @@ async function ensureShelf(body) {
       const error = new Error('The selected area no longer exists. Reload the page.');
       error.status = 404;
       throw error;
+    }
+    const customLevels = rackLayoutFromNotes(shelf.notes);
+    if (customLevels.length) {
+      const requiredRows = Math.max(...customLevels.map(level => level.end));
+      const requiredColumns = Math.max(...customLevels.map(level => level.width));
+      if (requiredRows > shelf.rows || requiredColumns > shelf.columns) {
+        const rows = Math.max(shelf.rows || 1, requiredRows);
+        const columns = Math.max(shelf.columns || 1, requiredColumns);
+        const updated = await supabaseFetch(`shelves?id=eq.${encodeURIComponent(shelf.id)}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ rows, columns })
+        });
+        return updated[0] || { ...shelf, rows, columns };
+      }
     }
     return shelf;
   }
