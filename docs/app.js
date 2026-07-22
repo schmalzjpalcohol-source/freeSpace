@@ -580,6 +580,57 @@ function rackGlobalDraft(shelf, range, localDraft) {
   );
 }
 
+function rackLevelRotated(range) {
+  return range.width > range.height;
+}
+
+function rackVisualShelf(range) {
+  return rackLevelRotated(range)
+    ? { columns: range.height, rows: range.width }
+    : { columns: range.width, rows: range.height };
+}
+
+function rackLocalToVisual(draft, range) {
+  if (!rackLevelRotated(range)) return { ...draft };
+  return {
+    column: draft.row,
+    row: draft.column,
+    width: draft.depth,
+    depth: draft.width
+  };
+}
+
+function rackVisualToLocal(draft, range) {
+  if (!rackLevelRotated(range)) return { ...draft };
+  return {
+    column: draft.row,
+    row: draft.column,
+    width: draft.depth,
+    depth: draft.width
+  };
+}
+
+function rackPhysicalMeasurePoint(point, range) {
+  return rackLevelRotated(range) ? { column: point.row, row: point.column } : point;
+}
+
+function rackVisualMeasurement(measurement, range) {
+  if (!measurement || !rackLevelRotated(range)) return measurement;
+  const swap = point => point ? { column: point.row, row: point.column } : point;
+  return {
+    ...measurement,
+    start: swap(measurement.start),
+    current: swap(measurement.current),
+    end: swap(measurement.end)
+  };
+}
+
+function updateRackDoorSideFromPointer(event, canvas, range) {
+  updateDoorSideFromPointer(event, canvas);
+  if (draftSpecialKind() !== 'door' || !rackLevelRotated(range)) return;
+  els.doorSideValue.value = ({ top: 'left', bottom: 'right', left: 'top', right: 'bottom' })[els.doorSideValue.value] || els.doorSideValue.value;
+}
+
 function rackPackageLabelFits(width, depth) {
   return width >= 48 && depth >= 18;
 }
@@ -1978,6 +2029,7 @@ function renderMeasureButton(shelf, level, mode, label, measurement) {
 
 function renderRackLevelDetail(shelf, level) {
   const range = rackLevelRange(shelf, level);
+  const visualShelf = rackVisualShelf(range);
   const canvas = document.createElement('div');
   const measurement = activeMeasurement(shelf, level);
   let measuringPointer = null;
@@ -1987,11 +2039,12 @@ function renderRackLevelDetail(shelf, level) {
   let dragOrigin = null;
   let dragMoved = false;
   canvas.className = `rack-level-detail place-canvas ${range.short ? 'short-rack-detail' : ''}`;
+  canvas.classList.toggle('rack-level-portrait', rackLevelRotated(range));
   canvas.style.setProperty('--cols', 1);
   canvas.style.setProperty('--rows', 1);
-  canvas.style.aspectRatio = `${range.width} / ${Math.max(1, range.height)}`;
-  canvas.append(renderDimensionLabels({ ...shelf, columns: range.width, rows: range.height }, 'shelf', range.short ? 'rack-short-detail' : 'rack-detail'));
-  canvas.append(renderMeasureOverlay(measurement, range));
+  canvas.style.aspectRatio = `${visualShelf.columns} / ${Math.max(1, visualShelf.rows)}`;
+  canvas.append(renderDimensionLabels({ ...shelf, columns: visualShelf.columns, rows: visualShelf.rows }, 'shelf', range.short ? 'rack-short-detail' : 'rack-detail'));
+  canvas.append(renderMeasureOverlay(rackVisualMeasurement(measurement, range), { width: visualShelf.columns, height: visualShelf.rows }));
 
   const visiblePackages = orderedForStacking(shelf.packages.filter(item => packageInRackLevel(item, range)));
   const renderedPackages = [];
@@ -2025,8 +2078,14 @@ function renderRackLevelDetail(shelf, level) {
       width_units: visibleWidth,
       depth_units: visibleDepth
     };
+    const visualDisplayItem = rackLocalToVisual({
+      column: localDisplayItem.column_index,
+      row: localDisplayItem.row_index,
+      width: localDisplayItem.width_units,
+      depth: localDisplayItem.depth_units
+    }, range);
     rectangle.className = `package-rect rack-package ${selectedPackage ? 'selected' : ''}`;
-    rectangle.classList.toggle('compact-label', !rackPackageLabelFits(visibleWidth, visibleDepth));
+    rectangle.classList.toggle('compact-label', !rackPackageLabelFits(visualDisplayItem.width, visualDisplayItem.depth));
     rectangle.classList.toggle('blocked-zone', isBlockedItem(displayItem));
     rectangle.classList.toggle('reserve-zone', isYellowZone(displayItem));
     rectangle.classList.toggle('column-element', specialKind(displayItem) === 'column');
@@ -2036,17 +2095,29 @@ function renderRackLevelDetail(shelf, level) {
     rectangle.classList.toggle('corridor-visual', specialKind(displayItem) === 'corridor');
     rectangle.classList.toggle('door-visual', isDoorItem(displayItem));
     rectangle.classList.toggle('door-flipped', isDoorItem(displayItem) && doorIsFlipped(displayItem));
-    if (isDoorItem(displayItem)) rectangle.classList.add(`door-${doorSide(localDisplayItem, localShelf)}`);
+    if (isDoorItem(displayItem)) {
+      const physicalSide = doorSide(localDisplayItem, localShelf);
+      const visualSide = rackLevelRotated(range)
+        ? ({ left: 'top', right: 'bottom', top: 'left', bottom: 'right' }[physicalSide] || physicalSide)
+        : physicalSide;
+      rectangle.classList.add(`door-${visualSide}`);
+    }
     rectangle.classList.toggle('stacked-zone', isStackedItem(displayItem));
     rectangle.classList.toggle('overlapping-item', renderedPackages.some(previous => (
       !isZoneItem(previous) && !isDoorItem(previous) && !isZoneItem(displayItem) && !isDoorItem(displayItem) && rectsOverlap(packageRect(previous), packageRect(displayItem))
     )));
     rectangle.type = 'button';
-    rectangle.style.left = `${((clippedLeft - range.xStart) / range.width) * 100}%`;
-    rectangle.style.top = `${((clippedTop - range.start) / range.height) * 100}%`;
-    rectangle.style.width = `${(visibleWidth / range.width) * 100}%`;
-    rectangle.style.height = `${(visibleDepth / range.height) * 100}%`;
-    placeDoorOutside(rectangle, localDisplayItem, localShelf);
+    rectangle.style.left = `${((visualDisplayItem.column - 1) / visualShelf.columns) * 100}%`;
+    rectangle.style.top = `${((visualDisplayItem.row - 1) / visualShelf.rows) * 100}%`;
+    rectangle.style.width = `${(visualDisplayItem.width / visualShelf.columns) * 100}%`;
+    rectangle.style.height = `${(visualDisplayItem.depth / visualShelf.rows) * 100}%`;
+    if (isDoorItem(displayItem)) {
+      const side = [...rectangle.classList].find(name => name.startsWith('door-') && name !== 'door-element');
+      if (side === 'door-top') rectangle.style.top = '0%';
+      if (side === 'door-bottom') rectangle.style.top = '100%';
+      if (side === 'door-left') rectangle.style.left = '0%';
+      if (side === 'door-right') rectangle.style.left = '100%';
+    }
     rectangle.dataset.tooltip = packageTooltip(displayItem);
     rectangle.setAttribute('aria-label', displayPackageName(item));
     rectangle.innerHTML = packageHtml(displayItem, selectedPackage);
@@ -2075,10 +2146,11 @@ function renderRackLevelDetail(shelf, level) {
   if (draftVisibleInRange) {
     const marker = document.createElement('div');
     const localDraft = rackLocalDraft(draft, range);
+    const visualDraft = rackLocalToVisual(localDraft, range);
     marker.className = 'draft-marker rack-draft-marker';
     marker.innerHTML = draftMarkerHtml(draft);
-    decorateDraftMarker(marker, localDraft, { columns: range.width, rows: range.height });
-    updateDragMarker({ columns: range.width, rows: range.height }, marker, localDraft);
+    decorateDraftMarker(marker, visualDraft, visualShelf);
+    updateDragMarker(visualShelf, marker, visualDraft);
     marker.addEventListener('pointerdown', event => startRackDraftEdit(event, canvas, shelf, range, marker, localDraft));
     canvas.append(marker);
   }
@@ -2094,26 +2166,25 @@ function renderRackLevelDetail(shelf, level) {
     if (isMeasuring(shelf, level)) {
       event.preventDefault();
       event.stopPropagation();
-      const point = canvasMeasurePointFromEvent(event, canvas, { ...shelf, columns: range.width, rows: range.height });
+      const point = rackPhysicalMeasurePoint(canvasMeasurePointFromEvent(event, canvas, visualShelf), range);
       measuringPointer = event.pointerId;
       startMeasurement(shelf, level, point);
       updateMeasurement(shelf, level, point, false, canvasMeasureSize(canvas));
       canvas.setPointerCapture(event.pointerId);
-      canvas.querySelector('.measure-overlay')?.replaceWith(renderMeasureOverlay(activeMeasurement(shelf, level), range));
+      canvas.querySelector('.measure-overlay')?.replaceWith(renderMeasureOverlay(rackVisualMeasurement(activeMeasurement(shelf, level), range), { width: visualShelf.columns, height: visualShelf.rows }));
       return;
     }
     if (event.target.closest('.package-rect, .draft-marker')) return;
     event.preventDefault();
-    const localShelf = { columns: range.width, rows: range.height };
-    dragStart = canvasCellFromEvent(event, canvas, localShelf);
-    dragDraft = draftFromCorners(dragStart, dragStart, localShelf);
+    dragStart = canvasCellFromEvent(event, canvas, visualShelf);
+    dragDraft = draftFromCorners(dragStart, dragStart, visualShelf);
     dragOrigin = { x: event.clientX, y: event.clientY };
     dragMoved = false;
     dragMarker = document.createElement('div');
     dragMarker.className = 'drag-marker rack-draft-marker';
     dragMarker.innerHTML = draftMarkerHtml(dragDraft);
-    decorateDraftMarker(dragMarker, dragDraft, localShelf);
-    updateDragMarker(localShelf, dragMarker, dragDraft);
+    decorateDraftMarker(dragMarker, dragDraft, visualShelf);
+    updateDragMarker(visualShelf, dragMarker, dragDraft);
     canvas.append(dragMarker);
     canvas.setPointerCapture(event.pointerId);
   }, true);
@@ -2124,22 +2195,22 @@ function renderRackLevelDetail(shelf, level) {
       updateMeasurement(
         shelf,
         level,
-        canvasMeasurePointFromEvent(event, canvas, { ...shelf, columns: range.width, rows: range.height }),
+        rackPhysicalMeasurePoint(canvasMeasurePointFromEvent(event, canvas, visualShelf), range),
         false,
         canvasMeasureSize(canvas)
       );
-      canvas.querySelector('.measure-overlay')?.replaceWith(renderMeasureOverlay(activeMeasurement(shelf, level), range));
+      canvas.querySelector('.measure-overlay')?.replaceWith(renderMeasureOverlay(rackVisualMeasurement(activeMeasurement(shelf, level), range), { width: visualShelf.columns, height: visualShelf.rows }));
       return;
     }
     if (!dragDraft || !dragMarker) return;
     event.preventDefault();
     if (dragOrigin && Math.hypot(event.clientX - dragOrigin.x, event.clientY - dragOrigin.y) >= 4) dragMoved = true;
-    updateDoorSideFromPointer(event, canvas);
-    const localShelf = { columns: range.width, rows: range.height };
-    dragDraft = draftFromCorners(dragStart, canvasCellFromEvent(event, canvas, localShelf), localShelf);
-    decorateDraftMarker(dragMarker, dragDraft, localShelf);
-    updateDragMarker(localShelf, dragMarker, dragDraft);
-    dragMarker.querySelector('.draft-size').textContent = formatSizeCm(dragDraft.width, dragDraft.depth);
+    updateRackDoorSideFromPointer(event, canvas, range);
+    dragDraft = draftFromCorners(dragStart, canvasCellFromEvent(event, canvas, visualShelf), visualShelf);
+    decorateDraftMarker(dragMarker, dragDraft, visualShelf);
+    updateDragMarker(visualShelf, dragMarker, dragDraft);
+    const physicalDraft = rackVisualToLocal(dragDraft, range);
+    dragMarker.querySelector('.draft-size').textContent = formatSizeCm(physicalDraft.width, physicalDraft.depth);
   });
 
   canvas.addEventListener('pointerup', event => {
@@ -2148,7 +2219,7 @@ function renderRackLevelDetail(shelf, level) {
       updateMeasurement(
         shelf,
         level,
-        canvasMeasurePointFromEvent(event, canvas, { ...shelf, columns: range.width, rows: range.height }),
+        rackPhysicalMeasurePoint(canvasMeasurePointFromEvent(event, canvas, visualShelf), range),
         true,
         canvasMeasureSize(canvas)
       );
@@ -2166,7 +2237,7 @@ function renderRackLevelDetail(shelf, level) {
       dragOrigin = null;
       return;
     }
-    const completedDraft = rackGlobalDraft(shelf, range, dragDraft);
+    const completedDraft = rackGlobalDraft(shelf, range, rackVisualToLocal(dragDraft, range));
     dragMarker.remove();
     dragStart = null;
     dragDraft = null;
@@ -2622,32 +2693,33 @@ function startRackDraftEdit(event, canvas, shelf, range, marker, localDraft) {
   event.stopPropagation();
 
   const handle = event.target.dataset.handle || 'move';
-  const localShelf = { columns: range.width, rows: range.height };
-  const startCell = canvasCellFromEvent(event, canvas, localShelf);
+  const visualShelf = rackVisualShelf(range);
+  const visualDraft = rackLocalToVisual(localDraft, range);
+  const startCell = canvasCellFromEvent(event, canvas, visualShelf);
   const startPointer = { x: event.clientX, y: event.clientY };
   const grabOffset = {
-    column: startCell.column - localDraft.column,
-    row: startCell.row - localDraft.row
+    column: startCell.column - visualDraft.column,
+    row: startCell.row - visualDraft.row
   };
 
   const move = moveEvent => {
-    if (handle === 'move') updateDoorSideFromPointer(moveEvent, canvas);
-    const cell = canvasCellFromEvent(moveEvent, canvas, localShelf);
-    const nextLocalDraft = handle === 'move'
+    if (handle === 'move') updateRackDoorSideFromPointer(moveEvent, canvas, range);
+    const cell = canvasCellFromEvent(moveEvent, canvas, visualShelf);
+    const nextVisualDraft = handle === 'move'
       ? draftAtCell(
         { column: cell.column - grabOffset.column, row: cell.row - grabOffset.row },
-        localShelf,
-        { width: localDraft.width, depth: localDraft.depth }
+        visualShelf,
+        { width: visualDraft.width, depth: visualDraft.depth }
       )
-      : resizeDraftFromPointer(localDraft, handle, startPointer, moveEvent, canvas, localShelf);
-    const adjusted = setDraftFormValues(shelf, rackGlobalDraft(shelf, range, nextLocalDraft));
+      : resizeDraftFromPointer(visualDraft, handle, startPointer, moveEvent, canvas, visualShelf);
+    const adjusted = setDraftFormValues(shelf, rackGlobalDraft(shelf, range, rackVisualToLocal(nextVisualDraft, range)));
     const adjustedLocal = rackLocalDraft({
       row: adjusted.row,
       column: adjusted.column,
       width: adjusted.width,
       depth: adjusted.depth
     }, range);
-    updateDragMarker(localShelf, marker, adjustedLocal);
+    updateDragMarker(visualShelf, marker, rackLocalToVisual(adjustedLocal, range));
     marker.querySelector('.draft-size').textContent = formatSizeCm(adjusted.width, adjusted.depth);
   };
 
@@ -2670,18 +2742,19 @@ function startRackPackageEdit(event, canvas, shelf, range, item, rectangle, disp
   event.stopPropagation();
 
   const handle = event.target.dataset.handle || 'move';
-  const localShelf = { columns: range.width, rows: range.height };
+  const visualShelf = rackVisualShelf(range);
   const localDraft = rackLocalDraft({
     row: displayItem.row_index,
     column: displayItem.column_index,
     width: displayItem.width_units || 1,
     depth: displayItem.depth_units || 1
   }, range);
-  const startCell = canvasCellFromEvent(event, canvas, localShelf);
+  const visualDraft = rackLocalToVisual(localDraft, range);
+  const startCell = canvasCellFromEvent(event, canvas, visualShelf);
   const startPointer = { x: event.clientX, y: event.clientY };
   const grabOffset = {
-    column: startCell.column - localDraft.column,
-    row: startCell.row - localDraft.row
+    column: startCell.column - visualDraft.column,
+    row: startCell.row - visualDraft.row
   };
   let moved = false;
 
@@ -2689,24 +2762,25 @@ function startRackPackageEdit(event, canvas, shelf, range, item, rectangle, disp
     const distance = Math.hypot(moveEvent.clientX - startPointer.x, moveEvent.clientY - startPointer.y);
     if (!moved && distance < 6) return;
     moved = true;
-    if (handle === 'move') updateDoorSideFromPointer(moveEvent, canvas);
-    const cell = canvasCellFromEvent(moveEvent, canvas, localShelf);
-    const nextLocalDraft = handle === 'move'
+    if (handle === 'move') updateRackDoorSideFromPointer(moveEvent, canvas, range);
+    const cell = canvasCellFromEvent(moveEvent, canvas, visualShelf);
+    const nextVisualDraft = handle === 'move'
       ? draftAtCell(
         { column: cell.column - grabOffset.column, row: cell.row - grabOffset.row },
-        localShelf,
-        { width: localDraft.width, depth: localDraft.depth }
+        visualShelf,
+        { width: visualDraft.width, depth: visualDraft.depth }
       )
-      : resizeDraftFromPointer(localDraft, handle, startPointer, moveEvent, canvas, localShelf);
-    const adjusted = setPackageEditFormValues(shelf, rackGlobalDraft(shelf, range, nextLocalDraft));
+      : resizeDraftFromPointer(visualDraft, handle, startPointer, moveEvent, canvas, visualShelf);
+    const adjusted = setPackageEditFormValues(shelf, rackGlobalDraft(shelf, range, rackVisualToLocal(nextVisualDraft, range)));
     const adjustedLocal = rackLocalDraft({
       row: adjusted.row,
       column: adjusted.column,
       width: adjusted.width,
       depth: adjusted.depth
     }, range);
-    updateDragMarker(localShelf, rectangle, adjustedLocal);
-    rectangle.classList.toggle('compact-label', !rackPackageLabelFits(adjustedLocal.width, adjustedLocal.depth));
+    const adjustedVisual = rackLocalToVisual(adjustedLocal, range);
+    updateDragMarker(visualShelf, rectangle, adjustedVisual);
+    rectangle.classList.toggle('compact-label', !rackPackageLabelFits(adjustedVisual.width, adjustedVisual.depth));
     rectangle.querySelector('.measure').textContent = formatSizeCm(adjusted.width, adjusted.depth);
   };
 

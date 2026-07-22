@@ -1205,6 +1205,14 @@ select:hover {
   min-height: 0;
 }
 
+.rack-display .rack-level-detail.rack-level-portrait,
+.rack-display .rack-level-detail.short-rack-detail.rack-level-portrait {
+  width: clamp(120px, 16vw, 220px);
+  max-width: calc(100% - 56px);
+  margin-right: auto;
+  margin-left: auto;
+}
+
 .rack-tools {
   display: flex;
   align-items: center;
