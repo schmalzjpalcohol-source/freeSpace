@@ -2181,7 +2181,8 @@ function renderRackLevelDetail(shelf, level) {
     rectangle.style.width = `${(visualDisplayItem.width / visualShelf.columns) * 100}%`;
     rectangle.style.height = `${(visualDisplayItem.depth / visualShelf.rows) * 100}%`;
     if (isDoorItem(displayItem)) {
-      const side = [...rectangle.classList].find(name => name.startsWith('door-') && name !== 'door-element');
+      const side = ['door-top', 'door-right', 'door-bottom', 'door-left']
+        .find(name => rectangle.classList.contains(name));
       if (side === 'door-top') rectangle.style.top = '0%';
       if (side === 'door-bottom') rectangle.style.top = '100%';
       if (side === 'door-left') rectangle.style.left = '0%';
@@ -2559,7 +2560,8 @@ function renderPlaceCanvas(shelf, kind, role = planRole(shelf)) {
     rectangle.style.width = `${(visualDisplayItem.width / visualShelf.columns) * 100}%`;
     rectangle.style.height = `${(visualDisplayItem.depth / visualShelf.rows) * 100}%`;
     if (isDoorItem(displayItem)) {
-      const side = [...rectangle.classList].find(name => name.startsWith('door-') && name !== 'door-element');
+      const side = ['door-top', 'door-right', 'door-bottom', 'door-left']
+        .find(name => rectangle.classList.contains(name));
       if (side === 'door-top') rectangle.style.top = '0%';
       if (side === 'door-bottom') rectangle.style.top = '100%';
       if (side === 'door-left') rectangle.style.left = '0%';
