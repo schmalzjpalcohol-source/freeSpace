@@ -2325,36 +2325,6 @@ select:hover {
   gap: 8px;
 }
 
-.door-side-controls {
-  display: grid;
-  gap: 6px;
-  width: 100%;
-}
-
-.door-side-controls > span {
-  color: var(--muted);
-  font-size: 0.72rem;
-  font-weight: 900;
-}
-
-.door-side-controls > div {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 6px;
-}
-
-.door-side-controls button {
-  min-width: 0;
-  min-height: 34px;
-  padding: 5px;
-}
-
-.door-side-controls button.active {
-  border-color: #111;
-  background: #111;
-  color: #fff;
-}
-
 .place-view {
   display: grid;
   gap: 16px;

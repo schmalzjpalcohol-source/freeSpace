@@ -60,7 +60,6 @@ const els = {
   note: document.querySelector('#note'),
   saveButton: document.querySelector('#saveButton'),
   deletePackageButton: document.querySelector('#deletePackageButton'),
-  doorSideControls: document.querySelector('#doorSideControls'),
   cancelEditButton: document.querySelector('#cancelEditButton'),
   toggleFitFinderButton: document.querySelector('#toggleFitFinderButton'),
   fitFinderForm: document.querySelector('#fitFinderForm'),
@@ -1348,33 +1347,12 @@ function clearPackageForm() {
   els.formTitle.textContent = 'Add item';
   els.saveButton.textContent = 'Save item';
   els.deletePackageButton.classList.add('hidden');
-  els.doorSideControls.classList.add('hidden');
   els.cancelEditButton.classList.add('hidden');
-}
-
-function selectedDraftViewRange() {
-  const shelf = appState.selected?.shelf;
-  if (!shelf) return null;
-  if (planPlaceRole(shelf) === 'rack') return rackLevelRange(shelf, appState.activeRackLevel);
-  return {
-    width: shelf.columns,
-    height: shelf.rows,
-    rotated: placeKind(shelf) === 'floor' && shelf.columns > shelf.rows
-  };
 }
 
 function syncDraftActionButtons() {
   const hasDraft = Boolean(appState.selected);
-  const isDoor = hasDraft && draftSpecialKind() === 'door';
   els.cancelEditButton.classList.toggle('hidden', !hasDraft);
-  els.doorSideControls.classList.toggle('hidden', !isDoor);
-  const viewRange = selectedDraftViewRange();
-  const visibleDoorSide = viewRange
-    ? physicalToVisualSide(els.doorSideValue.value, viewRange)
-    : els.doorSideValue.value;
-  els.doorSideControls.querySelectorAll('[data-door-side]').forEach(button => {
-    button.classList.toggle('active', button.dataset.doorSide === visibleDoorSide);
-  });
 }
 
 function updateDraftFromSizeInputs(event) {
@@ -4033,17 +4011,6 @@ els.cancelEditButton.addEventListener('click', () => {
   clearPackageForm();
   els.selectedCell.textContent = 'No area selected';
   render();
-});
-
-els.doorSideControls.addEventListener('click', event => {
-  const button = event.target.closest('[data-door-side]');
-  if (!button || !appState.selected?.shelf || draftSpecialKind() !== 'door') return;
-  const viewRange = selectedDraftViewRange();
-  els.doorSideValue.value = viewRange
-    ? visualToPhysicalSide(button.dataset.doorSide, viewRange)
-    : button.dataset.doorSide;
-  els.doorFlippedValue.value = '0';
-  updateDraftFromSizeInputs();
 });
 
 els.deletePackageButton.addEventListener('click', async () => {
