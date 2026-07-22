@@ -375,8 +375,53 @@ function displayItemNote(note) {
 }
 
 function orderedForStacking(items) {
-  const priority = item => stackPlacement(item) === 'below' ? -1 : stackPlacement(item) === 'above' ? 1 : 0;
+  const priority = item => {
+    const placement = stackPlacement(item);
+    const base = stackBaseHeightCm(item) || 0;
+    if (placement === 'below') return -1000000 + base;
+    if (placement === 'above') return 1000000 + base;
+    return base;
+  };
   return [...(items || [])].sort((a, b) => priority(a) - priority(b));
+}
+
+function askStackPlacement(overlappingItems) {
+  const names = overlappingItems.map(item => displayPackageName(item)).join(', ');
+  if (typeof HTMLDialogElement === 'undefined') {
+    const answer = window.prompt(`This position overlaps ${names}. Type "above" or "below".`, 'above');
+    const placement = String(answer || '').trim().toLowerCase();
+    return Promise.resolve(placement === 'above' || placement === 'below' ? placement : null);
+  }
+  return new Promise(resolve => {
+    const dialog = document.createElement('dialog');
+    dialog.className = 'stack-choice-dialog';
+    dialog.innerHTML = `
+      <form method="dialog">
+        <span class="place-type">Stack position</span>
+        <h3>Where should this item be placed?</h3>
+        <p>It overlaps ${escapeHtml(names)}.</p>
+        <div class="stack-choice-actions">
+          <button class="ghost" type="submit" value="below">Below</button>
+          <button class="primary" type="submit" value="above">Above</button>
+          <button class="ghost" type="submit" value="cancel">Cancel</button>
+        </div>
+      </form>
+    `;
+    let settled = false;
+    const finish = value => {
+      if (settled) return;
+      settled = true;
+      dialog.remove();
+      resolve(value === 'above' || value === 'below' ? value : null);
+    };
+    dialog.addEventListener('close', () => finish(dialog.returnValue));
+    dialog.addEventListener('cancel', event => {
+      event.preventDefault();
+      dialog.close('cancel');
+    });
+    document.body.append(dialog);
+    dialog.showModal();
+  });
 }
 
 function stackCount(itemOrValue) {
@@ -2179,6 +2224,7 @@ function renderRackLevelDetail(shelf, level) {
       if (side === 'door-right') rectangle.style.left = '100%';
     }
     rectangle.dataset.tooltip = packageTooltip(displayItem);
+    rectangle.dataset.packageId = item.id;
     rectangle.setAttribute('aria-label', displayPackageName(item));
     rectangle.innerHTML = packageHtml(displayItem, selectedPackage);
     rectangle.addEventListener('pointerdown', event => {
@@ -2190,11 +2236,12 @@ function renderRackLevelDetail(shelf, level) {
         rectangle.dataset.dragged = 'false';
         return;
       }
-      selectOverlappingItem(shelf, item, renderedPackages);
+      selectCell(shelf, item.row_index, item.column_index, item);
     });
     canvas.append(rectangle);
     renderedPackages.push(displayItem);
   });
+  setupOverlappingItemFocus(canvas, renderedPackages);
 
   const draft = selectedDraft();
   const draftVisibleInRange = draft && draft.shelf.id === shelf.id && packageInRackLevel({
@@ -2558,6 +2605,7 @@ function renderPlaceCanvas(shelf, kind, role = planRole(shelf)) {
       if (side === 'door-right') rectangle.style.left = '100%';
     }
     rectangle.dataset.tooltip = packageTooltip(displayItem);
+    rectangle.dataset.packageId = item.id;
     rectangle.setAttribute('aria-label', displayPackageName(item));
     rectangle.innerHTML = packageHtml(displayItem, selectedPackage);
     rectangle.addEventListener('pointerdown', event => {
@@ -2568,11 +2616,12 @@ function renderPlaceCanvas(shelf, kind, role = planRole(shelf)) {
         rectangle.dataset.dragged = 'false';
         return;
       }
-      selectOverlappingItem(shelf, item, renderedPackages);
+      selectCell(shelf, item.row_index, item.column_index, item);
     });
     canvas.append(rectangle);
     renderedPackages.push(displayItem);
   });
+  setupOverlappingItemFocus(canvas, renderedPackages);
 
   if (!shelf.packages.length && (!draft || draft.shelf.id !== shelf.id)) {
     const empty = document.createElement('div');
@@ -2593,6 +2642,86 @@ function selectOverlappingItem(shelf, clickedItem, previouslyRendered) {
   const selectedIndex = choices.findIndex(item => String(item.id) === String(selectedId));
   const item = choices[(selectedIndex + 1) % choices.length];
   selectCell(shelf, item.row_index, item.column_index, item);
+}
+
+function overlappingItemGroups(items) {
+  const candidates = items.filter(item => !isZoneItem(item) && !isDoorItem(item));
+  const groups = [];
+  const seen = new Set();
+  candidates.forEach(item => {
+    if (seen.has(String(item.id))) return;
+    const group = [item];
+    seen.add(String(item.id));
+    let expanded = true;
+    while (expanded) {
+      expanded = false;
+      candidates.forEach(candidate => {
+        if (seen.has(String(candidate.id))) return;
+        if (!group.some(member => rectsOverlap(packageRect(member), packageRect(candidate)))) return;
+        group.push(candidate);
+        seen.add(String(candidate.id));
+        expanded = true;
+      });
+    }
+    if (group.length > 1) groups.push(orderedForStacking(group));
+  });
+  return groups;
+}
+
+function setupOverlappingItemFocus(canvas, items) {
+  const buttons = new Map(
+    [...canvas.querySelectorAll('.package-rect[data-package-id]')]
+      .map(button => [String(button.dataset.packageId), button])
+  );
+  const groups = overlappingItemGroups(items)
+    .map(group => group.map(item => ({ item, button: buttons.get(String(item.id)) })).filter(entry => entry.button))
+    .filter(group => group.length > 1);
+  if (!groups.length) return;
+
+  let activeGroup = null;
+  let activeIndex = 0;
+  let timer = null;
+  const show = () => {
+    groups.flat().forEach(entry => entry.button.classList.remove('stack-hover-focus'));
+    if (!activeGroup) return;
+    activeGroup[activeIndex].button.classList.add('stack-hover-focus');
+  };
+  const stop = () => {
+    if (timer) window.clearInterval(timer);
+    timer = null;
+    activeGroup = null;
+    activeIndex = 0;
+    show();
+  };
+  const start = group => {
+    if (activeGroup === group) return;
+    stop();
+    activeGroup = group;
+    activeIndex = 0;
+    show();
+    timer = window.setInterval(() => {
+      if (!canvas.isConnected) {
+        stop();
+        return;
+      }
+      activeIndex = (activeIndex + 1) % activeGroup.length;
+      show();
+    }, 2000);
+  };
+
+  groups.forEach(group => group.forEach(entry => {
+    entry.button.classList.add('overlapping-item', 'stack-cycle-item');
+    entry.button.addEventListener('pointerenter', () => start(group));
+  }));
+  canvas.addEventListener('pointermove', event => {
+    if (!activeGroup) return;
+    const underPointer = activeGroup.filter(({ button }) => {
+      const rect = button.getBoundingClientRect();
+      return event.clientX >= rect.left && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom;
+    });
+    if (underPointer.length < 2) stop();
+  });
+  canvas.addEventListener('pointerleave', stop);
 }
 
 function findFloorStackGroups(shelf) {
@@ -3384,10 +3513,7 @@ function createThreeAreaScene(viewport, shelf, view) {
     const overlaps = renderedItems.filter(previous => (
       previous.modelRackLevel === item.modelRackLevel && rectsOverlap(packageRect(previous), packageRect(item))
     ));
-    const storedStackBase = stackBaseHeightCm(item);
-    const localBaseHeight = storedStackBase === null
-      ? overlaps.reduce((sum, previous) => sum + stackTotalHeightCm(previous), 0)
-      : storedStackBase;
+    const localBaseHeight = overlaps.reduce((sum, previous) => sum + stackTotalHeightCm(previous), 0);
     const baseHeightCm = (item.modelBaseHeightCm || 0) + localBaseHeight;
     renderThreeItem(root, item, scale, heightScale, widthCm, depthCm, {
       baseHeightCm,
@@ -3807,8 +3933,16 @@ async function submitPackage(event) {
     }
     const overlappingItems = overlappingNormalItems(selectedShelf, candidateRect, payload.packageId);
     if (overlappingItems.length) {
-      // Overlapping normal items form one vertical stack. New or moved items always go on top.
-      payload.note = noteWithStackPlacement(payload.note, 'above', existingOverlapHeight);
+      const placement = await askStackPlacement(overlappingItems);
+      if (!placement) {
+        showMessage('Saving cancelled.');
+        return;
+      }
+      payload.note = noteWithStackPlacement(
+        payload.note,
+        placement,
+        placement === 'above' ? existingOverlapHeight : 0
+      );
     } else {
       payload.note = cleanStackMetadata(payload.note);
     }
