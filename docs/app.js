@@ -2238,6 +2238,7 @@ function renderRackLevelDetail(shelf, level) {
       return;
     }
     const completedDraft = rackGlobalDraft(shelf, range, rackVisualToLocal(dragDraft, range));
+    const scrollPosition = { x: window.scrollX, y: window.scrollY };
     dragMarker.remove();
     dragStart = null;
     dragDraft = null;
@@ -2246,7 +2247,9 @@ function renderRackLevelDetail(shelf, level) {
     dragMoved = false;
     applyDraftSelection(shelf, completedDraft);
     render();
-    els.packageName.focus();
+    els.packageName.focus({ preventScroll: true });
+    window.scrollTo(scrollPosition.x, scrollPosition.y);
+    window.requestAnimationFrame(() => window.scrollTo(scrollPosition.x, scrollPosition.y));
   });
 
   canvas.addEventListener('pointercancel', () => {

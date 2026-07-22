@@ -1107,6 +1107,7 @@ select:hover {
   min-width: 0;
   overflow: visible;
   contain: inline-size;
+  overflow-anchor: none;
 }
 
 .rack-levels {
