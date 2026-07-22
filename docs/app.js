@@ -1981,6 +1981,11 @@ function renderRackLevelDetail(shelf, level) {
   const canvas = document.createElement('div');
   const measurement = activeMeasurement(shelf, level);
   let measuringPointer = null;
+  let dragStart = null;
+  let dragDraft = null;
+  let dragMarker = null;
+  let dragOrigin = null;
+  let dragMoved = false;
   canvas.className = `rack-level-detail place-canvas ${range.short ? 'short-rack-detail' : ''}`;
   canvas.style.setProperty('--cols', 1);
   canvas.style.setProperty('--rows', 1);
@@ -2099,37 +2104,88 @@ function renderRackLevelDetail(shelf, level) {
     }
     if (event.target.closest('.package-rect, .draft-marker')) return;
     event.preventDefault();
-    const cell = canvasCellFromEvent(event, canvas, { ...shelf, columns: range.width, rows: range.height });
-    applyDraftSelection(shelf, draftInRackRange(shelf, range, cell, currentPackageSize()));
-    render();
-    els.packageName.focus();
+    const localShelf = { columns: range.width, rows: range.height };
+    dragStart = canvasCellFromEvent(event, canvas, localShelf);
+    dragDraft = draftFromCorners(dragStart, dragStart, localShelf);
+    dragOrigin = { x: event.clientX, y: event.clientY };
+    dragMoved = false;
+    dragMarker = document.createElement('div');
+    dragMarker.className = 'drag-marker rack-draft-marker';
+    dragMarker.innerHTML = draftMarkerHtml(dragDraft);
+    decorateDraftMarker(dragMarker, dragDraft, localShelf);
+    updateDragMarker(localShelf, dragMarker, dragDraft);
+    canvas.append(dragMarker);
+    canvas.setPointerCapture(event.pointerId);
   }, true);
 
   canvas.addEventListener('pointermove', event => {
-    if (measuringPointer !== event.pointerId || !isMeasuring(shelf, level)) return;
+    if (measuringPointer === event.pointerId && isMeasuring(shelf, level)) {
+      event.preventDefault();
+      updateMeasurement(
+        shelf,
+        level,
+        canvasMeasurePointFromEvent(event, canvas, { ...shelf, columns: range.width, rows: range.height }),
+        false,
+        canvasMeasureSize(canvas)
+      );
+      canvas.querySelector('.measure-overlay')?.replaceWith(renderMeasureOverlay(activeMeasurement(shelf, level), range));
+      return;
+    }
+    if (!dragDraft || !dragMarker) return;
     event.preventDefault();
-    updateMeasurement(
-      shelf,
-      level,
-      canvasMeasurePointFromEvent(event, canvas, { ...shelf, columns: range.width, rows: range.height }),
-      false,
-      canvasMeasureSize(canvas)
-    );
-    canvas.querySelector('.measure-overlay')?.replaceWith(renderMeasureOverlay(activeMeasurement(shelf, level), range));
+    if (dragOrigin && Math.hypot(event.clientX - dragOrigin.x, event.clientY - dragOrigin.y) >= 4) dragMoved = true;
+    updateDoorSideFromPointer(event, canvas);
+    const localShelf = { columns: range.width, rows: range.height };
+    dragDraft = draftFromCorners(dragStart, canvasCellFromEvent(event, canvas, localShelf), localShelf);
+    decorateDraftMarker(dragMarker, dragDraft, localShelf);
+    updateDragMarker(localShelf, dragMarker, dragDraft);
+    dragMarker.querySelector('.draft-size').textContent = formatSizeCm(dragDraft.width, dragDraft.depth);
   });
 
   canvas.addEventListener('pointerup', event => {
-    if (measuringPointer !== event.pointerId || !isMeasuring(shelf, level)) return;
+    if (measuringPointer === event.pointerId && isMeasuring(shelf, level)) {
+      event.preventDefault();
+      updateMeasurement(
+        shelf,
+        level,
+        canvasMeasurePointFromEvent(event, canvas, { ...shelf, columns: range.width, rows: range.height }),
+        true,
+        canvasMeasureSize(canvas)
+      );
+      measuringPointer = null;
+      render();
+      return;
+    }
+    if (!dragDraft || !dragMarker) return;
     event.preventDefault();
-    updateMeasurement(
-      shelf,
-      level,
-      canvasMeasurePointFromEvent(event, canvas, { ...shelf, columns: range.width, rows: range.height }),
-      true,
-      canvasMeasureSize(canvas)
-    );
-    measuringPointer = null;
+    if (!dragMoved) {
+      dragMarker.remove();
+      dragStart = null;
+      dragDraft = null;
+      dragMarker = null;
+      dragOrigin = null;
+      return;
+    }
+    const completedDraft = rackGlobalDraft(shelf, range, dragDraft);
+    dragMarker.remove();
+    dragStart = null;
+    dragDraft = null;
+    dragMarker = null;
+    dragOrigin = null;
+    dragMoved = false;
+    applyDraftSelection(shelf, completedDraft);
     render();
+    els.packageName.focus();
+  });
+
+  canvas.addEventListener('pointercancel', () => {
+    measuringPointer = null;
+    dragMarker?.remove();
+    dragStart = null;
+    dragDraft = null;
+    dragMarker = null;
+    dragOrigin = null;
+    dragMoved = false;
   });
 
   return canvas;
