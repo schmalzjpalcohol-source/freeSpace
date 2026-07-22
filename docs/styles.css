@@ -1395,6 +1395,11 @@ select:hover {
   width: min(calc(100% - 56px), 520px);
 }
 
+.plan-slot .floor-canvas.floor-area-portrait {
+  width: min(calc(100% - 56px), 520px);
+  justify-self: center;
+}
+
 .measure-overlay {
   position: absolute;
   inset: 0;
@@ -2616,6 +2621,10 @@ select:hover {
     width: min(calc(100% - 44px), 420px);
   }
 
+  .plan-slot .floor-canvas.floor-area-portrait {
+    width: min(calc(100% - 44px), 420px);
+  }
+
   .place-item {
     align-items: flex-start;
     flex-direction: column;
@@ -2686,6 +2695,10 @@ select:hover {
   }
 
   .floor-long .floor-canvas {
+    width: min(calc(100% - 40px), 420px);
+  }
+
+  .plan-slot .floor-canvas.floor-area-portrait {
     width: min(calc(100% - 40px), 420px);
   }
 
