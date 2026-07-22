@@ -34,7 +34,7 @@ function metersToCm(value, fallbackMeters, maxMeters = 1000) {
 }
 
 function cmBetween(value, min, max, fallback) {
-  const parsed = Number.parseInt(value, 10);
+  const parsed = Number.parseFloat(value);
   if (Number.isNaN(parsed)) return fallback;
   return Math.max(min, Math.min(max, parsed));
 }

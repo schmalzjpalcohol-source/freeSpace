@@ -1278,6 +1278,18 @@ function applyDraftSelection(shelf, draft) {
   els.shelfColumns.value = inputCm(shelf.columns);
   setDraftFormValues(shelf, draft);
   const currentSpecial = specialKind({ package_name: els.packageName.value, note: els.note.value });
+  if (planPlaceRole(shelf) === 'rack' && !currentSpecial) {
+    const maxHeight = maxStackHeightForShelf(shelf, draft);
+    const occupiedHeight = stackOverlapHeight(shelf, draft);
+    const availableHeight = Math.max(0, maxHeight - occupiedHeight);
+    if (availableHeight <= 0) {
+      clearPackageForm();
+      showMessage('There is no free vertical space at this rack position.', 'error');
+      return false;
+    }
+    const requestedHeight = cmInputToCm(els.heightUnits.value, 45);
+    els.heightUnits.value = inputCm(Math.min(requestedHeight, availableHeight));
+  }
   if (currentSpecial && currentSpecial !== 'door') {
     els.heightUnits.value = inputCm(maxStackHeightForShelf(shelf, draft));
   }
