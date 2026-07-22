@@ -5,7 +5,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>freeSpace Storage Layout</title>
-    <link rel="stylesheet" href="./styles.css?v=20260722-single-door-label">
+    <link rel="stylesheet" href="./styles.css?v=20260722-custom-subracks">
 </head>
 
 <body>
@@ -221,20 +221,23 @@
                   value="6,000">
               </label>
             </div>
-            <label>
+            <label id="placeHeightControl">
               Area maximum height (mm)
               <input id="placeHeight" name="maxHeight" inputmode="decimal" pattern="[0-9.,]*" step="0.1"
                 value="650">
             </label>
-            <fieldset id="rackOrderControls" class="rack-order-controls">
-              <legend>Rack order in 3D</legend>
-              <p>Arrange the standard rack levels from bottom to top. The small rack remains underneath.</p>
-              <input id="rackOrderValue" name="rackOrder" type="hidden" value="1,2,3">
-              <div id="rackOrderList" class="rack-order-list"></div>
-            </fieldset>
+            <input id="rackModeValue" name="rackMode" type="hidden">
+            <section id="rackStructureHint" class="rack-structure-hint hidden">
+              <strong>Custom rack structure</strong>
+              <span>This rack starts empty. Save it first, then add and arrange its sub-racks.</span>
+            </section>
+            <label id="subRackPositionControls" class="hidden">
+              3D position (bottom to top)
+              <input id="subRackPosition" name="subRackPosition" type="number" min="1" step="1" value="1">
+            </label>
             <div class="examples">
               <button type="button"
-                data-place-preset="Rack 6000 x 900|shelf|4500|6000|4 levels, each 6,000 x 900 mm|650">Rack 6,000 x
+                data-place-preset="Rack 6000 x 900|shelf|900|6000|Custom rack frame; add sub-racks after creation|650">Rack 6,000 x
                 900</button>
               <button type="button" data-place-preset="Floor area 1 - 8800 x 3800|floor|3800|8800||2200">Floor
                 8,800 x 3,800</button>
@@ -259,7 +262,7 @@
 
   <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
   <script src="./config.js"></script>
-    <script src="./app.js?v=20260722-single-door-label"></script>
+    <script src="./app.js?v=20260722-custom-subracks"></script>
 </body>
 
 </html>

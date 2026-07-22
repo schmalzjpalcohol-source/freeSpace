@@ -23,9 +23,11 @@ const els = {
   placeRows: document.querySelector('#placeRows'),
   placeColumns: document.querySelector('#placeColumns'),
   placeHeight: document.querySelector('#placeHeight'),
-  rackOrderControls: document.querySelector('#rackOrderControls'),
-  rackOrderValue: document.querySelector('#rackOrderValue'),
-  rackOrderList: document.querySelector('#rackOrderList'),
+  placeHeightControl: document.querySelector('#placeHeightControl'),
+  rackModeValue: document.querySelector('#rackModeValue'),
+  rackStructureHint: document.querySelector('#rackStructureHint'),
+  subRackPositionControls: document.querySelector('#subRackPositionControls'),
+  subRackPosition: document.querySelector('#subRackPosition'),
   placeNotes: document.querySelector('#placeNotes'),
   placeList: document.querySelector('#placeList'),
   savePlaceButton: document.querySelector('#savePlaceButton'),
@@ -97,10 +99,10 @@ const planPlaces = {
     notes: 'max-height-mm:2200'
   },
   rack: {
-    title: 'Rack 6,000 x 4,500 mm',
-    rows: 450,
+    title: 'Rack 6,000 x 900 mm',
+    rows: 90,
     columns: 600,
-    notes: 'max-height-mm:650'
+    notes: 'rack-mode:custom; max-height-mm:650'
   },
   'floor-long': {
     title: 'Floor area 2 - 3,800 x 7,400 mm',
@@ -1300,9 +1302,9 @@ function clearPlaceForm() {
   els.placeColumns.value = inputCm(600);
   els.placeHeight.value = inputCm(65);
   els.placeNotes.value = '';
-  els.rackOrderValue.value = '1,2,3';
-  renderRackOrderEditor([1, 2, 3]);
-  syncRackOrderControls();
+  els.rackModeValue.value = 'custom';
+  els.subRackPosition.value = '1';
+  syncRackStructureControls();
   els.savePlaceButton.textContent = 'Create area';
   els.cancelPlaceButton.classList.add('hidden');
 }
@@ -1317,10 +1319,11 @@ function startAreaCreation(kind) {
   }
   els.placeLocationType.value = isFloor ? 'floor' : 'shelf';
   els.placeName.value = `${baseName} ${nextNumber}`;
-  els.placeRows.value = inputCm(isFloor ? 400 : planPlaces.rack.rows);
+  els.placeRows.value = inputCm(isFloor ? 400 : 90);
   els.placeColumns.value = inputCm(600);
   els.placeHeight.value = inputCm(isFloor ? 220 : 65);
-  syncRackOrderControls();
+  els.rackModeValue.value = isFloor ? '' : 'custom';
+  syncRackStructureControls();
   els.savePlaceButton.textContent = 'Create area';
   els.cancelPlaceButton.classList.remove('hidden');
   setActiveView('places');
@@ -1338,10 +1341,27 @@ function visiblePlaceNotes(notes) {
   return String(notes || '')
     .replace(/(?:[;,]\s*)?parent-rack\s*:\s*([^;,\s]+)/gi, '')
     .replace(/(?:[;,]\s*)?rack-order\s*:\s*[123](?:\s*[>|-]\s*[123]){2}/gi, '')
+    .replace(/(?:[;,]\s*)?rack-mode\s*:\s*custom/gi, '')
+    .replace(/(?:[;,]\s*)?rack-position\s*:\s*\d+/gi, '')
     .replace(/(?:[;,]\s*)?max-height-mm\s*:\s*[0-9.,]+/gi, '')
     .replace(/(?:[;,]\s*)?max(?:imum)?\s*height\s*[0-9.,]+\s*(?:mm|cm)/gi, '')
     .replace(/^[\s;,]+|[\s;,]+$/g, '')
     .trim();
+}
+
+function isCustomRack(placeOrNotes) {
+  const notes = typeof placeOrNotes === 'object' ? placeOrNotes?.notes : placeOrNotes;
+  return /rack-mode\s*:\s*custom/i.test(String(notes || ''));
+}
+
+function subRackPosition(placeOrNotes) {
+  const notes = typeof placeOrNotes === 'object' ? placeOrNotes?.notes : placeOrNotes;
+  return Math.max(1, Number.parseInt(String(notes || '').match(/rack-position\s*:\s*(\d+)/i)?.[1], 10) || 1);
+}
+
+function noteWithMarker(note, pattern, marker) {
+  const clean = String(note || '').replace(pattern, '').replace(/^[\s;,]+|[\s;,]+$/g, '').trim();
+  return clean ? `${clean}; ${marker}` : marker;
 }
 
 function rackOrderFromNotes(notes) {
@@ -1350,40 +1370,24 @@ function rackOrderFromNotes(notes) {
   return new Set(order).size === 3 ? order : [1, 2, 3];
 }
 
-function notesWithRackOrder(notes, orderValue) {
-  const clean = String(notes || '')
-    .replace(/(?:[;,]\s*)?rack-order\s*:\s*[123](?:\s*[>|-]\s*[123]){2}/gi, '')
-    .replace(/^[\s;,]+|[\s;,]+$/g, '')
-    .trim();
-  const order = rackOrderFromNotes(`rack-order:${String(orderValue || '1,2,3').replaceAll(',', '>')}`);
-  const marker = `rack-order:${order.join('>')}`;
-  return clean ? `${clean}; ${marker}` : marker;
-}
-
-function renderRackOrderEditor(order = rackOrderFromNotes(els.rackOrderValue?.value)) {
-  if (!els.rackOrderList || !els.rackOrderValue) return;
-  els.rackOrderValue.value = order.join(',');
-  const positions = ['Bottom', 'Middle', 'Top'];
-  els.rackOrderList.innerHTML = order.map((level, index) => `
-    <div class="rack-order-row">
-      <span><small>${positions[index]}</small><strong>Rack level ${level}</strong></span>
-      <span class="rack-order-actions">
-        <button class="ghost" type="button" data-rack-order-move="${index}" data-direction="-1" aria-label="Move rack level ${level} down" ${index === 0 ? 'disabled' : ''}>↓</button>
-        <button class="ghost" type="button" data-rack-order-move="${index}" data-direction="1" aria-label="Move rack level ${level} up" ${index === order.length - 1 ? 'disabled' : ''}>↑</button>
-      </span>
-    </div>
-  `).join('');
-}
-
-function syncRackOrderControls() {
-  const visible = els.placeLocationType.value === 'shelf' && !els.placeParentId.value;
-  els.rackOrderControls?.classList.toggle('hidden', !visible);
-  if (visible && !els.rackOrderList?.children.length) renderRackOrderEditor();
+function syncRackStructureControls() {
+  const isRack = els.placeLocationType.value === 'shelf';
+  const isSubRack = isRack && Boolean(els.placeParentId.value);
+  const isCustomParent = isRack && !isSubRack && els.rackModeValue.value === 'custom';
+  els.rackStructureHint?.classList.toggle('hidden', !isCustomParent);
+  els.subRackPositionControls?.classList.toggle('hidden', !isSubRack);
+  els.placeHeightControl?.classList.toggle('hidden', isCustomParent);
 }
 
 function areaHeightLabel(shelf) {
   if (placeKind(shelf) === 'floor') return `max height ${formatNumber(areaMaxHeightCm(shelf, 220) * 10)} mm`;
   if (parentRackId(shelf)) return `max height ${formatNumber(areaMaxHeightCm(shelf, 65) * 10)} mm`;
+  if (isCustomRack(shelf)) {
+    const children = customRackChildren(shelf);
+    return children.length
+      ? `${formatNumber(children.reduce((sum, child) => sum + areaMaxHeightCm(child, 65), 0) * 10)} mm total`
+      : 'defined by sub-racks';
+  }
   return planPlaceRole(shelf) === 'rack' ? 'levels 650 mm · small 160 mm' : 'max height 650 mm';
 }
 
@@ -1477,7 +1481,8 @@ function isNearSize(shelf, role) {
 function planPlaceRole(shelf) {
   const text = `${shelf.name || ''} ${shelf.label || ''} ${shelf.notes || ''}`.toLowerCase();
   if (placeKind(shelf) === 'shelf') {
-    return isNearSize(shelf, 'rack') || text.includes('4 rack') || text.includes('4 regale') || text.includes('4 plätze') || text.includes('600 x 450') || text.includes('600 x 360') || text.includes('600 x 90') || text.includes('600 x 106')
+    if (parentRackId(shelf)) return null;
+    return isCustomRack(shelf) || isNearSize(shelf, 'rack') || text.includes('4 rack') || text.includes('4 regale') || text.includes('4 plätze') || text.includes('600 x 450') || text.includes('600 x 360') || text.includes('600 x 90') || text.includes('600 x 106')
       ? 'rack'
       : null;
   }
@@ -1515,6 +1520,8 @@ function defaultPlacePayload(role) {
 }
 
 function placeNeedsPlanUpdate(place, role) {
+  // Racks are user-defined structures. Never replace an existing rack with a preset layout.
+  if (role === 'rack') return false;
   const expected = expectedPlanSize(role);
   return (
     Math.round(place.rows || 0) !== expected.rows ||
@@ -1663,6 +1670,22 @@ function renderPlanSlot(role, shelf) {
     location_type: role === 'rack' ? 'shelf' : 'floor'
   };
   const kind = placeKind(displayShelf);
+  const customRack = Boolean(shelf && isCustomRack(displayShelf));
+  const customChildren = customRack ? customRackChildren(displayShelf) : [];
+  const customFreeArea = customChildren.reduce((sum, child) => sum + freeAreaCm2(child), 0);
+  const customFreeVolume = customChildren.reduce((sum, child) => sum + freeVolumeCm3(child), 0);
+  const customCapacity = customChildren.reduce((sum, child) => sum + totalCapacityCm3(child), 0);
+  const shownFreeArea = customRack ? customFreeArea : freeAreaCm2(displayShelf);
+  const shownFreeVolume = customRack ? customFreeVolume : freeVolumeCm3(displayShelf);
+  const shownFreePercent = customRack ? (customCapacity ? (customFreeVolume / customCapacity) * 100 : 0) : shelfFreePercent(displayShelf);
+  const shownAreaSize = customChildren.length
+    ? formatSizeCm(Math.max(...customChildren.map(child => child.columns)), Math.max(...customChildren.map(child => child.rows)))
+    : formatSizeCm(displayShelf.columns, displayShelf.rows);
+  const shownHeight = customRack
+    ? (customChildren.length
+      ? `${formatNumber(customChildren.reduce((sum, child) => sum + areaMaxHeightCm(child, 65), 0) * 10)} mm total`
+      : 'defined by sub-racks')
+    : areaHeightLabel(displayShelf);
 
   const meta = document.createElement('div');
   meta.className = 'shelf-meta plan-meta';
@@ -1672,14 +1695,14 @@ function renderPlanSlot(role, shelf) {
       <h2>${escapeHtml(displayAreaName(displayShelf.label || displayShelf.name))}</h2>
     </div>
     <div class="stats">
-      <span class="stat"><small>Area size</small>${formatSizeCm(displayShelf.columns, displayShelf.rows)}</span>
-      <span class="stat"><small>Free area</small>${shelf ? formatAreaMm2(freeAreaCm2(displayShelf)) : 'not created yet'}</span>
-      <span class="stat selected-volume"><small>Free volume</small>${shelf ? lengthSummary(displayShelf) : 'not created yet'}</span>
-      ${shelf ? `<span class="stat"><small>Free capacity</small>${formatNumber(shelfFreePercent(displayShelf), 1)}%</span>` : ''}
-      <span class="stat"><small>Height</small>${escapeHtml(areaHeightLabel(displayShelf))}</span>
+      <span class="stat"><small>Area size</small>${shownAreaSize}</span>
+      <span class="stat"><small>Free area</small>${shelf ? formatAreaMm2(shownFreeArea) : 'not created yet'}</span>
+      <span class="stat selected-volume"><small>Free volume</small>${shelf ? formatVolumeMm3(shownFreeVolume) : 'not created yet'}</span>
+      ${shelf ? `<span class="stat"><small>Free capacity</small>${formatNumber(shownFreePercent, 1)}%</span>` : ''}
+      <span class="stat"><small>Height</small>${escapeHtml(shownHeight)}</span>
       ${shelf ? `
         <span class="plan-meta-actions">
-          ${kind === 'shelf' ? '<button class="ghost add-sub-rack" type="button">Add sub-rack</button>' : ''}
+          ${kind === 'shelf' && !parentRackId(displayShelf) && !isCustomRack(displayShelf) ? '<button class="ghost add-sub-rack" type="button">Add sub-rack</button>' : ''}
           <button class="ghost edit-area" type="button">Edit</button>
           <button class="danger delete-area" type="button">Delete</button>
         </span>
@@ -1704,7 +1727,7 @@ function renderPlanSlot(role, shelf) {
 
   if (shelf) {
     if (role === 'rack') {
-      slot.append(renderRackDisplay(displayShelf));
+      slot.append(isCustomRack(displayShelf) ? renderCustomRackDisplay(displayShelf) : renderRackDisplay(displayShelf));
     } else {
       slot.append(renderPlaceTools(displayShelf));
       slot.append(renderPlaceCanvas(displayShelf, kind, role));
@@ -1714,6 +1737,56 @@ function renderPlanSlot(role, shelf) {
   }
 
   return slot;
+}
+
+function customRackChildren(parent) {
+  return appState.shelves
+    .filter(place => String(parentRackId(place)) === String(parent.id))
+    .sort((a, b) => subRackPosition(a) - subRackPosition(b) || String(a.name).localeCompare(String(b.name)));
+}
+
+function renderCustomRackDisplay(parent) {
+  const wrapper = document.createElement('section');
+  wrapper.className = 'custom-rack-display';
+  const children = customRackChildren(parent);
+  const heading = document.createElement('div');
+  heading.className = 'custom-rack-head';
+  heading.innerHTML = `<div><strong>Sub-racks</strong><span>Ordered from bottom to top in 3D</span></div>`;
+  const add = document.createElement('button');
+  add.className = 'primary';
+  add.type = 'button';
+  add.textContent = '+ Add sub-rack';
+  add.addEventListener('click', () => startSubRackCreation(parent));
+  heading.append(add);
+  wrapper.append(heading);
+  if (!children.length) {
+    const empty = document.createElement('div');
+    empty.className = 'custom-rack-empty';
+    empty.innerHTML = '<strong>No sub-racks yet</strong><span>Add the first sub-rack and define its width, depth, height, and 3D position.</span>';
+    wrapper.append(empty);
+    return wrapper;
+  }
+  const list = document.createElement('div');
+  list.className = 'custom-rack-list';
+  children.forEach((child, index) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'custom-rack-item';
+    button.innerHTML = `
+      <span class="custom-rack-position">${index === 0 ? 'Bottom' : index === children.length - 1 ? 'Top' : `Position ${index + 1}`}</span>
+      <strong>${escapeHtml(displayAreaName(child.label || child.name))}</strong>
+      <small>${formatSizeCm(child.columns, child.rows)} x ${formatNumber(areaMaxHeightCm(child, 65) * 10)} mm high</small>
+    `;
+    button.addEventListener('click', () => {
+      appState.activeAreaId = child.id;
+      appState.activePlanRole = 'other';
+      clearPackageForm();
+      render();
+    });
+    list.append(button);
+  });
+  wrapper.append(list);
+  return wrapper;
 }
 
 function renderPlanPlaceholder(role, shelf) {
@@ -2721,6 +2794,7 @@ function renderModel3d(shelves) {
 
 function model3dDisplayShelf(shelf, selection = 'all') {
   if (planPlaceRole(shelf) !== 'rack') return shelf;
+  if (isCustomRack(shelf)) return model3dCustomRack(shelf, selection);
   if (selection !== 'all') {
     const level = Number(selection) || 1;
     const range = rackLevelRange(shelf, level);
@@ -2768,7 +2842,77 @@ function model3dDisplayShelf(shelf, selection = 'all') {
   };
 }
 
+function model3dCustomRack(parent, selection = 'all') {
+  const children = customRackChildren(parent);
+  if (selection !== 'all') {
+    const childId = String(selection).replace(/^sub:/, '');
+    const child = children.find(item => String(item.id) === childId);
+    if (child) {
+      const height = areaMaxHeightCm(child, 65);
+      return {
+        ...child,
+        modelId: `${parent.id}:sub-rack-${child.id}`,
+        label: `${parent.label || parent.name} · ${child.label || child.name}`,
+        modelHeightCm: height,
+        modelDimensionLabel: `${formatSizeCm(child.columns, child.rows)} x ${formatNumber(height * 10)} mm high`,
+        modelIsRackLevel: true,
+        modelShowsAllLevels: false
+      };
+    }
+  }
+  const width = children.length ? Math.max(1, ...children.map(child => child.columns || 1)) : Math.max(1, parent.columns || 1);
+  const depth = children.length ? Math.max(1, ...children.map(child => child.rows || 1)) : Math.max(1, Math.min(90, parent.rows || 90));
+  let baseHeight = 0;
+  const shelves = children.map(child => {
+    const height = areaMaxHeightCm(child, 65);
+    const model = { child, baseHeight, height };
+    baseHeight += height;
+    return model;
+  });
+  const packages = shelves.flatMap(({ child, baseHeight: childBase }) => child.packages.map(item => ({
+    ...item,
+    column_index: (item.column_index || 1) + ((width - child.columns) / 2),
+    row_index: (item.row_index || 1) + ((depth - child.rows) / 2),
+    modelRackLevel: child.id,
+    modelBaseHeightCm: childBase
+  })));
+  return {
+    ...parent,
+    modelId: `${parent.id}:custom-rack`,
+    rows: depth,
+    columns: width,
+    packages,
+    modelHeightCm: Math.max(1, baseHeight),
+    modelDimensionLabel: children.length
+      ? `${formatSizeCm(width, depth)} · ${formatNumber(baseHeight * 10)} mm total height · ${children.length} sub-rack(s)`
+      : 'Empty rack · add sub-racks to define the 3D structure',
+    modelIsRackLevel: true,
+    modelShowsAllLevels: true,
+    modelCustomRack: true,
+    modelRackShelves: shelves.map(({ child, baseHeight: childBase, height }) => ({
+      id: child.id,
+      name: displayAreaName(child.label || child.name),
+      width: child.columns,
+      depth: child.rows,
+      baseHeight: childBase,
+      height
+    }))
+  };
+}
+
 function model3dRackLevelButtons(shelf, selection = 'all') {
+  if (isCustomRack(shelf)) {
+    return `
+      <span class="model3d-levels" aria-label="Sub-racks">
+        <button type="button" data-model-rack-level="all" class="${selection === 'all' ? 'active' : ''}">All</button>
+        ${customRackChildren(shelf).map((child, index) => `
+          <button type="button" data-model-rack-level="sub:${escapeHtml(child.id)}" class="${String(selection) === `sub:${child.id}` ? 'active' : ''}">
+            ${index + 1}. ${escapeHtml(displayAreaName(child.label || child.name))}
+          </button>
+        `).join('')}
+      </span>
+    `;
+  }
   return `
     <span class="model3d-levels" aria-label="Rack levels">
       <button type="button" data-model-rack-level="all" class="${selection === 'all' ? 'active' : ''}">All</button>
@@ -2812,9 +2956,10 @@ function createThreeAreaScene(viewport, shelf, view) {
   const heightScale = scale;
   const areaWidth = widthCm * scale;
   const areaDepth = depthCm * scale;
-  const smallRackWidth = shelf.modelShowsAllLevels ? Math.min(150, widthCm) * scale : areaWidth;
-  const baseWidth = shelf.modelShowsAllLevels ? smallRackWidth : areaWidth;
-  const baseOffsetX = shelf.modelShowsAllLevels ? (areaWidth - smallRackWidth) / 2 : 0;
+  const legacyCompleteRack = shelf.modelShowsAllLevels && !shelf.modelCustomRack;
+  const smallRackWidth = legacyCompleteRack ? Math.min(150, widthCm) * scale : areaWidth;
+  const baseWidth = legacyCompleteRack ? smallRackWidth : areaWidth;
+  const baseOffsetX = legacyCompleteRack ? (areaWidth - smallRackWidth) / 2 : 0;
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0xf6f8f8);
@@ -2847,7 +2992,7 @@ function createThreeAreaScene(viewport, shelf, view) {
   root.add(edge);
 
   if (shelf.modelIsRackLevel) {
-    const rackBottomCm = shelf.modelShowsAllLevels ? 16 : 0;
+    const rackBottomCm = legacyCompleteRack ? 16 : 0;
     const rackHeight = Math.max(1, (shelf.modelHeightCm || 65) - rackBottomCm) * heightScale;
     const rackBoundsGeometry = new THREE.BoxGeometry(areaWidth, rackHeight, areaDepth);
     const rackBounds = new THREE.LineSegments(
@@ -2857,7 +3002,29 @@ function createThreeAreaScene(viewport, shelf, view) {
     rackBounds.position.y = (rackBottomCm * heightScale) + (rackHeight / 2);
     root.add(rackBounds);
 
-    if (shelf.modelShowsAllLevels) {
+    if (shelf.modelCustomRack) {
+      const frameMaterial = new THREE.MeshStandardMaterial({ color: 0x728083, roughness: 0.58, metalness: 0.34 });
+      const boardMaterial = new THREE.MeshStandardMaterial({ color: 0xdce7e6, roughness: 0.72, metalness: 0.08 });
+      const postSize = Math.max(0.05, 4 * scale);
+      (shelf.modelRackShelves || []).forEach(subRack => {
+        const shelfWidth = subRack.width * scale;
+        const shelfDepth = subRack.depth * scale;
+        const bottom = subRack.baseHeight * heightScale;
+        const top = (subRack.baseHeight + subRack.height) * heightScale;
+        [bottom, top].forEach(y => {
+          const board = new THREE.Mesh(new THREE.BoxGeometry(shelfWidth, 0.08, shelfDepth), boardMaterial);
+          board.position.y = y;
+          board.receiveShadow = true;
+          root.add(board);
+        });
+        [[-shelfWidth / 2, -shelfDepth / 2], [shelfWidth / 2, -shelfDepth / 2], [-shelfWidth / 2, shelfDepth / 2], [shelfWidth / 2, shelfDepth / 2]].forEach(([x, z]) => {
+          const post = new THREE.Mesh(new THREE.BoxGeometry(postSize, Math.max(0.05, top - bottom), postSize), frameMaterial);
+          post.position.set(x, bottom + ((top - bottom) / 2), z);
+          post.castShadow = true;
+          root.add(post);
+        });
+      });
+    } else if (shelf.modelShowsAllLevels) {
       const frameMaterial = new THREE.MeshStandardMaterial({ color: 0x728083, roughness: 0.58, metalness: 0.34 });
       const boardMaterial = new THREE.MeshStandardMaterial({ color: 0xdce7e6, roughness: 0.72, metalness: 0.08 });
       [16, 81, 146, 211].forEach(heightCm => {
@@ -3030,7 +3197,9 @@ function buildModel3dLabels(shelf) {
   labels.className = 'model3d-labels';
   labels.innerHTML = `
     <span class="model3d-area-label">${escapeHtml(displayAreaName(shelf.label || shelf.name))}</span>
-    ${shelf.modelShowsAllLevels ? `
+    ${shelf.modelCustomRack ? `
+      ${(shelf.modelRackShelves || []).map((subRack, index) => `<span>${index === 0 ? 'Bottom' : index === shelf.modelRackShelves.length - 1 ? 'Top' : `Position ${index + 1}`} · ${escapeHtml(subRack.name)} · ${formatNumber(subRack.baseHeight * 10)}–${formatNumber((subRack.baseHeight + subRack.height) * 10)} mm</span>`).join('')}
+    ` : shelf.modelShowsAllLevels ? `
       ${(shelf.modelRackOrder || [1, 2, 3]).map((level, index) => `<span>${index === 0 ? 'Bottom' : index === 1 ? 'Middle' : 'Top'} · Level ${level} · ${formatNumber((16 + (index * 65)) * 10)}–${formatNumber((81 + (index * 65)) * 10)} mm</span>`).join('')}
       <span>Small rack · below bottom-right · 0–160 mm</span>
     ` : ''}
@@ -3164,7 +3333,7 @@ function attachModel3dRackLevelButtons(card, shelf) {
     button.addEventListener('click', () => {
       const selection = button.dataset.modelRackLevel;
       appState.model3d.rackLevels[shelf.id] = selection;
-      if (selection !== 'all') appState.activeRackLevel = Number.parseInt(selection, 10) || 1;
+      if (/^\d+$/.test(selection)) appState.activeRackLevel = Number.parseInt(selection, 10) || 1;
       render();
     });
   });
@@ -3214,8 +3383,9 @@ function selectPlace(place) {
   els.placeColumns.value = inputCm(place.columns);
   els.placeHeight.value = inputCm(areaMaxHeightCm(place, placeKind(place) === 'floor' ? 220 : 65));
   els.placeNotes.value = visiblePlaceNotes(place.notes);
-  renderRackOrderEditor(rackOrderFromNotes(place.notes));
-  syncRackOrderControls();
+  els.rackModeValue.value = isCustomRack(place) ? 'custom' : '';
+  els.subRackPosition.value = subRackPosition(place);
+  syncRackStructureControls();
   els.savePlaceButton.textContent = 'Update area';
   els.cancelPlaceButton.classList.remove('hidden');
 }
@@ -3230,7 +3400,9 @@ function startSubRackCreation(parent) {
   els.placeColumns.value = '1,500';
   els.placeHeight.value = '650';
   els.placeNotes.value = '';
-  syncRackOrderControls();
+  els.rackModeValue.value = '';
+  els.subRackPosition.value = String(existingCount + 1);
+  syncRackStructureControls();
   els.savePlaceButton.textContent = 'Create sub-rack';
   els.cancelPlaceButton.classList.remove('hidden');
   setActiveView('places');
@@ -3381,15 +3553,17 @@ async function submitPlace(event) {
   payload.rows = cmInputToMeters(payload.rows, planPlaces.rack.rows);
   payload.columns = cmInputToMeters(payload.columns, 600);
   payload.notes = notesWithAreaMaxHeight(payload.notes, maxHeightCm);
-  if (payload.locationType === 'shelf' && !payload.parentId) {
-    payload.notes = notesWithRackOrder(payload.notes, payload.rackOrder);
+  if (payload.locationType === 'shelf' && !payload.parentId && payload.rackMode === 'custom') {
+    payload.notes = noteWithMarker(payload.notes, /(?:[;,]\s*)?rack-mode\s*:\s*custom/gi, 'rack-mode:custom');
   }
-  delete payload.rackOrder;
   if (payload.parentId) {
+    payload.notes = noteWithMarker(payload.notes, /(?:[;,]\s*)?rack-position\s*:\s*\d+/gi, `rack-position:${Math.max(1, Number.parseInt(payload.subRackPosition, 10) || 1)}`);
     payload.notes = payload.notes
       ? `${payload.notes}; parent-rack:${payload.parentId}`
       : `parent-rack:${payload.parentId}`;
   }
+  delete payload.rackMode;
+  delete payload.subRackPosition;
   const isEdit = Boolean(payload.id);
   const result = await apiFetch('/api/places', {
     method: isEdit ? 'PATCH' : 'POST',
@@ -3536,19 +3710,11 @@ els.placeForm.addEventListener('submit', event => {
 });
 
 els.placeLocationType.addEventListener('change', () => {
-  syncRackOrderControls();
+  if (!els.placeId.value && !els.placeParentId.value) {
+    els.rackModeValue.value = els.placeLocationType.value === 'shelf' ? 'custom' : '';
+  }
+  syncRackStructureControls();
   if (!els.placeId.value) els.placeHeight.value = inputCm(els.placeLocationType.value === 'floor' ? 220 : 65);
-});
-
-els.rackOrderList?.addEventListener('click', event => {
-  const button = event.target.closest('[data-rack-order-move]');
-  if (!button) return;
-  const order = String(els.rackOrderValue.value || '1,2,3').split(',').map(Number);
-  const index = Number(button.dataset.rackOrderMove);
-  const target = index + Number(button.dataset.direction);
-  if (target < 0 || target >= order.length) return;
-  [order[index], order[target]] = [order[target], order[index]];
-  renderRackOrderEditor(order);
 });
 
 els.cancelEditButton.addEventListener('click', () => {
@@ -3643,14 +3809,16 @@ document.querySelectorAll('[data-place-preset]').forEach(button => {
   button.addEventListener('click', () => {
     const [name, type, rows, columns, notes, maxHeight] = button.dataset.placePreset.split('|');
     els.placeId.value = '';
+    els.placeParentId.value = '';
     els.placeName.value = name;
     els.placeLocationType.value = type;
     els.placeRows.value = formatNumber(numberValue(rows, 4500));
     els.placeColumns.value = formatNumber(numberValue(columns, 6000));
     els.placeHeight.value = formatNumber(numberValue(maxHeight, type === 'floor' ? 2200 : 650));
     els.placeNotes.value = notes;
-    renderRackOrderEditor([1, 2, 3]);
-    syncRackOrderControls();
+    els.rackModeValue.value = type === 'shelf' ? 'custom' : '';
+    els.subRackPosition.value = '1';
+    syncRackStructureControls();
     els.savePlaceButton.textContent = 'Create area';
     els.cancelPlaceButton.classList.add('hidden');
   });
