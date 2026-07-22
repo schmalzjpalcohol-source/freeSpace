@@ -2533,7 +2533,21 @@ select:hover {
   }
 
   .toolbar-actions {
+    width: fit-content;
+    max-width: 100%;
+    align-self: flex-start;
     justify-content: flex-start;
+    gap: 3px;
+    padding: 2px;
+    border-radius: 7px;
+    background: rgba(237, 243, 242, 0.68);
+  }
+
+  .toolbar-actions button {
+    min-height: 32px;
+    padding: 0 9px;
+    border-radius: 6px;
+    font-size: 0.74rem;
   }
 
   .rack-structure-row {
@@ -2638,6 +2652,25 @@ select:hover {
 
   h1 {
     font-size: 2.05rem;
+  }
+
+  .toolbar {
+    gap: 7px;
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+  }
+
+  .toolbar-actions {
+    gap: 2px;
+    padding: 1px;
+    border-color: rgba(195, 208, 207, 0.7);
+    background: transparent;
+  }
+
+  .toolbar-actions button {
+    min-height: 30px;
+    padding: 0 7px;
+    font-size: 0.7rem;
   }
 
   .split,
