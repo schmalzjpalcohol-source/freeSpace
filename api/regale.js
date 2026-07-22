@@ -29,8 +29,8 @@ function formatMm(cm) {
 }
 
 function metersToCm(value, fallbackMeters, maxMeters = 1000) {
-  const meters = Math.max(0.01, Math.min(maxMeters, numberValue(value, fallbackMeters)));
-  return Math.max(1, Number((meters * 100).toFixed(1)));
+  const meters = Math.max(0.0001, Math.min(maxMeters, numberValue(value, fallbackMeters)));
+  return Math.max(0.01, Number((meters * 100).toFixed(2)));
 }
 
 function cmBetween(value, min, max, fallback) {

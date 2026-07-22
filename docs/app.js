@@ -23,6 +23,9 @@ const els = {
   placeRows: document.querySelector('#placeRows'),
   placeColumns: document.querySelector('#placeColumns'),
   placeHeight: document.querySelector('#placeHeight'),
+  rackOrderControls: document.querySelector('#rackOrderControls'),
+  rackOrderValue: document.querySelector('#rackOrderValue'),
+  rackOrderList: document.querySelector('#rackOrderList'),
   placeNotes: document.querySelector('#placeNotes'),
   placeList: document.querySelector('#placeList'),
   savePlaceButton: document.querySelector('#savePlaceButton'),
@@ -80,7 +83,8 @@ let appState = {
   model3d: {
     active: false,
     zoom: 1,
-    views: {}
+    views: {},
+    rackLevels: {}
   }
 };
 let shelfVolumeCache = new WeakMap();
@@ -195,6 +199,7 @@ function packageTooltip(item) {
     return [
       displayPackageName(item) || (isRed ? 'Red no-place zone' : 'Yellow reserve zone'),
       `Size: ${formatSizeCm(item.width_units || 1, item.depth_units || 1)}`,
+      `Height: ${formatNumber(itemHeightCm(item) * 10)} mm`,
       kind === 'column' ? 'Pillar: no items allowed' : kind === 'corridor' ? 'Corridor: reserved route' : isRed ? 'No items allowed' : 'Only for defined items',
       purpose
     ].join('\n');
@@ -249,7 +254,7 @@ function numberValue(value, fallback) {
 }
 
 function formatDecimal(value) {
-  return Number(value).toFixed(2).replace(/\.?0+$/, '');
+  return Number(value).toFixed(5).replace(/\.?0+$/, '');
 }
 
 function formatNumber(value, maximumFractionDigits = 2) {
@@ -408,6 +413,7 @@ function shelfFreePercent(shelf) {
 function rackLevelSpecs(shelf) {
   const width = Math.max(1, shelf.columns || planPlaces.rack.columns);
   const height = Math.max(planPlaces.rack.rows, shelf.rows || planPlaces.rack.rows);
+  const widthMm = formatNumber(width * 10);
   const levelDepth = 90;
   const levelRange = index => {
     const start = ((index - 1) * levelDepth) + 1;
@@ -416,10 +422,10 @@ function rackLevelSpecs(shelf) {
   };
   const small = levelRange(5);
   return [
-    { level: 1, label: 'Rack level 1', ...levelRange(1), xStart: 1, xEnd: width, short: false, heightLabel: '900 x 6,000 x 650 mm' },
-    { level: 2, label: 'Rack level 2', ...levelRange(2), xStart: 1, xEnd: width, short: false, heightLabel: '900 x 6,000 x 650 mm' },
-    { level: 3, label: 'Rack level 3', ...levelRange(3), xStart: 1, xEnd: width, short: false, heightLabel: '900 x 6,000 x 650 mm' },
-    { level: 5, label: 'Small rack', ...small, xStart: Math.max(1, width - 149), xEnd: width, short: true, heightLabel: '160 x 1,500 x 900 mm' }
+    { level: 1, label: 'Rack level 1', ...levelRange(1), xStart: 1, xEnd: width, short: false, heightLabel: `${widthMm} x 900 x 650 mm` },
+    { level: 2, label: 'Rack level 2', ...levelRange(2), xStart: 1, xEnd: width, short: false, heightLabel: `${widthMm} x 900 x 650 mm` },
+    { level: 3, label: 'Rack level 3', ...levelRange(3), xStart: 1, xEnd: width, short: false, heightLabel: `${widthMm} x 900 x 650 mm` },
+    { level: 5, label: 'Small rack', ...small, xStart: Math.max(1, width - 149), xEnd: width, short: true, heightLabel: `${formatNumber(Math.min(150, width) * 10)} x 900 x 160 mm` }
   ];
 }
 
@@ -1289,6 +1295,9 @@ function clearPlaceForm() {
   els.placeColumns.value = inputCm(600);
   els.placeHeight.value = inputCm(65);
   els.placeNotes.value = '';
+  els.rackOrderValue.value = '1,2,3';
+  renderRackOrderEditor([1, 2, 3]);
+  syncRackOrderControls();
   els.savePlaceButton.textContent = 'Create area';
   els.cancelPlaceButton.classList.add('hidden');
 }
@@ -1306,6 +1315,7 @@ function startAreaCreation(kind) {
   els.placeRows.value = inputCm(isFloor ? 400 : planPlaces.rack.rows);
   els.placeColumns.value = inputCm(600);
   els.placeHeight.value = inputCm(isFloor ? 220 : 65);
+  syncRackOrderControls();
   els.savePlaceButton.textContent = 'Create area';
   els.cancelPlaceButton.classList.remove('hidden');
   setActiveView('places');
@@ -1322,10 +1332,48 @@ function parentRackId(placeOrNotes) {
 function visiblePlaceNotes(notes) {
   return String(notes || '')
     .replace(/(?:[;,]\s*)?parent-rack\s*:\s*([^;,\s]+)/gi, '')
+    .replace(/(?:[;,]\s*)?rack-order\s*:\s*[123](?:\s*[>|-]\s*[123]){2}/gi, '')
     .replace(/(?:[;,]\s*)?max-height-mm\s*:\s*[0-9.,]+/gi, '')
     .replace(/(?:[;,]\s*)?max(?:imum)?\s*height\s*[0-9.,]+\s*(?:mm|cm)/gi, '')
     .replace(/^[\s;,]+|[\s;,]+$/g, '')
     .trim();
+}
+
+function rackOrderFromNotes(notes) {
+  const marker = String(notes || '').match(/rack-order\s*:\s*([123])\s*[>|-]\s*([123])\s*[>|-]\s*([123])/i);
+  const order = marker ? marker.slice(1, 4).map(Number) : [1, 2, 3];
+  return new Set(order).size === 3 ? order : [1, 2, 3];
+}
+
+function notesWithRackOrder(notes, orderValue) {
+  const clean = String(notes || '')
+    .replace(/(?:[;,]\s*)?rack-order\s*:\s*[123](?:\s*[>|-]\s*[123]){2}/gi, '')
+    .replace(/^[\s;,]+|[\s;,]+$/g, '')
+    .trim();
+  const order = rackOrderFromNotes(`rack-order:${String(orderValue || '1,2,3').replaceAll(',', '>')}`);
+  const marker = `rack-order:${order.join('>')}`;
+  return clean ? `${clean}; ${marker}` : marker;
+}
+
+function renderRackOrderEditor(order = rackOrderFromNotes(els.rackOrderValue?.value)) {
+  if (!els.rackOrderList || !els.rackOrderValue) return;
+  els.rackOrderValue.value = order.join(',');
+  const positions = ['Bottom', 'Middle', 'Top'];
+  els.rackOrderList.innerHTML = order.map((level, index) => `
+    <div class="rack-order-row">
+      <span><small>${positions[index]}</small><strong>Rack level ${level}</strong></span>
+      <span class="rack-order-actions">
+        <button class="ghost" type="button" data-rack-order-move="${index}" data-direction="-1" aria-label="Move rack level ${level} down" ${index === 0 ? 'disabled' : ''}>↓</button>
+        <button class="ghost" type="button" data-rack-order-move="${index}" data-direction="1" aria-label="Move rack level ${level} up" ${index === order.length - 1 ? 'disabled' : ''}>↑</button>
+      </span>
+    </div>
+  `).join('');
+}
+
+function syncRackOrderControls() {
+  const visible = els.placeLocationType.value === 'shelf' && !els.placeParentId.value;
+  els.rackOrderControls?.classList.toggle('hidden', !visible);
+  if (visible && !els.rackOrderList?.children.length) renderRackOrderEditor();
 }
 
 function areaHeightLabel(shelf) {
@@ -1807,7 +1855,9 @@ function renderRackLevelDetail(shelf, level) {
         depth_units: editDraft.depth
       }
       : item;
-    if (selectedPackage) displayItem.note = isDoorItem(displayItem) ? currentDoorNote() : els.note.value;
+    if (selectedPackage) displayItem.note = isDoorItem(displayItem)
+      ? currentDoorNote()
+      : noteWithHeight(els.note.value, cmInputToCm(els.heightUnits.value, itemHeightCm(item)));
     const clippedTop = Math.max(displayItem.row_index, range.start);
     const clippedBottom = Math.min(displayItem.row_index + (displayItem.depth_units || 1) - 1, range.end);
     const clippedLeft = Math.max(displayItem.column_index, range.xStart);
@@ -2119,7 +2169,9 @@ function renderPlaceCanvas(shelf, kind, role = planRole(shelf)) {
         depth_units: editDraft.depth
       }
       : item;
-    if (selectedPackage) displayItem.note = isDoorItem(displayItem) ? currentDoorNote() : els.note.value;
+    if (selectedPackage) displayItem.note = isDoorItem(displayItem)
+      ? currentDoorNote()
+      : noteWithHeight(els.note.value, cmInputToCm(els.heightUnits.value, itemHeightCm(item)));
     rectangle.className = `package-rect ${selectedPackage ? 'selected' : ''}`;
     rectangle.classList.toggle('blocked-zone', isBlockedItem(displayItem));
     rectangle.classList.toggle('reserve-zone', isYellowZone(displayItem));
@@ -2619,7 +2671,8 @@ function renderModel3d(shelves) {
   grid.className = 'model3d-grid';
 
   shelves.forEach(shelf => {
-    const modelShelf = model3dDisplayShelf(shelf);
+    const rackSelection = planPlaceRole(shelf) === 'rack' ? (appState.model3d.rackLevels[shelf.id] || 'all') : 'all';
+    const modelShelf = model3dDisplayShelf(shelf, rackSelection);
     const view = modelViewState(modelShelf.modelId || modelShelf.id);
     const card = document.createElement('section');
     card.className = `model3d-card ${planPlaceRole(shelf) === 'rack' ? 'rack-model-card' : ''}`;
@@ -2630,7 +2683,7 @@ function renderModel3d(shelves) {
           <span>${escapeHtml(modelHeightSummary(modelShelf))}</span>
         </div>
         <div class="model3d-controls" aria-label="3D controls">
-          ${planPlaceRole(shelf) === 'rack' && !modelShelf.modelShowsAllLevels ? model3dRackLevelButtons(shelf) : ''}
+          ${planPlaceRole(shelf) === 'rack' ? model3dRackLevelButtons(shelf, rackSelection) : ''}
           <button type="button" data-model-zoom="in" aria-label="Zoom in">+</button>
           <button type="button" data-model-zoom="out" aria-label="Zoom out">-</button>
           <button type="button" data-model-zoom="reset">Reset</button>
@@ -2654,21 +2707,40 @@ function renderModel3d(shelves) {
     grid.append(card);
     attachModel3dZoomButtons(card, view);
     attachModel3dFullscreenButton(card);
-    attachModel3dRackLevelButtons(card);
+    attachModel3dRackLevelButtons(card, shelf);
   });
 
   els.model3d.innerHTML = '';
   els.model3d.append(grid);
 }
 
-function model3dDisplayShelf(shelf) {
+function model3dDisplayShelf(shelf, selection = 'all') {
   if (planPlaceRole(shelf) !== 'rack') return shelf;
+  if (selection !== 'all') {
+    const level = Number(selection) || 1;
+    const range = rackLevelRange(shelf, level);
+    return {
+      ...shelf,
+      modelId: `${shelf.id}:rack-level-${level}`,
+      name: `${shelf.name} · ${range.label}`,
+      label: `${shelf.label || shelf.name} · ${range.label}`,
+      rows: range.height,
+      columns: range.width,
+      packages: rackLevelPackages(shelf, range).map(item => ({ ...item, modelRackLevel: level, modelBaseHeightCm: 0 })),
+      modelHeightCm: range.short ? 16 : 65,
+      modelDimensionLabel: range.heightLabel,
+      modelIsRackLevel: true,
+      modelShowsAllLevels: false,
+      notes: shelf.notes
+    };
+  }
+  const rackOrder = rackOrderFromNotes(shelf.notes);
   const modelPackages = rackLevelSpecs(shelf).flatMap(spec => {
     const range = rackLevelRange(shelf, spec.level);
-    const baseHeight = spec.short ? 0 : 16 + ((spec.level - 1) * 65);
+    const baseHeight = spec.short ? 0 : 16 + (Math.max(0, rackOrder.indexOf(spec.level)) * 65);
     return rackLevelPackages(shelf, range).map(item => ({
       ...item,
-      column_index: spec.short ? item.column_index + 450 : item.column_index,
+      column_index: spec.short ? item.column_index + Math.max(0, shelf.columns - range.width) : item.column_index,
       modelRackLevel: spec.level,
       modelBaseHeightCm: baseHeight
     }));
@@ -2680,21 +2752,23 @@ function model3dDisplayShelf(shelf) {
     name: shelf.name,
     label: shelf.label || shelf.name,
     rows: 90,
-    columns: 600,
+    columns: shelf.columns,
     packages: modelPackages,
     modelHeightCm: 211,
-    modelDimensionLabel: '6,000 x 900 mm · 3 levels x 650 mm · small rack below bottom-right 1,500 x 900 x 160 mm',
+    modelDimensionLabel: `${formatSizeCm(shelf.columns, 90)} · 3 levels x 650 mm · small rack ${formatNumber(Math.min(150, shelf.columns) * 10)} x 900 x 160 mm`,
     modelIsRackLevel: true,
     modelShowsAllLevels: true,
-    notes: 'Complete rack'
+    modelRackOrder: rackOrder,
+    notes: shelf.notes
   };
 }
 
-function model3dRackLevelButtons(shelf) {
+function model3dRackLevelButtons(shelf, selection = 'all') {
   return `
     <span class="model3d-levels" aria-label="Rack levels">
+      <button type="button" data-model-rack-level="all" class="${selection === 'all' ? 'active' : ''}">All</button>
       ${rackLevelSpecs(shelf).map(spec => `
-        <button type="button" data-model-rack-level="${spec.level}" class="${appState.activeRackLevel === spec.level ? 'active' : ''}">
+        <button type="button" data-model-rack-level="${spec.level}" class="${String(selection) === String(spec.level) ? 'active' : ''}">
           ${escapeHtml(spec.short ? 'Small' : `Level ${spec.level}`)}
         </button>
       `).join('')}
@@ -2896,7 +2970,7 @@ function renderThreeItem(root, item, scale, heightScale, widthCm, depthCm, optio
   const zone = zoneKind(item);
   const kind = specialKind(item);
   const count = zone || kind === 'door' ? 1 : Math.min(stackCount(item), 12);
-  const height = kind === 'column' ? itemHeightCm(item) : kind === 'door' ? 210 : zone ? 3 : itemHeightCm(item);
+  const height = kind === 'door' ? 210 : itemHeightCm(item);
   const baseHeight = Math.max(0, options.baseHeightCm || 0) * heightScale;
   const boxWidth = Math.max(0.06, (item.width_units || 1) * scale);
   const boxDepth = Math.max(0.06, (item.depth_units || 1) * scale);
@@ -2952,9 +3026,7 @@ function buildModel3dLabels(shelf) {
   labels.innerHTML = `
     <span class="model3d-area-label">${escapeHtml(displayAreaName(shelf.label || shelf.name))}</span>
     ${shelf.modelShowsAllLevels ? `
-      <span>Level 1 · 160–810 mm</span>
-      <span>Level 2 · 810–1,460 mm</span>
-      <span>Level 3 · 1,460–2,110 mm</span>
+      ${(shelf.modelRackOrder || [1, 2, 3]).map((level, index) => `<span>${index === 0 ? 'Bottom' : index === 1 ? 'Middle' : 'Top'} · Level ${level} · ${formatNumber((16 + (index * 65)) * 10)}–${formatNumber((81 + (index * 65)) * 10)} mm</span>`).join('')}
       <span>Small rack · below bottom-right · 0–160 mm</span>
     ` : ''}
   `;
@@ -3082,11 +3154,12 @@ function attachModel3dFullscreenButton(card) {
   updateLabel();
 }
 
-function attachModel3dRackLevelButtons(card) {
+function attachModel3dRackLevelButtons(card, shelf) {
   card.querySelectorAll('[data-model-rack-level]').forEach(button => {
     button.addEventListener('click', () => {
-      appState.activeRackLevel = Number.parseInt(button.dataset.modelRackLevel, 10) || 1;
-      clearPackageForm();
+      const selection = button.dataset.modelRackLevel;
+      appState.model3d.rackLevels[shelf.id] = selection;
+      if (selection !== 'all') appState.activeRackLevel = Number.parseInt(selection, 10) || 1;
       render();
     });
   });
@@ -3136,6 +3209,8 @@ function selectPlace(place) {
   els.placeColumns.value = inputCm(place.columns);
   els.placeHeight.value = inputCm(areaMaxHeightCm(place, placeKind(place) === 'floor' ? 220 : 65));
   els.placeNotes.value = visiblePlaceNotes(place.notes);
+  renderRackOrderEditor(rackOrderFromNotes(place.notes));
+  syncRackOrderControls();
   els.savePlaceButton.textContent = 'Update area';
   els.cancelPlaceButton.classList.remove('hidden');
 }
@@ -3150,6 +3225,7 @@ function startSubRackCreation(parent) {
   els.placeColumns.value = '1,500';
   els.placeHeight.value = '650';
   els.placeNotes.value = '';
+  syncRackOrderControls();
   els.savePlaceButton.textContent = 'Create sub-rack';
   els.cancelPlaceButton.classList.remove('hidden');
   setActiveView('places');
@@ -3300,6 +3376,10 @@ async function submitPlace(event) {
   payload.rows = cmInputToMeters(payload.rows, planPlaces.rack.rows);
   payload.columns = cmInputToMeters(payload.columns, 600);
   payload.notes = notesWithAreaMaxHeight(payload.notes, maxHeightCm);
+  if (payload.locationType === 'shelf' && !payload.parentId) {
+    payload.notes = notesWithRackOrder(payload.notes, payload.rackOrder);
+  }
+  delete payload.rackOrder;
   if (payload.parentId) {
     payload.notes = payload.notes
       ? `${payload.notes}; parent-rack:${payload.parentId}`
@@ -3451,8 +3531,19 @@ els.placeForm.addEventListener('submit', event => {
 });
 
 els.placeLocationType.addEventListener('change', () => {
-  if (els.placeId.value) return;
-  els.placeHeight.value = inputCm(els.placeLocationType.value === 'floor' ? 220 : 65);
+  syncRackOrderControls();
+  if (!els.placeId.value) els.placeHeight.value = inputCm(els.placeLocationType.value === 'floor' ? 220 : 65);
+});
+
+els.rackOrderList?.addEventListener('click', event => {
+  const button = event.target.closest('[data-rack-order-move]');
+  if (!button) return;
+  const order = String(els.rackOrderValue.value || '1,2,3').split(',').map(Number);
+  const index = Number(button.dataset.rackOrderMove);
+  const target = index + Number(button.dataset.direction);
+  if (target < 0 || target >= order.length) return;
+  [order[index], order[target]] = [order[target], order[index]];
+  renderRackOrderEditor(order);
 });
 
 els.cancelEditButton.addEventListener('click', () => {
@@ -3553,6 +3644,8 @@ document.querySelectorAll('[data-place-preset]').forEach(button => {
     els.placeColumns.value = formatNumber(numberValue(columns, 6000));
     els.placeHeight.value = formatNumber(numberValue(maxHeight, type === 'floor' ? 2200 : 650));
     els.placeNotes.value = notes;
+    renderRackOrderEditor([1, 2, 3]);
+    syncRackOrderControls();
     els.savePlaceButton.textContent = 'Create area';
     els.cancelPlaceButton.classList.add('hidden');
   });
