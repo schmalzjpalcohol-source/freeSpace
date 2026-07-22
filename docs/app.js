@@ -636,19 +636,38 @@ function visualToPhysicalSide(side, range) {
 }
 
 function updateRackDoorSideFromPointer(event, canvas, range) {
-  if (draftSpecialKind() !== 'door') return false;
   const rect = canvas.getBoundingClientRect();
-  const [visualSide, distance] = [
-    ['top', rect.top - event.clientY],
-    ['right', event.clientX - rect.right],
-    ['bottom', event.clientY - rect.bottom],
-    ['left', rect.left - event.clientX]
-  ].sort((a, b) => b[1] - a[1])[0];
+  const [visualSide] = [
+    ['top', Math.abs(event.clientY - rect.top)],
+    ['right', Math.abs(event.clientX - rect.right)],
+    ['bottom', Math.abs(event.clientY - rect.bottom)],
+    ['left', Math.abs(event.clientX - rect.left)]
+  ].sort((a, b) => a[1] - b[1])[0];
   const currentVisualSide = physicalToVisualSide(els.doorSideValue.value, range);
-  if (distance < 8 || visualSide === currentVisualSide) return false;
+  if (visualSide === currentVisualSide) return false;
   els.doorSideValue.value = visualToPhysicalSide(visualSide, range);
   els.doorFlippedValue.value = '0';
   return true;
+}
+
+function doorDraftAtPointer(event, canvas, visualShelf, visualDraft, range) {
+  updateRackDoorSideFromPointer(event, canvas, range);
+  const visualSide = physicalToVisualSide(els.doorSideValue.value || 'left', range);
+  const cell = canvasCellFromEvent(event, canvas, visualShelf);
+  const oriented = orientDoorDraft(visualDraft, visualShelf, visualSide);
+  const width = oriented.width;
+  const depth = oriented.depth;
+  const column = visualSide === 'left'
+    ? 1
+    : visualSide === 'right'
+      ? Math.max(1, visualShelf.columns - width + 1)
+      : Math.round(cell.column - ((width - 1) / 2));
+  const row = visualSide === 'top'
+    ? 1
+    : visualSide === 'bottom'
+      ? Math.max(1, visualShelf.rows - depth + 1)
+      : Math.round(cell.row - ((depth - 1) / 2));
+  return draftAtCell({ column, row }, visualShelf, { width, depth });
 }
 
 function updateOrientedDragMarker(visualShelf, marker, visualDraft, range) {
@@ -1275,7 +1294,7 @@ function applyDraftSelection(shelf, draft) {
   return true;
 }
 
-function selectCell(shelf, row, column, item) {
+function selectCell(shelf, row, column, item, shouldRender = true) {
   appState.selected = { shelf, row, column };
   els.packageId.value = item ? item.id : '';
   els.locationType.value = placeKind(shelf);
@@ -1312,7 +1331,7 @@ function selectCell(shelf, row, column, item) {
     ? `${displayAreaName(shelf.name)}: editing active`
     : `${displayAreaName(shelf.name)}: space selected`;
   if (!item) els.packageName.focus();
-  render();
+  if (shouldRender) render();
 }
 
 function clearPackageForm() {
@@ -2255,8 +2274,8 @@ function renderRackLevelDetail(shelf, level) {
     if (!dragDraft || !dragMarker) return;
     event.preventDefault();
     if (dragOrigin && Math.hypot(event.clientX - dragOrigin.x, event.clientY - dragOrigin.y) >= 4) dragMoved = true;
-    updateRackDoorSideFromPointer(event, canvas, range);
     dragDraft = draftFromCorners(dragStart, canvasCellFromEvent(event, canvas, visualShelf), visualShelf);
+    if (draftSpecialKind() === 'door') dragDraft = doorDraftAtPointer(event, canvas, visualShelf, dragDraft, range);
     decorateDraftMarker(dragMarker, dragDraft, visualShelf);
     updateOrientedDragMarker(visualShelf, dragMarker, dragDraft, range);
     const physicalDraft = rackVisualToLocal(dragDraft, range);
@@ -2439,8 +2458,8 @@ function renderPlaceCanvas(shelf, kind, role = planRole(shelf)) {
       return;
     }
     if (!dragDraft || !dragMarker) return;
-    updateRackDoorSideFromPointer(event, canvas, viewRange);
     dragDraft = draftFromCorners(dragStart, canvasCellFromEvent(event, canvas, visualShelf), visualShelf);
+    if (draftSpecialKind() === 'door') dragDraft = doorDraftAtPointer(event, canvas, visualShelf, dragDraft, viewRange);
     updateOrientedDragMarker(visualShelf, dragMarker, dragDraft, viewRange);
   });
 
@@ -2550,7 +2569,6 @@ function renderPlaceCanvas(shelf, kind, role = planRole(shelf)) {
     rectangle.setAttribute('aria-label', displayPackageName(item));
     rectangle.innerHTML = packageHtml(displayItem, selectedPackage);
     rectangle.addEventListener('pointerdown', event => {
-      if (!selectedPackage) return;
       startPackageEdit(event, canvas, shelf, item, rectangle, displayItem, viewRange);
     });
     rectangle.addEventListener('click', event => {
@@ -2738,14 +2756,15 @@ function startDraftEdit(event, canvas, shelf, marker, draft, viewRange = { width
   };
 
   const move = moveEvent => {
-    if (handle === 'move') updateRackDoorSideFromPointer(moveEvent, canvas, viewRange);
     const cell = canvasCellFromEvent(moveEvent, canvas, visualShelf);
     const nextVisualDraft = handle === 'move'
-      ? draftAtCell(
-        { column: cell.column - grabOffset.column, row: cell.row - grabOffset.row },
-        visualShelf,
-        { width: visualDraft.width, depth: visualDraft.depth }
-      )
+      ? (draftSpecialKind() === 'door'
+        ? doorDraftAtPointer(moveEvent, canvas, visualShelf, visualDraft, viewRange)
+        : draftAtCell(
+          { column: cell.column - grabOffset.column, row: cell.row - grabOffset.row },
+          visualShelf,
+          { width: visualDraft.width, depth: visualDraft.depth }
+        ))
       : resizeDraftFromPointer(visualDraft, handle, startPointer, moveEvent, canvas, visualShelf);
 
     const adjusted = setDraftFormValues(shelf, rackVisualToLocal(nextVisualDraft, viewRange));
@@ -2782,14 +2801,15 @@ function startRackDraftEdit(event, canvas, shelf, range, marker, localDraft) {
   };
 
   const move = moveEvent => {
-    if (handle === 'move') updateRackDoorSideFromPointer(moveEvent, canvas, range);
     const cell = canvasCellFromEvent(moveEvent, canvas, visualShelf);
     const nextVisualDraft = handle === 'move'
-      ? draftAtCell(
-        { column: cell.column - grabOffset.column, row: cell.row - grabOffset.row },
-        visualShelf,
-        { width: visualDraft.width, depth: visualDraft.depth }
-      )
+      ? (draftSpecialKind() === 'door'
+        ? doorDraftAtPointer(moveEvent, canvas, visualShelf, visualDraft, range)
+        : draftAtCell(
+          { column: cell.column - grabOffset.column, row: cell.row - grabOffset.row },
+          visualShelf,
+          { width: visualDraft.width, depth: visualDraft.depth }
+        ))
       : resizeDraftFromPointer(visualDraft, handle, startPointer, moveEvent, canvas, visualShelf);
     const adjusted = setDraftFormValues(shelf, rackGlobalDraft(shelf, range, rackVisualToLocal(nextVisualDraft, range)));
     const adjustedLocal = rackLocalDraft({
@@ -2835,20 +2855,24 @@ function startRackPackageEdit(event, canvas, shelf, range, item, rectangle, disp
     column: startCell.column - visualDraft.column,
     row: startCell.row - visualDraft.row
   };
+  const movingDoor = isDoorItem(displayItem);
+  const needsSelection = String(els.packageId.value) !== String(item.id);
   let moved = false;
 
   const move = moveEvent => {
     const distance = Math.hypot(moveEvent.clientX - startPointer.x, moveEvent.clientY - startPointer.y);
     if (!moved && distance < 6) return;
+    if (!moved && needsSelection) selectCell(shelf, item.row_index, item.column_index, item, false);
     moved = true;
-    if (handle === 'move') updateRackDoorSideFromPointer(moveEvent, canvas, range);
     const cell = canvasCellFromEvent(moveEvent, canvas, visualShelf);
     const nextVisualDraft = handle === 'move'
-      ? draftAtCell(
-        { column: cell.column - grabOffset.column, row: cell.row - grabOffset.row },
-        visualShelf,
-        { width: visualDraft.width, depth: visualDraft.depth }
-      )
+      ? (movingDoor
+        ? doorDraftAtPointer(moveEvent, canvas, visualShelf, visualDraft, range)
+        : draftAtCell(
+          { column: cell.column - grabOffset.column, row: cell.row - grabOffset.row },
+          visualShelf,
+          { width: visualDraft.width, depth: visualDraft.depth }
+        ))
       : resizeDraftFromPointer(visualDraft, handle, startPointer, moveEvent, canvas, visualShelf);
     const adjusted = setPackageEditFormValues(shelf, rackGlobalDraft(shelf, range, rackVisualToLocal(nextVisualDraft, range)));
     const adjustedLocal = rackLocalDraft({
@@ -2899,20 +2923,24 @@ function startPackageEdit(event, canvas, shelf, item, rectangle, displayItem, vi
     column: startCell.column - visualDraft.column,
     row: startCell.row - visualDraft.row
   };
+  const movingDoor = isDoorItem(displayItem);
+  const needsSelection = String(els.packageId.value) !== String(item.id);
   let moved = false;
 
   const move = moveEvent => {
     const distance = Math.hypot(moveEvent.clientX - startPointer.x, moveEvent.clientY - startPointer.y);
     if (!moved && distance < 6) return;
+    if (!moved && needsSelection) selectCell(shelf, item.row_index, item.column_index, item, false);
     moved = true;
-    if (handle === 'move') updateRackDoorSideFromPointer(moveEvent, canvas, viewRange);
     const cell = canvasCellFromEvent(moveEvent, canvas, visualShelf);
     const nextVisualDraft = handle === 'move'
-      ? draftAtCell(
-        { column: cell.column - grabOffset.column, row: cell.row - grabOffset.row },
-        visualShelf,
-        { width: visualDraft.width, depth: visualDraft.depth }
-      )
+      ? (movingDoor
+        ? doorDraftAtPointer(moveEvent, canvas, visualShelf, visualDraft, viewRange)
+        : draftAtCell(
+          { column: cell.column - grabOffset.column, row: cell.row - grabOffset.row },
+          visualShelf,
+          { width: visualDraft.width, depth: visualDraft.depth }
+        ))
       : resizeDraftFromPointer(visualDraft, handle, startPointer, moveEvent, canvas, visualShelf);
     const adjusted = setPackageEditFormValues(shelf, rackVisualToLocal(nextVisualDraft, viewRange));
     displayItem.row_index = adjusted.row;
