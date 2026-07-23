@@ -2676,7 +2676,7 @@ function openOverlappingItemSelector(shelf, clickedItem, renderedItems) {
     shelfId: String(shelf.id),
     itemId: String(clickedItem.id)
   };
-  render();
+  selectCell(shelf, clickedItem.row_index, clickedItem.column_index, clickedItem);
 }
 
 function overlappingItemGroups(items) {
@@ -2754,7 +2754,10 @@ function setupOverlappingItemFocus(canvas, shelf, items) {
       selectButton.addEventListener('click', event => {
         event.preventDefault();
         event.stopPropagation();
-        appState.openStackSelector = null;
+        appState.openStackSelector = {
+          shelfId: String(shelf.id),
+          itemId: String(entry.item.id)
+        };
         selectCell(shelf, entry.item.row_index, entry.item.column_index, entry.item);
       });
       selector.append(selectButton);
