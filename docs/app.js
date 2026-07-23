@@ -2283,6 +2283,7 @@ function renderRackLevelDetail(shelf, level) {
   }
 
   canvas.addEventListener('pointerdown', event => {
+    if (event.target.closest('.stack-selector')) return;
     if (isMeasuring(shelf, level)) {
       event.preventDefault();
       event.stopPropagation();
@@ -2478,6 +2479,7 @@ function renderPlaceCanvas(shelf, kind, role = planRole(shelf)) {
   canvas.append(renderDimensionLabels({ ...shelf, columns: visualShelf.columns, rows: visualShelf.rows }, kind, role));
   canvas.append(renderMeasureOverlay(rackVisualMeasurement(measurement, viewRange), { width: visualShelf.columns, height: visualShelf.rows }, measurement));
   canvas.addEventListener('pointerdown', event => {
+    if (event.target.closest('.stack-selector')) return;
     if (isMeasuring(shelf)) {
       event.preventDefault();
       event.stopPropagation();
