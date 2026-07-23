@@ -5,7 +5,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>freeSpace Storage Layout</title>
-  <link rel="stylesheet" href="./styles.css?v=20260723-independent-sidebar-scroll">
+  <link rel="stylesheet" href="./styles.css?v=20260723-fixed-sidebar-actions">
 </head>
 
 <body>
@@ -48,7 +48,7 @@
     </section>
 
     <section id="appView" class="layout hidden">
-      <aside class="panel">
+      <aside id="settingsPanel" class="panel">
         <div class="panel-head">
           <h2 id="formTitle">Add item</h2>
           <span id="selectedCell">No area selected</span>
@@ -138,12 +138,12 @@
             <button type="button" data-zone-kind="corridor">Corridor</button>
             <button type="button" data-zone-kind="door">Door (outside)</button>
           </div>
-          <div class="package-actions">
-            <button id="saveButton" class="primary" type="submit">Save item</button>
-            <button id="deletePackageButton" class="danger hidden" type="button">Delete</button>
-          </div>
-          <button id="cancelEditButton" class="ghost wide hidden" type="button">Cancel</button>
         </form>
+        <div id="packageActions" class="package-actions hidden">
+          <button id="saveButton" class="primary hidden" type="submit" form="packageForm">Save item</button>
+          <button id="cancelEditButton" class="ghost hidden" type="button">Cancel</button>
+          <button id="deletePackageButton" class="danger hidden" type="button">Delete</button>
+        </div>
       </aside>
 
       <section class="content">
@@ -253,7 +253,7 @@
 
   <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
   <script src="./config.js"></script>
-  <script src="./app.js?v=20260723-horizontal-rack-levels"></script>
+  <script src="./app.js?v=20260723-fixed-sidebar-actions"></script>
 </body>
 
 </html>

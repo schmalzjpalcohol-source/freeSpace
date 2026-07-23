@@ -9,6 +9,7 @@ const els = {
   placesTab: document.querySelector('#placesTab'),
   userLabel: document.querySelector('#userLabel'),
   setupPanel: document.querySelector('#setupPanel'),
+  settingsPanel: document.querySelector('#settingsPanel'),
   message: document.querySelector('#message'),
   loginView: document.querySelector('#loginView'),
   appView: document.querySelector('#appView'),
@@ -59,6 +60,7 @@ const els = {
   quantity: document.querySelector('#quantity'),
   note: document.querySelector('#note'),
   saveButton: document.querySelector('#saveButton'),
+  packageActions: document.querySelector('#packageActions'),
   deletePackageButton: document.querySelector('#deletePackageButton'),
   cancelEditButton: document.querySelector('#cancelEditButton'),
   toggleFitFinderButton: document.querySelector('#toggleFitFinderButton'),
@@ -1425,7 +1427,20 @@ function clearPackageForm() {
 
 function syncDraftActionButtons() {
   const hasDraft = Boolean(appState.selected);
+  els.packageActions.classList.toggle('hidden', !hasDraft);
+  els.saveButton.classList.toggle('hidden', !hasDraft);
   els.cancelEditButton.classList.toggle('hidden', !hasDraft);
+}
+
+function syncSettingsPanelHeight() {
+  if (!els.settingsPanel) return;
+  if (window.matchMedia('(max-width: 900px)').matches) {
+    els.settingsPanel.style.removeProperty('--settings-panel-height');
+    return;
+  }
+  const visibleTop = Math.max(16, els.settingsPanel.getBoundingClientRect().top);
+  const availableHeight = Math.max(320, window.innerHeight - visibleTop - 16);
+  els.settingsPanel.style.setProperty('--settings-panel-height', `${availableHeight}px`);
 }
 
 function updateDraftFromSizeInputs(event) {
@@ -1685,6 +1700,7 @@ async function deletePackage(id) {
 function render() {
   setAuthUi();
   syncDraftActionButtons();
+  window.requestAnimationFrame(syncSettingsPanelHeight);
   els.shelves.innerHTML = '';
   els.placeList.innerHTML = '';
 
@@ -4303,6 +4319,9 @@ els.widthUnits.addEventListener('input', updateDraftFromSizeInputs);
 els.depthUnits.addEventListener('input', updateDraftFromSizeInputs);
 els.widthUnits.addEventListener('change', updateDraftFromSizeInputs);
 els.depthUnits.addEventListener('change', updateDraftFromSizeInputs);
+
+window.addEventListener('resize', syncSettingsPanelHeight);
+window.addEventListener('scroll', syncSettingsPanelHeight, { passive: true });
 
 render();
 loadShelves().catch(error => {
