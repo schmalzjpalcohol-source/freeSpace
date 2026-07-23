@@ -74,6 +74,7 @@ let appState = {
   user: null,
   shelves: [],
   selected: null,
+  openStackSelector: null,
   activeView: 'packages',
   activeAreaId: '',
   activePlanRole: 'floor-main',
@@ -1404,6 +1405,7 @@ function selectCell(shelf, row, column, item, shouldRender = true) {
 
 function clearPackageForm() {
   appState.selected = null;
+  appState.openStackSelector = null;
   els.packageId.value = '';
   els.doorSideValue.value = '';
   els.doorFlippedValue.value = '0';
@@ -2249,7 +2251,7 @@ function renderRackLevelDetail(shelf, level) {
         rectangle.dataset.dragged = 'false';
         return;
       }
-      selectOverlappingItem(shelf, item, renderedPackages);
+      openOverlappingItemSelector(shelf, item, renderedPackages);
     });
     canvas.append(rectangle);
     renderedPackages.push(displayItem);
@@ -2284,6 +2286,11 @@ function renderRackLevelDetail(shelf, level) {
 
   canvas.addEventListener('pointerdown', event => {
     if (event.target.closest('.stack-selector')) return;
+    if (appState.openStackSelector && !event.target.closest('.package-rect, .draft-marker')) {
+      appState.openStackSelector = null;
+      render();
+      return;
+    }
     if (isMeasuring(shelf, level)) {
       event.preventDefault();
       event.stopPropagation();
@@ -2480,6 +2487,11 @@ function renderPlaceCanvas(shelf, kind, role = planRole(shelf)) {
   canvas.append(renderMeasureOverlay(rackVisualMeasurement(measurement, viewRange), { width: visualShelf.columns, height: visualShelf.rows }, measurement));
   canvas.addEventListener('pointerdown', event => {
     if (event.target.closest('.stack-selector')) return;
+    if (appState.openStackSelector && !event.target.closest('.package-rect, .draft-marker')) {
+      appState.openStackSelector = null;
+      render();
+      return;
+    }
     if (isMeasuring(shelf)) {
       event.preventDefault();
       event.stopPropagation();
@@ -2631,7 +2643,7 @@ function renderPlaceCanvas(shelf, kind, role = planRole(shelf)) {
         rectangle.dataset.dragged = 'false';
         return;
       }
-      selectOverlappingItem(shelf, item, renderedPackages);
+      openOverlappingItemSelector(shelf, item, renderedPackages);
     });
     canvas.append(rectangle);
     renderedPackages.push(displayItem);
@@ -2648,15 +2660,23 @@ function renderPlaceCanvas(shelf, kind, role = planRole(shelf)) {
   return canvas;
 }
 
-function selectOverlappingItem(shelf, clickedItem, previouslyRendered) {
-  const overlapping = previouslyRendered
-    .filter(item => String(item.id) !== String(clickedItem.id) && !isZoneItem(item) && !isDoorItem(item) && rectsOverlap(packageRect(item), packageRect(clickedItem)))
-    .reverse();
-  const choices = [clickedItem, ...overlapping];
-  const selectedId = els.packageId.value;
-  const selectedIndex = choices.findIndex(item => String(item.id) === String(selectedId));
-  const item = choices[(selectedIndex + 1) % choices.length];
-  selectCell(shelf, item.row_index, item.column_index, item);
+function openOverlappingItemSelector(shelf, clickedItem, renderedItems) {
+  const overlapping = renderedItems.filter(item => (
+    String(item.id) !== String(clickedItem.id) &&
+    !isZoneItem(item) &&
+    !isDoorItem(item) &&
+    rectsOverlap(packageRect(item), packageRect(clickedItem))
+  ));
+  if (!overlapping.length) {
+    appState.openStackSelector = null;
+    selectCell(shelf, clickedItem.row_index, clickedItem.column_index, clickedItem);
+    return;
+  }
+  appState.openStackSelector = {
+    shelfId: String(shelf.id),
+    itemId: String(clickedItem.id)
+  };
+  render();
 }
 
 function overlappingItemGroups(items) {
@@ -2684,13 +2704,15 @@ function overlappingItemGroups(items) {
 }
 
 function setupOverlappingItemFocus(canvas, shelf, items) {
+  const openSelector = appState.openStackSelector;
+  if (!openSelector || String(openSelector.shelfId) !== String(shelf.id)) return;
   const buttons = new Map(
     [...canvas.querySelectorAll('.package-rect[data-package-id]')]
       .map(button => [String(button.dataset.packageId), button])
   );
   const groups = overlappingItemGroups(items)
     .map(group => group.map(item => ({ item, button: buttons.get(String(item.id)) })).filter(entry => entry.button))
-    .filter(group => group.length > 1);
+    .filter(group => group.length > 1 && group.some(entry => String(entry.item.id) === String(openSelector.itemId)));
   if (!groups.length) return;
 
   groups.forEach(group => {
@@ -2707,9 +2729,21 @@ function setupOverlappingItemFocus(canvas, shelf, items) {
       selector.style.left = `${left}%`;
       selector.classList.add('stack-selector-left');
     }
-    const title = document.createElement('span');
-    title.textContent = `${group.length} items here`;
-    selector.append(title);
+    const header = document.createElement('div');
+    header.className = 'stack-selector-head';
+    header.innerHTML = `<span>${group.length} items here</span>`;
+    const cancelButton = document.createElement('button');
+    cancelButton.type = 'button';
+    cancelButton.className = 'stack-selector-cancel';
+    cancelButton.textContent = 'Cancel';
+    cancelButton.addEventListener('click', event => {
+      event.preventDefault();
+      event.stopPropagation();
+      appState.openStackSelector = null;
+      render();
+    });
+    header.append(cancelButton);
+    selector.append(header);
     group.forEach((entry, index) => {
       entry.button.classList.add('overlapping-item');
       const selectButton = document.createElement('button');
@@ -2720,6 +2754,7 @@ function setupOverlappingItemFocus(canvas, shelf, items) {
       selectButton.addEventListener('click', event => {
         event.preventDefault();
         event.stopPropagation();
+        appState.openStackSelector = null;
         selectCell(shelf, entry.item.row_index, entry.item.column_index, entry.item);
       });
       selector.append(selectButton);
