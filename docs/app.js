@@ -1268,7 +1268,7 @@ function selectedDraft() {
 }
 
 function selectedPackageDraft(item) {
-  if (!els.packageId.value || els.packageId.value !== item.id) return null;
+  if (!els.packageId.value || String(els.packageId.value) !== String(item.id)) return null;
   return {
     row: Number.parseInt(els.rowIndex.value, 10) || item.row_index,
     column: Number.parseInt(els.columnIndex.value, 10) || item.column_index,
@@ -2167,7 +2167,7 @@ function renderRackLevelDetail(shelf, level) {
   const renderedPackages = [];
   visiblePackages.forEach(item => {
     const rectangle = document.createElement('button');
-    const selectedPackage = els.packageId.value === item.id;
+    const selectedPackage = String(els.packageId.value) === String(item.id);
     const editDraft = selectedPackage ? selectedPackageDraft(item) : null;
     const displayItem = editDraft
       ? {
@@ -2565,7 +2565,7 @@ function renderPlaceCanvas(shelf, kind, role = planRole(shelf)) {
   const renderedPackages = [];
   orderedForStacking(shelf.packages).forEach(item => {
     const rectangle = document.createElement('button');
-    const selectedPackage = els.packageId.value === item.id;
+    const selectedPackage = String(els.packageId.value) === String(item.id);
     const editDraft = selectedPackage ? selectedPackageDraft(item) : null;
     const displayItem = editDraft
       ? {
@@ -2693,41 +2693,6 @@ function setupOverlappingItemFocus(canvas, shelf, items) {
     .filter(group => group.length > 1);
   if (!groups.length) return;
 
-  let activeGroup = null;
-  let activeIndex = 0;
-  let timer = null;
-  const show = () => {
-    groups.flat().forEach(entry => {
-      entry.button.classList.remove('stack-hover-focus');
-      entry.selectButton?.classList.remove('active');
-    });
-    if (!activeGroup) return;
-    activeGroup[activeIndex].button.classList.add('stack-hover-focus');
-    activeGroup[activeIndex].selectButton?.classList.add('active');
-  };
-  const stop = () => {
-    if (timer) window.clearInterval(timer);
-    timer = null;
-    activeGroup = null;
-    activeIndex = 0;
-    show();
-  };
-  const start = group => {
-    if (activeGroup === group) return;
-    stop();
-    activeGroup = group;
-    activeIndex = 0;
-    show();
-    timer = window.setInterval(() => {
-      if (!canvas.isConnected) {
-        stop();
-        return;
-      }
-      activeIndex = (activeIndex + 1) % activeGroup.length;
-      show();
-    }, 2000);
-  };
-
   groups.forEach(group => {
     const left = Math.min(...group.map(entry => Number.parseFloat(entry.button.style.left) || 0));
     const top = Math.min(...group.map(entry => Number.parseFloat(entry.button.style.top) || 0));
@@ -2743,43 +2708,24 @@ function setupOverlappingItemFocus(canvas, shelf, items) {
       selector.classList.add('stack-selector-left');
     }
     const title = document.createElement('span');
-    title.textContent = `${group.length} stacked items`;
+    title.textContent = `${group.length} items here`;
     selector.append(title);
     group.forEach((entry, index) => {
-      entry.button.classList.add('overlapping-item', 'stack-cycle-item');
-      entry.button.dataset.stackFocusLabel = displayPackageName(entry.item);
-      entry.button.addEventListener('pointerenter', () => start(group));
+      entry.button.classList.add('overlapping-item');
       const selectButton = document.createElement('button');
       selectButton.type = 'button';
-      selectButton.innerHTML = `<b>${index === 0 ? 'Bottom' : index === group.length - 1 ? 'Top' : index + 1}</b><small>${escapeHtml(displayPackageName(entry.item))}</small>`;
+      selectButton.classList.toggle('active', String(els.packageId.value) === String(entry.item.id));
+      const position = index === 0 ? 'Bottom' : index === group.length - 1 ? 'Top' : `Position ${index + 1}`;
+      selectButton.innerHTML = `<b>${escapeHtml(displayPackageName(entry.item))}</b><small>${position} · ${formatSizeCm(entry.item.width_units || 1, entry.item.depth_units || 1)}</small>`;
       selectButton.addEventListener('click', event => {
         event.preventDefault();
         event.stopPropagation();
         selectCell(shelf, entry.item.row_index, entry.item.column_index, entry.item);
       });
-      entry.selectButton = selectButton;
       selector.append(selectButton);
     });
-    selector.addEventListener('pointerenter', () => start(group));
     canvas.append(selector);
   });
-  canvas.addEventListener('click', event => {
-    if (!activeGroup || !event.target.closest('.stack-cycle-item')) return;
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    const { item } = activeGroup[activeIndex];
-    selectCell(shelf, item.row_index, item.column_index, item);
-  }, true);
-  canvas.addEventListener('pointermove', event => {
-    if (!activeGroup) return;
-    if (event.target.closest('.stack-selector')) return;
-    const underPointer = activeGroup.filter(({ button }) => {
-      const rect = button.getBoundingClientRect();
-      return event.clientX >= rect.left && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom;
-    });
-    if (underPointer.length < 2) stop();
-  });
-  canvas.addEventListener('pointerleave', stop);
 }
 
 function findFloorStackGroups(shelf) {
