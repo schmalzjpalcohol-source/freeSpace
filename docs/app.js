@@ -1693,8 +1693,7 @@ function render() {
   const shelfPlaces = appState.shelves.filter(shelf => placeKind(shelf) === 'shelf');
   const visibleShelves = appState.shelves;
   const selectedShelf = visibleShelves.find(shelf => String(shelf.id) === String(appState.activeAreaId))
-    || findPlanShelf(appState.activePlanRole, visibleShelves)
-    || visibleShelves[0];
+    || orderAreasWithChildren(visibleShelves)[0];
   els.summaryText.textContent = visibleShelves.length
     ? 'Free area, capacity, and volume are shown for the selected area below.'
     : 'No areas have been created yet.';
@@ -1833,12 +1832,12 @@ function findPlanShelf(role, shelves) {
 
 function renderPlanDrawing(shelfPlaces, floorPlaces) {
   const all = [...shelfPlaces, ...floorPlaces];
+  const orderedAreas = orderAreasWithChildren(all);
   const plan = document.createElement('section');
   plan.className = 'plan-drawing';
   if (all.length) {
     const selected = all.find(place => String(place.id) === String(appState.activeAreaId))
-      || findPlanShelf(appState.activePlanRole, all)
-      || all[0];
+      || orderedAreas[0];
     appState.activeAreaId = selected.id;
     const role = planPlaceRole(selected) || 'other';
     appState.activePlanRole = role;
@@ -2696,9 +2695,13 @@ function setupOverlappingItemFocus(canvas, shelf, items) {
   let activeIndex = 0;
   let timer = null;
   const show = () => {
-    groups.flat().forEach(entry => entry.button.classList.remove('stack-hover-focus'));
+    groups.flat().forEach(entry => {
+      entry.button.classList.remove('stack-hover-focus');
+      entry.selectButton?.classList.remove('active');
+    });
     if (!activeGroup) return;
     activeGroup[activeIndex].button.classList.add('stack-hover-focus');
+    activeGroup[activeIndex].selectButton?.classList.add('active');
   };
   const stop = () => {
     if (timer) window.clearInterval(timer);
@@ -2723,11 +2726,41 @@ function setupOverlappingItemFocus(canvas, shelf, items) {
     }, 2000);
   };
 
-  groups.forEach(group => group.forEach(entry => {
-    entry.button.classList.add('overlapping-item', 'stack-cycle-item');
-    entry.button.dataset.stackFocusLabel = displayPackageName(entry.item);
-    entry.button.addEventListener('pointerenter', () => start(group));
-  }));
+  groups.forEach(group => {
+    const left = Math.min(...group.map(entry => Number.parseFloat(entry.button.style.left) || 0));
+    const top = Math.min(...group.map(entry => Number.parseFloat(entry.button.style.top) || 0));
+    const right = Math.max(...group.map(entry => (Number.parseFloat(entry.button.style.left) || 0) + (Number.parseFloat(entry.button.style.width) || 0)));
+    const selector = document.createElement('div');
+    selector.className = 'stack-selector';
+    selector.style.top = `${top}%`;
+    if (right <= 72) {
+      selector.style.left = `${right}%`;
+      selector.classList.add('stack-selector-right');
+    } else {
+      selector.style.left = `${left}%`;
+      selector.classList.add('stack-selector-left');
+    }
+    const title = document.createElement('span');
+    title.textContent = `${group.length} stacked items`;
+    selector.append(title);
+    group.forEach((entry, index) => {
+      entry.button.classList.add('overlapping-item', 'stack-cycle-item');
+      entry.button.dataset.stackFocusLabel = displayPackageName(entry.item);
+      entry.button.addEventListener('pointerenter', () => start(group));
+      const selectButton = document.createElement('button');
+      selectButton.type = 'button';
+      selectButton.innerHTML = `<b>${index === 0 ? 'Bottom' : index === group.length - 1 ? 'Top' : index + 1}</b><small>${escapeHtml(displayPackageName(entry.item))}</small>`;
+      selectButton.addEventListener('click', event => {
+        event.preventDefault();
+        event.stopPropagation();
+        selectCell(shelf, entry.item.row_index, entry.item.column_index, entry.item);
+      });
+      entry.selectButton = selectButton;
+      selector.append(selectButton);
+    });
+    selector.addEventListener('pointerenter', () => start(group));
+    canvas.append(selector);
+  });
   canvas.addEventListener('click', event => {
     if (!activeGroup || !event.target.closest('.stack-cycle-item')) return;
     event.preventDefault();
@@ -2737,6 +2770,7 @@ function setupOverlappingItemFocus(canvas, shelf, items) {
   }, true);
   canvas.addEventListener('pointermove', event => {
     if (!activeGroup) return;
+    if (event.target.closest('.stack-selector')) return;
     const underPointer = activeGroup.filter(({ button }) => {
       const rect = button.getBoundingClientRect();
       return event.clientX >= rect.left && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom;
