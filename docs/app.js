@@ -2250,12 +2250,12 @@ function renderRackLevelDetail(shelf, level) {
         rectangle.dataset.dragged = 'false';
         return;
       }
-      selectCell(shelf, item.row_index, item.column_index, item);
+      selectOverlappingItem(shelf, item, renderedPackages);
     });
     canvas.append(rectangle);
     renderedPackages.push(displayItem);
   });
-  setupOverlappingItemFocus(canvas, renderedPackages);
+  setupOverlappingItemFocus(canvas, shelf, renderedPackages);
 
   const draft = selectedDraft();
   const draftVisibleInRange = draft && draft.shelf.id === shelf.id && packageInRackLevel({
@@ -2630,12 +2630,12 @@ function renderPlaceCanvas(shelf, kind, role = planRole(shelf)) {
         rectangle.dataset.dragged = 'false';
         return;
       }
-      selectCell(shelf, item.row_index, item.column_index, item);
+      selectOverlappingItem(shelf, item, renderedPackages);
     });
     canvas.append(rectangle);
     renderedPackages.push(displayItem);
   });
-  setupOverlappingItemFocus(canvas, renderedPackages);
+  setupOverlappingItemFocus(canvas, shelf, renderedPackages);
 
   if (!shelf.packages.length && (!draft || draft.shelf.id !== shelf.id)) {
     const empty = document.createElement('div');
@@ -2682,7 +2682,7 @@ function overlappingItemGroups(items) {
   return groups;
 }
 
-function setupOverlappingItemFocus(canvas, items) {
+function setupOverlappingItemFocus(canvas, shelf, items) {
   const buttons = new Map(
     [...canvas.querySelectorAll('.package-rect[data-package-id]')]
       .map(button => [String(button.dataset.packageId), button])
@@ -2725,8 +2725,16 @@ function setupOverlappingItemFocus(canvas, items) {
 
   groups.forEach(group => group.forEach(entry => {
     entry.button.classList.add('overlapping-item', 'stack-cycle-item');
+    entry.button.dataset.stackFocusLabel = displayPackageName(entry.item);
     entry.button.addEventListener('pointerenter', () => start(group));
   }));
+  canvas.addEventListener('click', event => {
+    if (!activeGroup || !event.target.closest('.stack-cycle-item')) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    const { item } = activeGroup[activeIndex];
+    selectCell(shelf, item.row_index, item.column_index, item);
+  }, true);
   canvas.addEventListener('pointermove', event => {
     if (!activeGroup) return;
     const underPointer = activeGroup.filter(({ button }) => {

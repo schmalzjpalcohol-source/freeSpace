@@ -1779,6 +1779,27 @@ select:hover {
     0 16px 34px rgba(20, 32, 34, 0.28);
 }
 
+.package-rect.stack-hover-focus::before {
+  content: "Active: " attr(data-stack-focus-label);
+  position: absolute;
+  left: 50%;
+  bottom: 6px;
+  z-index: 10;
+  max-width: calc(100% - 12px);
+  padding: 3px 6px;
+  border-radius: 5px;
+  background: rgba(20, 32, 34, 0.9);
+  color: #fff;
+  font-size: 0.66rem;
+  font-weight: 900;
+  line-height: 1.1;
+  overflow: hidden;
+  pointer-events: none;
+  text-overflow: ellipsis;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
 .stack-choice-dialog {
   width: min(420px, calc(100vw - 32px));
   border: 1px solid var(--line);
