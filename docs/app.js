@@ -638,7 +638,9 @@ function rackGlobalDraft(shelf, range, localDraft) {
 }
 
 function rackLevelRotated(range) {
-  return typeof range.rotated === 'boolean' ? range.rotated : range.width > range.height;
+  // Floor areas provide their own orientation. Rack levels keep their longest
+  // side horizontal, along the top/bottom edge, for a wider usable drawing.
+  return typeof range.rotated === 'boolean' ? range.rotated : range.height > range.width;
 }
 
 function rackVisualShelf(range) {
@@ -2158,7 +2160,7 @@ function renderRackLevelDetail(shelf, level) {
   let dragOrigin = null;
   let dragMoved = false;
   canvas.className = `rack-level-detail place-canvas ${range.short ? 'short-rack-detail' : ''}`;
-  canvas.classList.toggle('rack-level-portrait', rackLevelRotated(range));
+  canvas.classList.toggle('rack-level-portrait', visualShelf.columns < visualShelf.rows);
   canvas.style.setProperty('--cols', 1);
   canvas.style.setProperty('--rows', 1);
   canvas.style.aspectRatio = `${visualShelf.columns} / ${Math.max(1, visualShelf.rows)}`;
