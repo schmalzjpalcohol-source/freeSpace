@@ -275,6 +275,26 @@ select:focus-visible {
   padding: 16px;
   position: sticky;
   top: 16px;
+  max-height: calc(100dvh - 32px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+
+.panel::-webkit-scrollbar {
+  width: 7px;
+}
+
+.panel::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: var(--line-strong);
+}
+
+.panel::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .panel-head {
@@ -2650,6 +2670,9 @@ select:hover {
 
   .panel {
     position: static;
+    max-height: none;
+    overflow: visible;
+    scrollbar-gutter: auto;
   }
 
   .overview-cards,
