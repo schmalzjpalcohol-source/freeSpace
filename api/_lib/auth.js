@@ -64,7 +64,9 @@ function verifyToken(token) {
 function getUserFromRequest(req) {
   const authHeader = req.headers.authorization || '';
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
-  return verifyToken(token);
+  const user = verifyToken(token);
+  if (!user.sub) throw new Error('Invalid token subject');
+  return user;
 }
 
 module.exports = { getUserFromRequest, requiredEnv, signToken };

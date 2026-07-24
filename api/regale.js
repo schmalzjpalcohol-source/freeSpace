@@ -171,21 +171,21 @@ function packageRect(item) {
   };
 }
 
-async function findShelf(name) {
+async function findShelf(name, ownerId) {
   const encoded = encodeURIComponent(name);
-  const shelves = await supabaseFetch(`shelves?name=eq.${encoded}&select=*`);
+  const shelves = await supabaseFetch(`shelves?name=eq.${encoded}&owner_id=eq.${encodeURIComponent(ownerId)}&select=*`);
   return shelves[0] || null;
 }
 
-async function findShelfById(id) {
-  const shelves = await supabaseFetch(`shelves?id=eq.${encodeURIComponent(id)}&select=*`);
+async function findShelfById(id, ownerId) {
+  const shelves = await supabaseFetch(`shelves?id=eq.${encodeURIComponent(id)}&owner_id=eq.${encodeURIComponent(ownerId)}&select=*`);
   return shelves[0] || null;
 }
 
-async function ensureShelf(body) {
+async function ensureShelf(body, ownerId) {
   const shelfId = String(body.shelfId || '').trim();
   if (shelfId) {
-    const shelf = await findShelfById(shelfId);
+    const shelf = await findShelfById(shelfId, ownerId);
     if (!shelf) {
       const error = new Error('The selected area no longer exists. Reload the page.');
       error.status = 404;
@@ -198,7 +198,7 @@ async function ensureShelf(body) {
       if (requiredRows > shelf.rows || requiredColumns > shelf.columns) {
         const rows = Math.max(shelf.rows || 1, requiredRows);
         const columns = Math.max(shelf.columns || 1, requiredColumns);
-        const updated = await supabaseFetch(`shelves?id=eq.${encodeURIComponent(shelf.id)}`, {
+        const updated = await supabaseFetch(`shelves?id=eq.${encodeURIComponent(shelf.id)}&owner_id=eq.${encodeURIComponent(ownerId)}`, {
           method: 'PATCH',
           body: JSON.stringify({ rows, columns })
         });
@@ -217,12 +217,12 @@ async function ensureShelf(body) {
   const rows = metersToCm(body.shelfRows, 4);
   const columns = metersToCm(body.shelfColumns, 8);
   const locationType = body.locationType === 'floor' ? 'floor' : 'shelf';
-  const existing = await findShelf(shelfName);
+  const existing = await findShelf(shelfName, ownerId);
   if (existing) {
     const nextRows = Math.max(existing.rows || 1, rows);
     const nextColumns = Math.max(existing.columns || 1, columns);
     if (nextRows !== existing.rows || nextColumns !== existing.columns || existing.location_type !== locationType) {
-      const updated = await supabaseFetch(`shelves?id=eq.${encodeURIComponent(existing.id)}`, {
+      const updated = await supabaseFetch(`shelves?id=eq.${encodeURIComponent(existing.id)}&owner_id=eq.${encodeURIComponent(ownerId)}`, {
         method: 'PATCH',
         body: JSON.stringify({
           rows: nextRows,
@@ -243,7 +243,8 @@ async function ensureShelf(body) {
       location_type: locationType,
       rows,
       columns,
-      notes: ''
+      notes: '',
+      owner_id: ownerId
     })
   });
   return created[0];
@@ -267,7 +268,7 @@ function buildOverview(shelves, packages) {
   });
 }
 
-async function assertPlaceFree(shelf, candidate, excludeId) {
+async function assertPlaceFree(shelf, candidate, ownerId, excludeId) {
   if (candidate.rowIndex + candidate.depthUnits - 1 > shelf.rows || candidate.columnIndex + candidate.widthUnits - 1 > shelf.columns) {
     const error = new Error('The item does not fit in this area.');
     error.status = 400;
@@ -284,7 +285,7 @@ async function assertPlaceFree(shelf, candidate, excludeId) {
     }
   }
 
-  const shelfPackages = await supabaseFetch(`packages?shelf_id=eq.${shelf.id}&select=id,row_index,column_index,width_units,depth_units,package_name,quantity,note`);
+  const shelfPackages = await supabaseFetch(`packages?shelf_id=eq.${encodeURIComponent(shelf.id)}&owner_id=eq.${encodeURIComponent(ownerId)}&select=id,row_index,column_index,width_units,depth_units,package_name,quantity,note`);
   const overlappingPackages = shelfPackages.filter(item => (
     item.id !== excludeId &&
     overlaps(candidate, packageRect(item))
@@ -333,15 +334,16 @@ module.exports = async function handler(req, res) {
 
   try {
     if (req.method === 'GET') {
-      const shelves = await supabaseFetch('shelves?select=*&order=name.asc');
-      const packages = await supabaseFetch('packages?select=*&order=shelf_name.asc,row_index.asc,column_index.asc,created_at.asc');
+      const ownerId = encodeURIComponent(user.sub);
+      const shelves = await supabaseFetch(`shelves?owner_id=eq.${ownerId}&select=*&order=name.asc`);
+      const packages = await supabaseFetch(`packages?owner_id=eq.${ownerId}&select=*&order=shelf_name.asc,row_index.asc,column_index.asc,created_at.asc`);
       json(res, 200, { shelves: buildOverview(shelves, packages), user });
       return;
     }
 
     if (req.method === 'POST') {
       const body = await readBody(req);
-      const shelf = await ensureShelf(body);
+      const shelf = await ensureShelf(body, user.sub);
       const widthUnits = metersToCm(body.widthUnits, 1, shelf.columns / 100);
       const depthUnits = metersToCm(body.depthUnits, 1, shelf.rows / 100);
       const rowIndex = cmBetween(body.rowIndex, 1, Math.max(1, shelf.rows - depthUnits + 1), 1);
@@ -359,7 +361,7 @@ module.exports = async function handler(req, res) {
         note = noteWithZoneHeight(note, shelf, { rowIndex, columnIndex });
       }
 
-      await assertPlaceFree(shelf, { rowIndex, columnIndex, widthUnits, depthUnits, packageName, quantity, note });
+      await assertPlaceFree(shelf, { rowIndex, columnIndex, widthUnits, depthUnits, packageName, quantity, note }, user.sub);
 
       const inserted = await supabaseFetch('packages', {
         method: 'POST',
@@ -373,6 +375,7 @@ module.exports = async function handler(req, res) {
           package_name: packageName,
           quantity,
           note,
+          owner_id: user.sub,
           created_by: user.sub,
           created_by_login: user.login
         })
@@ -389,7 +392,7 @@ module.exports = async function handler(req, res) {
         return;
       }
 
-      const shelf = await ensureShelf(body);
+      const shelf = await ensureShelf(body, user.sub);
       const widthUnits = metersToCm(body.widthUnits, 1, shelf.columns / 100);
       const depthUnits = metersToCm(body.depthUnits, 1, shelf.rows / 100);
       const rowIndex = cmBetween(body.rowIndex, 1, Math.max(1, shelf.rows - depthUnits + 1), 1);
@@ -408,9 +411,9 @@ module.exports = async function handler(req, res) {
         note = noteWithZoneHeight(note, shelf, { rowIndex, columnIndex });
       }
 
-      await assertPlaceFree(shelf, { rowIndex, columnIndex, widthUnits, depthUnits, packageName, quantity, note }, id);
+      await assertPlaceFree(shelf, { rowIndex, columnIndex, widthUnits, depthUnits, packageName, quantity, note }, user.sub, id);
 
-      const updated = await supabaseFetch(`packages?id=eq.${encodeURIComponent(id)}`, {
+      const updated = await supabaseFetch(`packages?id=eq.${encodeURIComponent(id)}&owner_id=eq.${encodeURIComponent(user.sub)}`, {
         method: 'PATCH',
         body: JSON.stringify({
           shelf_id: shelf.id,
@@ -425,6 +428,10 @@ module.exports = async function handler(req, res) {
           updated_at: new Date().toISOString()
         })
       });
+      if (!updated.length) {
+        json(res, 404, { error: 'The selected item no longer exists.' });
+        return;
+      }
       json(res, 200, { package: updated[0] });
       return;
     }
@@ -435,7 +442,11 @@ module.exports = async function handler(req, res) {
         json(res, 400, { error: 'id is required' });
         return;
       }
-      await supabaseFetch(`packages?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE' });
+      const deleted = await supabaseFetch(`packages?id=eq.${encodeURIComponent(id)}&owner_id=eq.${encodeURIComponent(user.sub)}`, { method: 'DELETE' });
+      if (!deleted.length) {
+        json(res, 404, { error: 'The selected item no longer exists.' });
+        return;
+      }
       json(res, 200, { ok: true });
       return;
     }

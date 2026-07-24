@@ -60,8 +60,8 @@ function placePayload(body) {
   };
 }
 
-async function packagesForPlace(id) {
-  return supabaseFetch(`packages?shelf_id=eq.${encodeURIComponent(id)}&select=id,row_index,column_index,width_units,depth_units,package_name,quantity,note`);
+async function packagesForPlace(id, ownerId) {
+  return supabaseFetch(`packages?shelf_id=eq.${encodeURIComponent(id)}&owner_id=eq.${encodeURIComponent(ownerId)}&select=id,row_index,column_index,width_units,depth_units,package_name,quantity,note`);
 }
 
 function areaMaxHeightCm(notes, fallback = 220) {
@@ -171,13 +171,13 @@ function assertPackagesFitCustomRack(packages, place) {
   }
 }
 
-async function syncZoneHeights(packages, place) {
+async function syncZoneHeights(packages, place, ownerId) {
   for (const item of packages.filter(zoneKind)) {
     const customLevel = rackLayoutFromNotes(place.notes).find(level => item.row_index >= level.start && item.row_index <= level.end && item.column_index <= level.width);
     const structuredRack = !customLevel && place.location_type !== 'floor' && Math.abs((place.rows || 0) - 450) <= 2 && Math.abs((place.columns || 0) - 600) <= 2;
     const smallRack = structuredRack && item.row_index >= 361 && item.column_index >= Math.max(1, place.columns - 149);
     const maxHeight = customLevel?.height || (smallRack ? 16 : areaMaxHeightCm(place.notes, place.location_type === 'floor' ? 220 : 65));
-    await supabaseFetch(`packages?id=eq.${encodeURIComponent(item.id)}`, {
+    await supabaseFetch(`packages?id=eq.${encodeURIComponent(item.id)}&owner_id=eq.${encodeURIComponent(ownerId)}`, {
       method: 'PATCH',
       body: JSON.stringify({ note: noteWithHeight(item.note, Math.min(itemHeightCm(item, maxHeight), maxHeight)) })
     });
@@ -204,8 +204,9 @@ module.exports = async function handler(req, res) {
     return;
   }
 
+  let user;
   try {
-    getUserFromRequest(req);
+    user = getUserFromRequest(req);
   } catch (error) {
     json(res, 401, { error: 'Please log in again.' });
     return;
@@ -213,8 +214,9 @@ module.exports = async function handler(req, res) {
 
   try {
     if (req.method === 'GET') {
-      const places = await supabaseFetch('shelves?select=*&order=location_type.asc,name.asc');
-      const packages = await supabaseFetch('packages?select=shelf_id,width_units,depth_units,package_name,note');
+      const ownerId = encodeURIComponent(user.sub);
+      const places = await supabaseFetch(`shelves?owner_id=eq.${ownerId}&select=*&order=location_type.asc,name.asc`);
+      const packages = await supabaseFetch(`packages?owner_id=eq.${ownerId}&select=shelf_id,width_units,depth_units,package_name,note`);
       const enriched = places.map(place => {
         const placePackages = packages.filter(item => item.shelf_id === place.id);
         const usedPlaces = placePackages
@@ -238,7 +240,7 @@ module.exports = async function handler(req, res) {
       const body = await readBody(req);
       const created = await supabaseFetch('shelves', {
         method: 'POST',
-        body: JSON.stringify(placePayload(body))
+        body: JSON.stringify({ ...placePayload(body), owner_id: user.sub })
       });
       json(res, 201, { place: created[0] });
       return;
@@ -253,20 +255,24 @@ module.exports = async function handler(req, res) {
       }
 
       const payload = placePayload(body);
-      const packages = await packagesForPlace(id);
+      const packages = await packagesForPlace(id, user.sub);
       assertPackagesStillFit(packages, payload.rows, payload.columns);
       assertPackagesHeightFit(packages, payload);
       assertPackagesFitCustomRack(packages, payload);
 
-      const updated = await supabaseFetch(`shelves?id=eq.${encodeURIComponent(id)}`, {
+      const updated = await supabaseFetch(`shelves?id=eq.${encodeURIComponent(id)}&owner_id=eq.${encodeURIComponent(user.sub)}`, {
         method: 'PATCH',
         body: JSON.stringify(payload)
       });
-      await supabaseFetch(`packages?shelf_id=eq.${encodeURIComponent(id)}`, {
+      if (!updated.length) {
+        json(res, 404, { error: 'The selected area no longer exists.' });
+        return;
+      }
+      await supabaseFetch(`packages?shelf_id=eq.${encodeURIComponent(id)}&owner_id=eq.${encodeURIComponent(user.sub)}`, {
         method: 'PATCH',
         body: JSON.stringify({ shelf_name: payload.name })
       });
-      await syncZoneHeights(packages, payload);
+      await syncZoneHeights(packages, payload, user.sub);
       json(res, 200, { place: updated[0] });
       return;
     }
@@ -278,13 +284,17 @@ module.exports = async function handler(req, res) {
         return;
       }
 
-      const packages = await packagesForPlace(id);
+      const packages = await packagesForPlace(id, user.sub);
       if (packages.length) {
         json(res, 409, { error: 'The area can only be deleted after all items have been removed from it.' });
         return;
       }
 
-      await supabaseFetch(`shelves?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE' });
+      const deleted = await supabaseFetch(`shelves?id=eq.${encodeURIComponent(id)}&owner_id=eq.${encodeURIComponent(user.sub)}`, { method: 'DELETE' });
+      if (!deleted.length) {
+        json(res, 404, { error: 'The selected area no longer exists.' });
+        return;
+      }
       json(res, 200, { ok: true });
       return;
     }
