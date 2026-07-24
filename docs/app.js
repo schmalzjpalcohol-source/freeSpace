@@ -1864,8 +1864,14 @@ function renderPlanDrawing(shelfPlaces, floorPlaces) {
     plan.append(renderAreaSwitcher(all, selected));
     plan.append(renderPlanSlot(role, selected));
   } else {
-    plan.append(renderPlanSwitcher());
-    plan.append(renderPlanSlot(appState.activePlanRole, null));
+    const empty = document.createElement('section');
+    empty.className = 'empty-account';
+    empty.innerHTML = `
+      <h2>No areas yet</h2>
+      <p>This account has its own empty workspace. Create the first rack or floor area to get started.</p>
+    `;
+    empty.append(renderAddAreaControl());
+    plan.append(empty);
   }
   els.shelves.append(plan);
 }

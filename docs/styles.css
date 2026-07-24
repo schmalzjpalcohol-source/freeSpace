@@ -974,6 +974,32 @@ select:hover {
   background: transparent;
 }
 
+.empty-account {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 48px 20px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  text-align: center;
+}
+
+.empty-account h2,
+.empty-account p {
+  margin: 0;
+}
+
+.empty-account p {
+  max-width: 540px;
+  color: var(--muted);
+}
+
+.empty-account .add-area-control {
+  width: min(280px, 100%);
+  margin-top: 8px;
+}
+
 .plan-switcher {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
